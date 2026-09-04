@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dinamo Rent a Car | Alquiler de Autos en Cartagena de Indias</title>
+  <meta name="description" content="Renta de autos y camionetas en Cartagena. Entregas en el Aeropuerto Rafael Núñez, Bocagrande y Centro Histórico. Reserva online con firma digital y garantía protegida.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Estilos Principales -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ================= TOP NOTIFICATION / HEADER ================= -->
+  <header class="navbar-container">
+    <div class="top-bar">
+      <div class="container top-bar-content">
+        <div class="top-bar-info">
+          <span><i class="fa-solid fa-location-dot text-orange"></i> Cartagena de Indias, Colombia</span>
+          <span class="divider">•</span>
+          <span><i class="fa-solid fa-shield-halved text-cyan"></i> Garantía Bancaria Segura (PayU / Wompi)</span>
+          <span class="divider">•</span>
+          <span><i class="fa-solid fa-plane-arrival text-orange"></i> Entrega en Aeropuerto Rafael Núñez</span>
+        </div>
+        <div class="top-bar-actions">
+          <div class="currency-selector">
+            <span class="currency-label">Moneda:</span>
+            <button class="currency-btn active" data-currency="COP">COP ($)</button>
+            <button class="currency-btn" data-currency="USD">USD ($)</button>
+          </div>
+          <button id="toggle-erp-view-btn" class="erp-switch-btn" title="Alternar entre la vista del cliente web y el ERP de mostrador">
+            <i class="fa-solid fa-desktop"></i> <span id="erp-switch-label">Vista Asesor ERP</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Navigation Bar -->
+    <nav class="main-nav">
+      <div class="container nav-content">
+        <a href="#" class="brand-logo" id="logo-home">
+          <!-- Vector Logo Dinamo Rent a Car -->
+          <div class="logo-shield">
+            <svg viewBox="0 0 120 140" width="44" height="52" class="logo-svg">
+              <defs>
+                <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0A2540"/>
+                  <stop offset="100%" stop-color="#001428"/>
+                </linearGradient>
+                <linearGradient id="neonCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#00D2FF"/>
+                  <stop offset="100%" stop-color="#0080FF"/>
+                </linearGradient>
+                <linearGradient id="orangeSpeed" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#FF8C00"/>
+                  <stop offset="100%" stop-color="#FF5500"/>
+                </linearGradient>
+              </defs>
+              <!-- Escudo -->
+              <path d="M60 4 L112 24 L102 96 C98 120 60 136 60 136 C60 136 22 120 18 96 L8 24 Z" fill="url(#shieldGrad)" stroke="#FF6B00" stroke-width="4"/>
+              <path d="M60 12 L104 28 L96 92 C92 112 60 126 60 126 C60 126 28 112 24 92 L16 28 Z" fill="#F8FAFC" stroke="#00D2FF" stroke-width="1.5"/>
+              <!-- Tacómetro -->
+              <path d="M36 68 A28 28 0 0 1 84 68" fill="none" stroke="url(#orangeSpeed)" stroke-width="6" stroke-linecap="round"/>
+              <circle cx="60" cy="68" r="5" fill="#0A2540" stroke="#FF6B00" stroke-width="2"/>
+              <line x1="60" y1="68" x2="76" y2="54" stroke="#FF5500" stroke-width="4" stroke-linecap="round"/>
+              <!-- Texto DINAMO -->
+              <text x="60" y="94" font-family="'Outfit', sans-serif" font-weight="900" font-size="16" fill="#0A2540" text-anchor="middle" letter-spacing="0.5">DINAMO</text>
+              <text x="60" y="108" font-family="'Plus Jakarta Sans', sans-serif" font-weight="700" font-size="9" fill="#0080FF" text-anchor="middle">Rent a Car</text>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-name">DINAMO</span>
+            <span class="brand-tagline">Rent a Car Cartagena</span>
+          </div>
+        </a>
+
+        <div class="nav-links">
+          <a href="#flota" class="nav-link active">Nuestra Flota</a>
+          <a href="#proceso" class="nav-link">¿Cómo Funciona?</a>
+          <a href="#garantias" class="nav-link">Garantías & Pagos</a>
+          <a href="#contacto" class="nav-link">Ubicaciones</a>
+        </div>
+
+        <div class="nav-cta">
+          <a href="https://wa.me/573000000000?text=Hola%20Dinamo%20Rent%20a%20Car,%20deseo%20cotizar%20un%20vehículo" target="_blank" class="btn-whatsapp">
+            <i class="fa-brands fa-whatsapp"></i> <span>WhatsApp Directo</span>
+          </a>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ================= VISTA CLIENTE (PORTAL WEB) ================= -->
+  <main id="client-view">
+    
+    <!-- Hero Section con Buscador -->
+    <section class="hero-section">
+      <div class="hero-backdrop"></div>
+      <div class="container hero-content">
+        <div class="hero-badge">
+          <i class="fa-solid fa-star text-orange"></i> La rentadora con mejor servicio en Cartagena de Indias
+        </div>
+        <h1 class="hero-title">
+          Alquila el auto ideal para recorrer <span class="highlight-text">Cartagena y la Costa</span>
+        </h1>
+        <p class="hero-subtitle">
+          Flota moderna, entrega directa en el <b>Aeropuerto Rafael Núñez</b> o tu hotel, tarifas transparentes con seguro de lucro cesante y reserva segura con firma digital.
+        </p>
+
+        <!-- Buscador Inteligente -->
+        <div class="search-box-card">
+          <div class="search-box-header">
+            <div class="search-tab active"><i class="fa-solid fa-car-side"></i> Cotizar Alquiler de Auto</div>
+            <div class="search-note"><i class="fa-solid fa-bolt text-orange"></i> Confirmación Rápida & Sin Cobros Ocultos</div>
+          </div>
+          
+          <form id="booking-search-form" class="search-grid">
+            <!-- Lugar de Recogida -->
+            <div class="form-group">
+              <label><i class="fa-solid fa-map-pin text-orange"></i> Lugar de Recogida</label>
+              <select id="pickup-location" class="form-control" required>
+                <option value="aeropuerto" selected>Aeropuerto Rafael Núñez (CTG)</option>
+                <option value="bocagrande">Bocagrande / El Laguito</option>
+                <option value="centro">Centro Histórico / Getsemaní</option>
+                <option value="zona_norte">Zona Norte / Hoteles Manzanillo</option>
+                <option value="oficina">Oficina Principal Dinamo Rent</option>
+              </select>
+            </div>
+
+            <!-- Lugar de Devolución -->
+            <div class="form-group">
+              <label><i class="fa-solid fa-location-arrow text-cyan"></i> Lugar de Devolución</label>
+              <select id="return-location" class="form-control" required>
+                <option value="aeropuerto" selected>Mismo lugar de recogida</option>
+                <option value="aeropuerto_ret">Aeropuerto Rafael Núñez (CTG)</option>
+                <option value="bocagrande_ret">Bocagrande / El Laguito</option>
+                <option value="centro_ret">Centro Histórico / Getsemaní</option>
+                <option value="zona_norte_ret">Zona Norte / Manzanillo</option>
+                <option value="oficina_ret">Oficina Principal Dinamo Rent</option>
+              </select>
+            </div>
+
+            <!-- Fecha y Hora Recogida -->
+            <div class="form-group">
+              <label><i class="fa-regular fa-calendar-check text-orange"></i> Fecha y Hora de Recogida</label>
+              <div class="datetime-row">
+                <input type="date" id="pickup-date" class="form-control" required>
+                <input type="time" id="pickup-time" class="form-control" value="10:00" required>
+              </div>
+            </div>
+
+            <!-- Fecha y Hora Devolución -->
+            <div class="form-group">
+              <label><i class="fa-regular fa-calendar-xmark text-cyan"></i> Fecha y Hora de Devolución</label>
+              <div class="datetime-row">
+                <input type="date" id="return-date" class="form-control" required>
+                <input type="time" id="return-time" class="form-control" value="10:00" required>
+              </div>
+            </div>
+
+            <!-- Botón Buscar -->
+            <div class="form-group form-group-btn">
+              <button type="submit" class="btn-search-vehicles">
+                <i class="fa-solid fa-magnifying-glass"></i> Ver Autos Disponibles
+              </button>
+            </div>
+          </form>
+
+          <!-- Resumen rápido de días -->
+          <div class="search-summary-bar" id="search-summary-bar">
+            <span><i class="fa-solid fa-clock"></i> Duración seleccionada: <strong id="calculated-days">3 días</strong></span>
+            <span class="bullet">•</span>
+            <span><i class="fa-solid fa-shield"></i> Incluye asistencia en carretera 24/7 en Bolívar</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Beneficios Bar -->
+    <section class="perks-section">
+      <div class="container perks-grid">
+        <div class="perk-card">
+          <div class="perk-icon"><i class="fa-solid fa-plane-departure"></i></div>
+          <div class="perk-info">
+            <h4>Entrega Inmediata en Aeropuerto</h4>
+            <p>Te esperamos en la salida de vuelos con tu vehículo listo y limpio.</p>
+          </div>
+        </div>
+        <div class="perk-card">
+          <div class="perk-icon perk-orange"><i class="fa-solid fa-signature"></i></div>
+          <div class="perk-info">
+            <h4>Check-in & Firma Digital</h4>
+            <p>Firma tu contrato con el dedo en tu celular en menos de 2 minutos.</p>
+          </div>
+        </div>
+        <div class="perk-card">
+          <div class="perk-icon perk-cyan"><i class="fa-solid fa-credit-card"></i></div>
+          <div class="perk-info">
+            <h4>Garantía Protegida (Pre-autorización)</h4>
+            <p>Bloqueo seguro con PayU/Wompi que se libera de inmediato al devolver.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Catálogo de Flota -->
+    <section id="flota" class="fleet-section">
+      <div class="container">
+        <div class="section-header text-center">
+          <span class="section-badge">FLOTA DINAMO RENT</span>
+          <h2 class="section-title">Elige el Vehículo Perfecto para tu Estadía</h2>
+          <p class="section-subtitle">Autos inspeccionados, con aire acondicionado potente, SOAT y póliza vigente.</p>
+          
+          <!-- Filtros de Categoría -->
+          <div class="category-filters" id="category-filters">
+            <button class="filter-btn active" data-category="all">Todos los Vehículos</button>
+            <button class="filter-btn" data-category="economico">Económicos & Compactos</button>
+            <button class="filter-btn" data-category="sedan">Sedanes Familiares</button>
+            <button class="filter-btn" data-category="suv">SUVs & Camionetas</button>
+            <button class="filter-btn" data-category="premium">4x4 & Gama Alta</button>
+          </div>
+        </div>
+
+        <!-- Grid de Vehículos -->
+        <div class="fleet-grid" id="fleet-grid">
+          <!-- Generado dinámicamente por app.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Sección Cómo Funciona (Flujo On-Request) -->
+    <section id="proceso" class="how-it-works-section">
+      <div class="container">
+        <div class="section-header text-center">
+          <span class="section-badge">TRANSPARENCIA TOTAL</span>
+          <h2 class="section-title">¿Cómo Funciona el Proceso de Reserva?</h2>
+          <p class="section-subtitle">Diseñado para que tengas certeza de tu auto sin riesgos ni cobros sorpresa.</p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-icon"><i class="fa-solid fa-calendar-days"></i></div>
+            <h3>1. Eliges Fechas y Vehículo</h3>
+            <p>Seleccionas el modelo deseado y envías tu solicitud de reserva en línea sin necesidad de pagar de inmediato.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-icon"><i class="fa-solid fa-user-check"></i></div>
+            <h3>2. Confirmación de Unidad</h3>
+            <p>Nuestro equipo de mostrador valida la disponibilidad física y te envía la confirmación con tu enlace seguro.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-icon"><i class="fa-solid fa-file-signature"></i></div>
+            <h3>3. Check-in & Firma Digital</h3>
+            <p>Cargas fotos de tu licencia/cédula, ingresas la tarjeta para la garantía y firmas con el dedo en tu pantalla.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">4</div>
+            <div class="step-icon"><i class="fa-solid fa-key"></i></div>
+            <h3>4. ¡Recibe y Disfruta!</h3>
+            <p>Te entregamos el auto en el aeropuerto u hotel con tanque lleno. Al devolver, tu garantía se libera al instante.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sección Garantías y Pagos (Explicación Estilo AOA) -->
+    <section id="garantias" class="guarantee-section">
+      <div class="container guarantee-container">
+        <div class="guarantee-content">
+          <span class="section-badge">SEGURIDAD FINANCIERA</span>
+          <h2 class="section-title">¿Cómo Manejamos el Depósito de Garantía?</h2>
+          <p class="guarantee-desc">
+            Al igual que las rentadoras y cadenas hoteleras internacionales, en Dinamo Rent a Car utilizamos un sistema de <b>Pre-autorización (Bloqueo Preventivo de Cupo)</b> a través de pasarelas bancarias certificadas (PayU / Wompi).
+          </p>
+
+          <div class="guarantee-highlights">
+            <div class="highlight-item">
+              <div class="highlight-icon"><i class="fa-solid fa-lock text-orange"></i></div>
+              <div>
+                <h4>No es un cobro definitivo</h4>
+                <p>El dinero permanece bajo el control de tu banco, únicamente se congela temporalmente como respaldo.</p>
+              </div>
+            </div>
+
+            <div class="highlight-item">
+              <div class="highlight-icon"><i class="fa-solid fa-hand-holding-dollar text-cyan"></i></div>
+              <div>
+                <h4>Liberación Inmediata al Devolver</h4>
+                <p>Al entregar el vehículo conforme a la inspección, nuestro sistema envía la orden de desbloqueo al instante.</p>
+              </div>
+            </div>
+
+            <div class="highlight-item">
+              <div class="highlight-icon"><i class="fa-solid fa-certificate text-green"></i></div>
+              <div>
+                <h4>Contrato con Respaldo Legal (Ley 527/1999)</h4>
+                <p>Recibes tu contrato oficial con firma electrónica y sellos de seguridad directamente en tu correo electrónico.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="guarantee-faq-card">
+          <h3>Preguntas Frecuentes</h3>
+          
+          <div class="faq-accordion">
+            <div class="faq-item active">
+              <div class="faq-question">
+                <span>¿Qué requisitos necesito para alquilar?</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </div>
+              <div class="faq-answer">
+                <p>Cédula de ciudadanía o pasaporte vigente, licencia de conducción vigente (nacional o extranjera) y una tarjeta de crédito para el bloqueo de la garantía.</p>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <div class="faq-question">
+                <span>¿Cuánto tarda el banco en reflejar el cupo liberado?</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </div>
+              <div class="faq-answer">
+                <p>Dinamo Rent procesa la orden de liberación al momento de la devolución. Los bancos suelen reflejar el saldo en un plazo de 3 a 8 días hábiles según la entidad emisora.</p>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <div class="faq-question">
+                <span>¿Puedo pagar el alquiler con PSE o Nequi?</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </div>
+              <div class="faq-answer">
+                <p>¡Sí! El valor del alquiler puedes pagarlo mediante PSE, Nequi, Tarjeta Débito o Transferencia Bancolombia. La tarjeta de crédito solo se requiere para el bloqueo de la garantía.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer id="contacto" class="main-footer">
+      <div class="container footer-grid">
+        <div class="footer-col brand-col">
+          <div class="footer-logo">
+            <span class="brand-name">DINAMO</span>
+            <span class="brand-tagline">Rent a Car Cartagena</span>
+          </div>
+          <p>Líderes en servicio personalizado de alquiler de vehículos en Cartagena de Indias. Experiencia, seguridad y confort para tus viajes de descanso o negocios.</p>
+          <div class="footer-socials">
+            <a href="#"><i class="fa-brands fa-instagram"></i></a>
+            <a href="#"><i class="fa-brands fa-facebook"></i></a>
+            <a href="#"><i class="fa-brands fa-whatsapp"></i></a>
+          </div>
+        </div>
+
+        <div class="footer-col">
+          <h4>Puntos de Entrega</h4>
+          <ul>
+            <li><i class="fa-solid fa-location-dot text-orange"></i> Aeropuerto Rafael Núñez (CTG)</li>
+            <li><i class="fa-solid fa-location-dot text-orange"></i> Bocagrande / Castillogrande</li>
+            <li><i class="fa-solid fa-location-dot text-orange"></i> Centro Histórico & Getsemaní</li>
+            <li><i class="fa-solid fa-location-dot text-orange"></i> Hoteles Zona Norte & Manzanillo</li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Atención & Soporte</h4>
+          <ul>
+            <li><i class="fa-solid fa-phone"></i> +57 (300) 000-0000</li>
+            <li><i class="fa-solid fa-envelope"></i> reservas@dinamorentacar.com</li>
+            <li><i class="fa-solid fa-clock"></i> Lunes a Domingo: 6:00 AM - 10:00 PM</li>
+            <li><i class="fa-solid fa-headset"></i> Asistencia 24/7 en Carretera</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="container footer-bottom-content">
+          <p>© 2026 Dinamo Rent a Car. Todos los derechos reservados. Desarrollado por CORJAR Computers Solutions.</p>
+          <div class="footer-bottom-links">
+            <a href="#">Términos y Condiciones</a>
+            <a href="#">Política de Privacidad</a>
+            <a href="#">Habeas Data (Ley 1581)</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+
+
+  <!-- ================= MODAL: DETALLE, COTIZACIÓN & CHECK-IN DIGITAL ================= -->
+  <div id="booking-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <h3 id="modal-vehicle-title">Chevrolet Onix Turbo Automático</h3>
+          <span class="modal-vehicle-badge" id="modal-vehicle-category">Económico • 2024</span>
+        </div>
+        <button class="modal-close-btn" id="close-modal-btn">&times;</button>
+      </div>
+
+      <!-- Pasos del Modal -->
+      <div class="modal-steps-indicator">
+        <div class="step-dot active" id="dot-step-1"><span>1</span> Cotización</div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="dot-step-2"><span>2</span> Conductor</div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="dot-step-3"><span>3</span> Firma & Garantía</div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="dot-step-4"><span>4</span> Contrato PDF</div>
+      </div>
+
+      <div class="modal-body">
+        
+        <!-- STEP 1: CONFIGURACIÓN Y COTIZADOR -->
+        <div class="modal-step-content active" id="modal-step-1">
+          <div class="quote-grid">
+            <div class="vehicle-preview-col">
+              <img src="" id="modal-vehicle-img" alt="Auto" class="modal-vehicle-photo">
+              
+              <div class="vehicle-specs-pills">
+                <span id="spec-passengers"><i class="fa-solid fa-user-group"></i> 5 Pasajeros</span>
+                <span id="spec-transmission"><i class="fa-solid fa-gears"></i> Automático</span>
+                <span id="spec-luggage"><i class="fa-solid fa-suitcase"></i> 2 Maletas</span>
+                <span id="spec-fuel"><i class="fa-solid fa-gas-pump"></i> Gasolina</span>
+              </div>
+
+              <div class="pickup-summary-box">
+                <h4><i class="fa-solid fa-route text-orange"></i> Itinerario en Cartagena</h4>
+                <p><strong>Recogida:</strong> <span id="summary-pickup-place">Aeropuerto Rafael Núñez</span> (<span id="summary-pickup-date">17 Ago 2026, 10:00 AM</span>)</p>
+                <p><strong>Devolución:</strong> <span id="summary-return-place">Aeropuerto Rafael Núñez</span> (<span id="summary-return-date">20 Ago 2026, 10:00 AM</span>)</p>
+                <p class="text-highlight"><strong>Total Días:</strong> <span id="summary-rental-days">3 días</span></p>
+              </div>
+            </div>
+
+            <div class="quote-options-col">
+              <h4><i class="fa-solid fa-sliders text-cyan"></i> Personaliza tu Paquete</h4>
+              
+              <!-- Extras Opcionales -->
+              <div class="extras-list">
+                <label class="extra-option-card">
+                  <input type="checkbox" id="extra-insurance" checked>
+                  <div class="extra-info">
+                    <span class="extra-name">Póliza de Lucro Cesante & Cobertura Total</span>
+                    <span class="extra-desc">Protección contra daños a terceros y exoneración de lucro cesante.</span>
+                  </div>
+                  <span class="extra-price">+$40.000 /día</span>
+                </label>
+
+                <label class="extra-option-card">
+                  <input type="checkbox" id="extra-baby-seat">
+                  <div class="extra-info">
+                    <span class="extra-name">Silla Infantil para Bebé</span>
+                    <span class="extra-desc">Homologada y segura para menores de 4 años.</span>
+                  </div>
+                  <span class="extra-price">+$25.000 /día</span>
+                </label>
+
+                <label class="extra-option-card">
+                  <input type="checkbox" id="extra-second-driver">
+                  <div class="extra-info">
+                    <span class="extra-name">Conductor Adicional Autorizado</span>
+                    <span class="extra-desc">Permite que 2 personas manejen con cobertura total.</span>
+                  </div>
+                  <span class="extra-price">+$20.000 /día</span>
+                </label>
+
+                <label class="extra-option-card">
+                  <input type="checkbox" id="extra-full-tank">
+                  <div class="extra-info">
+                    <span class="extra-name">Prepago Tanque de Gasolina</span>
+                    <span class="extra-desc">Devuelve el vehículo sin preocuparte por tanquear en Cartagena.</span>
+                  </div>
+                  <span class="extra-price">+$180.000 fijo</span>
+                </label>
+              </div>
+
+              <!-- Desglose de Precios -->
+              <div class="price-breakdown-card">
+                <div class="breakdown-row">
+                  <span>Tarifa Alquiler (<span id="calc-days-label">3 días</span> x <span id="calc-daily-rate">$160.000</span>):</span>
+                  <strong id="calc-subtotal-rent">$480.000</strong>
+                </div>
+                <div class="breakdown-row" id="row-insurance">
+                  <span>Póliza de Cobertura / Lucro Cesante:</span>
+                  <strong id="calc-insurance-cost">$120.000</strong>
+                </div>
+                <div class="breakdown-row" id="row-other-extras">
+                  <span>Adicionales seleccionados:</span>
+                  <strong id="calc-extras-cost">$0</strong>
+                </div>
+                <div class="breakdown-divider"></div>
+                <div class="breakdown-row total-row">
+                  <span>Total a Pagar Alquiler:</span>
+                  <span class="total-amount" id="calc-total-final">$600.000 COP</span>
+                </div>
+                <div class="deposit-note">
+                  <i class="fa-solid fa-shield-halved text-orange"></i> Depósito en Garantía (Pre-autorización temporal): <strong id="calc-deposit-amount">$1.000.000 COP</strong>
+                </div>
+              </div>
+
+              <button class="btn-primary-action" id="btn-goto-step-2">
+                Continuar al Registro de Conductor <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: REGISTRO DEL CONDUCTOR & DOCUMENTOS -->
+        <div class="modal-step-content" id="modal-step-2">
+          <div class="driver-form-container">
+            <div class="form-instructions-banner">
+              <i class="fa-solid fa-id-card text-orange"></i>
+              <span>Por favor ingresa los datos del conductor principal tal como aparecen en su documento.</span>
+            </div>
+
+            <form id="driver-register-form" class="driver-grid">
+              <div class="form-group">
+                <label>Tipo de Documento *</label>
+                <select id="driver-doc-type" class="form-control" required>
+                  <option value="CC" selected>Cédula de Ciudadanía (Colombia)</option>
+                  <option value="PA">Pasaporte Extranjero</option>
+                  <option value="CE">Cédula de Extranjería</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Número de Documento *</label>
+                <input type="text" id="driver-doc-number" class="form-control" placeholder="Ej: 1047458921" value="1047458921" required>
+              </div>
+
+              <div class="form-group">
+                <label>Nombres Completos *</label>
+                <input type="text" id="driver-names" class="form-control" placeholder="Ej: Carlos Andrés" value="Carlos Andrés" required>
+              </div>
+
+              <div class="form-group">
+                <label>Apellidos *</label>
+                <input type="text" id="driver-lastnames" class="form-control" placeholder="Ej: Gómez Martínez" value="Gómez Martínez" required>
+              </div>
+
+              <div class="form-group">
+                <label>Celular / WhatsApp *</label>
+                <input type="tel" id="driver-phone" class="form-control" placeholder="+57 300 123 4567" value="+57 300 895 4422" required>
+              </div>
+
+              <div class="form-group">
+                <label>Correo Electrónico (para contrato PDF) *</label>
+                <input type="email" id="driver-email" class="form-control" placeholder="cliente@correo.com" value="carlos.gomez@gmail.com" required>
+              </div>
+
+              <div class="form-group">
+                <label>Número de Licencia de Conducción *</label>
+                <input type="text" id="driver-license" class="form-control" placeholder="Ej: 13001-998822" value="13001-998822" required>
+              </div>
+
+              <div class="form-group">
+                <label>Vencimiento de Licencia</label>
+                <input type="date" id="driver-license-exp" class="form-control" value="2030-05-15">
+              </div>
+
+              <div class="form-group full-width">
+                <label>Lugar de Hospedaje en Cartagena (Hotel / Edificio / Apto)</label>
+                <input type="text" id="driver-hotel" class="form-control" placeholder="Ej: Hotel Estelar Bocagrande, Torre 2" value="Hotel Almirante Cartagena">
+              </div>
+
+              <!-- Simulador de Carga de Documentos -->
+              <div class="form-group full-width">
+                <label><i class="fa-solid fa-camera text-cyan"></i> Carga de Fotos de Licencia & Documento (Opcional en demo)</label>
+                <div class="doc-upload-preview-row">
+                  <div class="doc-box">
+                    <i class="fa-solid fa-id-badge text-orange"></i>
+                    <span>Cédula / Pasaporte</span>
+                    <small class="text-green"><i class="fa-solid fa-circle-check"></i> Documento Verificado</small>
+                  </div>
+                  <div class="doc-box">
+                    <i class="fa-solid fa-car text-cyan"></i>
+                    <span>Licencia de Conducción</span>
+                    <small class="text-green"><i class="fa-solid fa-circle-check"></i> Licencia Vigente</small>
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            <div class="modal-actions-row">
+              <button class="btn-secondary-action" id="btn-back-to-step-1">
+                <i class="fa-solid fa-arrow-left"></i> Volver a Cotización
+              </button>
+              <button class="btn-primary-action" id="btn-goto-step-3">
+                Continuar a Firma Digital y Garantía <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: FIRMA DIGITAL TÁCTIL & PASARELA DE GARANTÍA -->
+        <div class="modal-step-content" id="modal-step-3">
+          <div class="signature-step-grid">
+            
+            <!-- Columna Izquierda: Cláusula Legal & Canvas Táctil -->
+            <div class="signature-canvas-col">
+              <div class="legal-clause-box">
+                <h4><i class="fa-solid fa-scale-balanced text-orange"></i> Cláusula Legal de Garantía (Ley 527 de 1999)</h4>
+                <p>
+                  "Yo, <strong id="legal-client-name">Carlos Andrés Gómez</strong>, identificado con el documento <strong id="legal-client-doc">1047458921</strong>, autorizo expresamente a <strong>Dinamo Rent a Car</strong> a solicitar un bloqueo preventivo de cupo (pre-autorización) en mi tarjeta de crédito por valor de <strong id="legal-deposit-val">$1.000.000 COP</strong> como garantía de cumplimiento contractual. Autorizo de manera irrevocable el cobro de daños, faltantes de combustible o fotomultas generadas durante mi uso."
+                </p>
+              </div>
+
+              <!-- Canvas Táctil de Firma -->
+              <div class="signature-pad-wrapper">
+                <div class="pad-header">
+                  <span><i class="fa-solid fa-pen-nib text-cyan"></i> <strong>Firma aquí con tu dedo o mouse</strong></span>
+                  <button type="button" id="clear-signature-btn" class="btn-clear-pad" title="Limpiar trazo">
+                    <i class="fa-solid fa-rotate-left"></i> Borrar
+                  </button>
+                </div>
+                
+                <div class="canvas-container">
+                  <canvas id="signature-canvas" width="460" height="170"></canvas>
+                  <div class="signature-placeholder" id="signature-placeholder">
+                    <span><i class="fa-solid fa-fingerprint"></i> Dibuja tu firma en este recuadro</span>
+                  </div>
+                </div>
+
+                <div class="pad-footer">
+                  <small><i class="fa-solid fa-lock text-green"></i> Firma vinculada a tu IP: <strong id="client-ip-display">186.84.92.115 (Cartagena, CO)</strong></small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Columna Derecha: Tarjeta para Bloqueo Seguro -->
+            <div class="card-security-col">
+              <div class="gateway-card-simulator">
+                <div class="gateway-header">
+                  <span class="gateway-badge"><i class="fa-solid fa-shield-halved"></i> Pasarela Segura PayU / Wompi</span>
+                  <div class="card-icons">
+                    <i class="fa-brands fa-cc-visa"></i>
+                    <i class="fa-brands fa-cc-mastercard"></i>
+                    <i class="fa-brands fa-cc-amex"></i>
+                  </div>
+                </div>
+
+                <div class="gateway-body">
+                  <div class="form-group">
+                    <label>Número de Tarjeta de Crédito</label>
+                    <div class="input-with-icon">
+                      <input type="text" id="cc-number" class="form-control" value="•••• •••• •••• 4242" placeholder="4500 0000 0000 0000">
+                      <i class="fa-solid fa-credit-card"></i>
+                    </div>
+                  </div>
+
+                  <div class="grid-2col">
+                    <div class="form-group">
+                      <label>Vencimiento</label>
+                      <input type="text" id="cc-exp" class="form-control" value="12/28" placeholder="MM/AA">
+                    </div>
+                    <div class="form-group">
+                      <label>CVV / CVC</label>
+                      <input type="password" id="cc-cvv" class="form-control" value="888" placeholder="123">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label>Titular de la Tarjeta</label>
+                    <input type="text" id="cc-holder" class="form-control" value="CARLOS A GOMEZ" placeholder="NOMBRE COMO EN TARJETA">
+                  </div>
+
+                  <div class="security-status-box">
+                    <div class="status-row">
+                      <span>Tipo de Operación:</span>
+                      <strong class="text-orange">AUTHORIZE (Pre-autorización)</strong>
+                    </div>
+                    <div class="status-row">
+                      <span>Cupo a Congelar:</span>
+                      <strong id="card-deposit-amount">$1.000.000 COP</strong>
+                    </div>
+                    <div class="status-row">
+                      <span>Cobro Inmediato Renta:</span>
+                      <strong id="card-rent-amount">$600.000 COP</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="modal-actions-row">
+                <button class="btn-secondary-action" id="btn-back-to-step-2">
+                  <i class="fa-solid fa-arrow-left"></i> Volver
+                </button>
+                <button class="btn-primary-action btn-confirm-booking" id="btn-process-booking">
+                  <i class="fa-solid fa-check-circle"></i> Confirmar & Generar Contrato
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- STEP 4: VISTA DE CONTRATO PDF GENERADO Y COMPROBANTE -->
+        <div class="modal-step-content" id="modal-step-4">
+          <div class="contract-success-banner">
+            <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="success-text">
+              <h3>¡Reserva Confirmada y Contrato Digital Emitido!</h3>
+              <p>Se ha realizado con éxito el bloqueo de garantía de <strong id="final-deposit-val">$1.000.000 COP</strong> y se generó el contrato legal con tu firma digital.</p>
+            </div>
+            <button class="btn-print-contract" id="btn-print-contract">
+              <i class="fa-solid fa-print"></i> Imprimir Contrato
+            </button>
+          </div>
+
+          <!-- Vista previa del Contrato Oficial Dinamo Rent a Car -->
+          <div class="contract-paper-preview" id="contract-printable-area">
+            <div class="contract-doc-header">
+              <div class="doc-logo-title">
+                <h2>DINAMO RENT A CAR</h2>
+                <p>NIT: 901.458.772-1 • Cartagena de Indias, Colombia</p>
+                <p>Aeropuerto Rafael Núñez • Contacto: +57 (300) 895-4422</p>
+              </div>
+              <div class="doc-contract-id">
+                <span class="contract-badge">CONTRATO DE ARRENDAMIENTO VEHICULAR</span>
+                <p class="contract-num">No. <strong id="doc-contract-number">DIN-2026-0842</strong></p>
+                <p class="contract-date">Fecha: <span id="doc-contract-date">17/08/2026 11:30 AM</span></p>
+              </div>
+            </div>
+
+            <div class="contract-doc-body">
+              <!-- Partes del Contrato -->
+              <div class="doc-section-title">1. DATOS DEL ARRENDATARIO (CLIENTE)</div>
+              <table class="doc-table">
+                <tr>
+                  <td><strong>Nombre Completo:</strong> <span id="doc-client-name">Carlos Andrés Gómez Martínez</span></td>
+                  <td><strong>Documento (C.C/Pas):</strong> <span id="doc-client-doc">1047458921</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Licencia de Conducción:</strong> <span id="doc-client-license">13001-998822</span></td>
+                  <td><strong>Teléfono / Celular:</strong> <span id="doc-client-phone">+57 300 895 4422</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Email de Contacto:</strong> <span id="doc-client-email">carlos.gomez@gmail.com</span></td>
+                  <td><strong>Lugar Hospedaje:</strong> <span id="doc-client-hotel">Hotel Almirante Cartagena</span></td>
+                </tr>
+              </table>
+
+              <!-- Vehículo e Itinerario -->
+              <div class="doc-section-title">2. ESPECIFICACIONES DEL VEHÍCULO Y SERVICIO</div>
+              <table class="doc-table">
+                <tr>
+                  <td><strong>Vehículo Asignado:</strong> <span id="doc-vehicle-name">Chevrolet Onix Turbo Aut</span></td>
+                  <td><strong>Placa / Matrícula:</strong> <strong id="doc-vehicle-plate">LMY-842 (Cartagena)</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Lugar de Entrega:</strong> <span id="doc-pickup-loc">Aeropuerto Rafael Núñez</span></td>
+                  <td><strong>Fecha Recogida:</strong> <span id="doc-pickup-dt">17/08/2026 10:00 AM</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Lugar de Devolución:</strong> <span id="doc-return-loc">Aeropuerto Rafael Núñez</span></td>
+                  <td><strong>Fecha Retorno:</strong> <span id="doc-return-dt">20/08/2026 10:00 AM</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Días Totales de Renta:</strong> <span id="doc-total-days">3 días</span></td>
+                  <td><strong>Combustible Salida:</strong> Tanque Lleno (100%)</td>
+                </tr>
+              </table>
+
+              <!-- Liquidación Financiera -->
+              <div class="doc-section-title">3. LIQUIDACIÓN FINANCIERA Y DEPÓSITO DE GARANTÍA</div>
+              <table class="doc-table">
+                <tr>
+                  <td><strong>Valor Total del Alquiler:</strong></td>
+                  <td><strong id="doc-total-paid">$600.000 COP</strong> (Pagado / Confirmado)</td>
+                </tr>
+                <tr>
+                  <td><strong>Depósito de Garantía (Pre-autorizado):</strong></td>
+                  <td><strong id="doc-deposit-blocked">$1.000.000 COP</strong> (Token ID: <span id="doc-token-id">PAYU-TK-89412</span>)</td>
+                </tr>
+                <tr>
+                  <td><strong>Póliza de Lucro Cesante:</strong></td>
+                  <td>Incluida y amparada según cláusula contractual.</td>
+                </tr>
+              </table>
+
+              <!-- Cláusulas Resumidas -->
+              <div class="doc-section-title">4. CLÁUSULAS CONTRACTUALES (RESUMEN LEGAL)</div>
+              <div class="doc-legal-text">
+                <p><strong>PRIMERA - OBJETO:</strong> DINAMO RENT A CAR entrega en arrendamiento el vehículo antes descrito en perfectas condiciones mecánicas y de aseo.</p>
+                <p><strong>SEGUNDA - COMBUSTIBLE Y KILOMETRAJE:</strong> El vehículo debe ser restituido con el mismo nivel de combustible de salida (Lleno). En caso contrario, se cobrará el valor de tanquillado más cargo administrativo de $30.000 COP.</p>
+                <p><strong>TERCERA - FOTOMULTAS Y COMPARENDOS (SIMIT):</strong> El Arrendatario asume la responsabilidad plena y económica por cualquier infracción cometida durante el periodo de arrendamiento, autorizando su cobro inmediato sobre la garantía.</p>
+                <p><strong>CUARTA - GARANTÍA Y PRE-AUTORIZACIÓN:</strong> El Arrendatario autoriza de forma expresa e irrevocable el bloqueo temporal y la captura de fondos en caso de siniestros, deducibles o días adicionales según la Ley 527 de 1999.</p>
+              </div>
+
+              <!-- Firmas y Sellos -->
+              <div class="doc-signatures-grid">
+                <div class="sig-box">
+                  <div class="sig-image-holder">
+                    <img id="contract-sig-img" src="" alt="Firma del Arrendatario">
+                  </div>
+                  <div class="sig-line"></div>
+                  <p><strong>FIRMA DEL ARRENDATARIO (CLIENTE)</strong></p>
+                  <p id="doc-sig-name">Carlos Andrés Gómez</p>
+                  <p class="sig-meta">IP: <span id="doc-sig-ip">186.84.92.115</span> | Huella Digital SHA-256</p>
+                </div>
+
+                <div class="sig-box">
+                  <div class="sig-image-holder company-stamp">
+                    <div class="official-seal">
+                      <span>DINAMO RENT</span>
+                      <small>SISTEMA CENTRAL</small>
+                      <i class="fa-solid fa-certificate"></i>
+                    </div>
+                  </div>
+                  <div class="sig-line"></div>
+                  <p><strong>POR: DINAMO RENT A CAR</strong></p>
+                  <p>Asesor de Operaciones Cartagena</p>
+                  <p class="sig-meta">Estampa de Tiempo: 2026-08-17 11:30:15 UTC-5</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-actions-row">
+            <button class="btn-secondary-action" id="btn-finish-modal">
+              <i class="fa-solid fa-house"></i> Volver a la Portada
+            </button>
+            <button class="btn-primary-action" id="btn-view-in-erp-demo">
+              <i class="fa-solid fa-desktop"></i> Ver esta Reserva en el ERP de Mostrador
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================= VISTA ASESOR ERP (PANEL MOSTRADOR DINAMO) ================= -->
+  <section id="erp-view" class="erp-dashboard-section hidden">
+    <div class="container erp-container">
+      <div class="erp-header">
+        <div class="erp-title-area">
+          <span class="erp-badge"><i class="fa-solid fa-desktop"></i> ERP DE MOSTRADOR — CARTAGENA (TAURI V2)</span>
+          <h2>Panel de Control Operativo Dinamo Rent</h2>
+          <p>Sincronización en tiempo real con la Web y Base de Datos Central</p>
+        </div>
+        <div class="erp-quick-metrics">
+          <div class="metric-card">
+            <span class="metric-label">Flota Total</span>
+            <strong class="metric-val">18 Autos</strong>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">En Renta Activa</span>
+            <strong class="metric-val text-orange">12 Autos</strong>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Disponibles Hoy</span>
+            <strong class="metric-val text-green">6 Autos</strong>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Garantías en Custodia</span>
+            <strong class="metric-val text-cyan">$14.5M COP</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de Solicitudes y Rentas Activas -->
+      <div class="erp-table-card">
+        <div class="table-card-header">
+          <h3><i class="fa-solid fa-list-check text-orange"></i> Solicitudes Web & Rentas en Curso</h3>
+          <div class="table-actions">
+            <input type="text" class="erp-search-input" placeholder="Buscar por cliente, placa o contrato...">
+            <button class="btn-refresh-erp" id="btn-refresh-erp"><i class="fa-solid fa-arrows-rotate"></i> Actualizar</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="erp-table">
+            <thead>
+              <tr>
+                <th>No. Contrato</th>
+                <th>Cliente</th>
+                <th>Vehículo / Placa</th>
+                <th>Fechas (Inicio - Fin)</th>
+                <th>Garantía (Pre-aut)</th>
+                <th>Estado</th>
+                <th>Acciones de Asesor</th>
+              </tr>
+            </thead>
+            <tbody id="erp-table-body">
+              <!-- Renderizado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Alertas SIMIT & Mantenimiento -->
+      <div class="erp-bottom-grid">
+        <div class="erp-card">
+          <h4><i class="fa-solid fa-triangle-exclamation text-orange"></i> Monitor de Infracciones SIMIT (Cartagena / DATT)</h4>
+          <ul class="simit-alerts-list">
+            <li>
+              <span class="simit-plate">LMY-842</span>
+              <span class="simit-desc">Fotomulta C35 (Velocidad en Vía al Mar)</span>
+              <span class="simit-cost">$650.000 COP</span>
+              <button class="btn-simit-charge" title="Cargar a garantía de renta"><i class="fa-solid fa-bolt"></i> Cargar a Renta</button>
+            </li>
+            <li>
+              <span class="simit-plate">WHT-210</span>
+              <span class="simit-desc">Sin infracciones pendientes</span>
+              <span class="text-green"><i class="fa-solid fa-circle-check"></i> Al día</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="erp-card">
+          <h4><i class="fa-solid fa-bell text-cyan"></i> Notificaciones de Entregas & Devoluciones Hoy</h4>
+          <ul class="delivery-alerts-list">
+            <li>
+              <i class="fa-solid fa-plane-arrival text-orange"></i>
+              <div>
+                <strong>10:00 AM - Aeropuerto Rafael Núñez</strong>
+                <p>Entrega Chevrolet Onix (LMY-842) a Carlos Andrés Gómez</p>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-hotel text-cyan"></i>
+              <div>
+                <strong>03:30 PM - Hotel Hyatt Regency Bocagrande</strong>
+                <p>Devolución Renault Duster (FRK-551)</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Botón Flotante de WhatsApp para Cliente -->
+  <a href="https://wa.me/573000000000?text=Hola%20Dinamo%20Rent%20a%20Car,%20tengo%20una%20consulta" target="_blank" class="floating-whatsapp-btn" title="Contactar por WhatsApp">
+    <i class="fa-brands fa-whatsapp"></i>
+    <span class="floating-tooltip">¿Dudas? Chatea con nosotros</span>
+  </a>
+
+  <!-- Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-dinamo-navy: #0A2540;
+  --color-dinamo-dark: #001428;
+  --color-dinamo-cyan: #00D2FF;
+  --color-dinamo-blue: #0080FF;
+  --color-dinamo-orange: #FF6B00;
+  --color-dinamo-orange-light: #FF8C00;
+  --color-dinamo-accent: #10B981;
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+}
+
+:root {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Custom Glassmorphism */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-glow {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 210, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 128, 255, 0.15);
+}
+
+/* Glow effects */
+.glow-orange {
+  box-shadow: 0 0 25px rgba(255, 107, 0, 0.35);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 25px rgba(0, 210, 255, 0.35);
+}
