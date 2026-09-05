@@ -25,35 +25,36 @@
     ctx.lineJoin = 'round';
   });
 
-  function getCoordinates(e: MouseEvent | TouchEvent): { x: number; y: number } {
+  function getCoordinates(e: MouseEvent | TouchEvent | PointerEvent): { x: number; y: number } {
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    if ('touches' in e) {
+    if ('touches' in e && e.touches.length > 0) {
       const touch = e.touches[0];
       return {
         x: touch.clientX - rect.left,
         y: touch.clientY - rect.top
       };
     } else {
+      const me = e as MouseEvent;
       return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
+        x: me.clientX - rect.left,
+        y: me.clientY - rect.top
       };
     }
   }
 
-  function startDrawing(e: MouseEvent | TouchEvent) {
+  function startDrawing(e: MouseEvent | TouchEvent | PointerEvent) {
     if (!ctx) return;
-    if ('touches' in e) e.preventDefault();
+    if ('preventDefault' in e) e.preventDefault();
     isDrawing = true;
     const { x, y } = getCoordinates(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
   }
 
-  function draw(e: MouseEvent | TouchEvent) {
+  function draw(e: MouseEvent | TouchEvent | PointerEvent) {
     if (!isDrawing || !ctx) return;
-    if ('touches' in e) e.preventDefault();
+    if ('preventDefault' in e) e.preventDefault();
     const { x, y } = getCoordinates(e);
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -100,6 +101,9 @@
       onmousemove={draw}
       onmouseup={stopDrawing}
       onmouseleave={stopDrawing}
+      onpointerdown={startDrawing}
+      onpointermove={draw}
+      onpointerup={stopDrawing}
       ontouchstart={startDrawing}
       ontouchmove={draw}
       ontouchend={stopDrawing}

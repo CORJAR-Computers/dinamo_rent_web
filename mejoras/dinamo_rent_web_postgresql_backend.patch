@@ -1,0 +1,3143 @@
+From 473322bb6162def83a67e9a9956b3b23f55b3728 Mon Sep 17 00:00:00 2001
+From: Dinamo Dev <dev@dinamorent.co>
+Date: Fri, 4 Sep 2026 21:31:30 +0000
+Subject: [PATCH] feat: integrate PostgreSQL backend (Prisma) + payment flow +
+ desktop sync
+
+- Add Prisma schema for PostgreSQL with enums (ReservationStatus, VehicleCategory, etc.)
+- Add 8 API endpoints (vehicles, availability, reservations, payments, sync, seed)
+- Add server-side Prisma client singleton and helpers
+- Update bookingStore to consume APIs + handle payment + sync with desktop
+- Update BookingModal: add Step 4 (payment) and Step 5 (voucher with sync)
+- Update FleetCatalog to load from /api/vehicles with fallback to static
+- Add .env.example for Neon PostgreSQL (DATABASE_URL + DIRECT_URL)
+- Add SETUP_BACKEND.md guide
+- Update README and .gitignore for new stack
+- Preserve signature digital canvas, voucher WhatsApp, COP/USD dual currency
+
+Code format: DIN-2026-XXXX (per team consensus)
+DB: PostgreSQL on Neon (MVCC, no locks under concurrency)
+---
+ .env.example                                |  16 +
+ .gitignore                                  |   5 +
+ README.md                                   | 106 ++--
+ SETUP_BACKEND.md                            |  91 ++++
+ package-lock.json                           | 394 ++++++++++++++-
+ package.json                                |  14 +-
+ prisma/schema.prisma                        | 232 +++++++++
+ src/lib/components/BookingModal.svelte      | 513 +++++++++++---------
+ src/lib/components/FleetCatalog.svelte      |  97 +++-
+ src/lib/server/db.ts                        |  26 +
+ src/lib/server/helpers.ts                   | 124 +++++
+ src/lib/stores/bookingStore.svelte.ts       | 210 +++++++-
+ src/routes/api/availability/+server.ts      |  49 ++
+ src/routes/api/payments/+server.ts          | 104 ++++
+ src/routes/api/reservations/+server.ts      | 168 +++++++
+ src/routes/api/reservations/[id]/+server.ts |  37 ++
+ src/routes/api/seed/+server.ts              |  71 +++
+ src/routes/api/sync/+server.ts              |  92 ++++
+ src/routes/api/vehicles/+server.ts          |  35 ++
+ 19 files changed, 2072 insertions(+), 312 deletions(-)
+ create mode 100644 .env.example
+ create mode 100644 SETUP_BACKEND.md
+ create mode 100644 prisma/schema.prisma
+ create mode 100644 src/lib/server/db.ts
+ create mode 100644 src/lib/server/helpers.ts
+ create mode 100644 src/routes/api/availability/+server.ts
+ create mode 100644 src/routes/api/payments/+server.ts
+ create mode 100644 src/routes/api/reservations/+server.ts
+ create mode 100644 src/routes/api/reservations/[id]/+server.ts
+ create mode 100644 src/routes/api/seed/+server.ts
+ create mode 100644 src/routes/api/sync/+server.ts
+ create mode 100644 src/routes/api/vehicles/+server.ts
+
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..8f13e60
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,16 @@
++# ============================================================================
++# Dinamo Rent a Car — Variables de entorno
++# ============================================================================
++# Copia este archivo a .env y completa los valores.
++# Para Neon: https://neon.tech  → crea un proyecto y copia las URLs.
++
++# URL de conexión con pooling (PgBouncer) — para SvelteKit serverless/edge
++# Formato Neon: postgresql://USER:PASS@HOST/DB?sslmode=require&pgbouncer=true&connect_timeout=15
++DATABASE_URL="postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/dinamo?sslmode=require&pgbouncer=true&connect_timeout=15"
++
++# URL directa (sin pooling) — para migraciones Prisma
++# Formato Neon: postgresql://USER:PASS@HOST/DB?sslmode=require
++DIRECT_URL="postgresql://user:password@ep-xxx.region.aws.neon.tech/dinamo?sslmode=require"
++
++# Entorno
++NODE_ENV="development"
+diff --git a/.gitignore b/.gitignore
+index f1a660d..c63b056 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -10,3 +10,8 @@ dist
+ *.zip
+ .DS_Store
+ Thumbs.db
++
++# Prisma
++/prisma/migrations/dev.db*
++/prisma/migrations/dev.db-journal
++/src/generated/prisma
+diff --git a/README.md b/README.md
+index 2153a72..c6ac28d 100644
+--- a/README.md
++++ b/README.md
+@@ -4,7 +4,8 @@
+ [![Framework](https://img.shields.io/badge/SvelteKit-2.x-FF3E00.svg)](https://kit.svelte.dev/)
+ [![Svelte](https://img.shields.io/badge/Svelte-5.x_(Runes)-FF3E00.svg)](https://svelte.dev/)
+ [![CSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38B2AC.svg)](https://tailwindcss.com/)
+-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
++[![DB](https://img.shields.io/badge/PostgreSQL-Neon-336791.svg)](https://neon.tech)
++[![ORM](https://img.shields.io/badge/Prisma-6.x-2D3748.svg)](https://www.prisma.io/)
+ 
+ Plataforma web oficial de reservas en línea para **Dinamo Rent a Car** en Cartagena de Indias, Colombia. Diseñada como el canal comercial de cara al cliente y turistas, sincronizada con la aplicación de escritorio **[Dinamo Rent ERP](https://github.com/CORJAR-Computers/dinamo_rent_tr)** que opera como mostrador operativo.
+ 
+@@ -15,28 +16,29 @@ Plataforma web oficial de reservas en línea para **Dinamo Rent a Car** en Carta
+ - 📍 **Buscador Especializado para Cartagena**: Selector de entregas y devoluciones en el Aeropuerto Internacional Rafael Núñez (CTG), Bocagrande, Centro Histórico, Manga y hoteles.
+ - ⏱️ **Cotizador en Tiempo Real**: Cálculo preciso de tarifas por días de 24 horas y desglose transparente.
+ - 💵 **Moneda Dual (COP / USD)**: Conversión instantánea de tarifas y depósitos para turistas internacionales y clientes locales.
+-- 🚙 **Catálogo de Flota por Categorías**: Filtros para vehículos Económicos, Sedanes familiares, SUVs / Camionetas de turismo y Gama Alta 4x4.
+-- 📝 **Flujo de Check-in y Reserva en 4 Pasos**:
++- 🚙 **Catálogo de Flota por Categorías**: Filtros para vehículos Económicos, Sedanes familiares, SUVs / Camionetas de turismo y Gama Alta 4x4. Cargado desde **PostgreSQL**.
++- 📝 **Flujo de Reserva en 5 Pasos**:
+   1. **Coberturas y Adicionales**: Elección entre Seguro Básico Legal y *Cobertura Total Cero Deducible* (con reducción de garantía), más adicionales (sillas de bebé, segundo conductor, tanque lleno).
+-  2. **Registro del Conductor**: Captura validada de nombres, documento de identidad (CC, CE, Pasaporte), WhatsApp, email y licencia.
++  2. **Registro del Conductor**: Captura validada de nombres, documento de identidad (CC, CE, Pasaporte), WhatsApp, email, licencia y hotel.
+   3. **Canvas de Firma Digital Táctil**: Lienzo interactivo para que el usuario firme con su dedo desde cualquier teléfono inteligente o mouse en PC (conforme a la Ley 527 de 1999 de comercio electrónico en Colombia).
+-  4. **Voucher Digital & WhatsApp Directo**: Generación de código único de pre-reserva (`DIN-2026-XXXX`) con botón de enlace directo que envía todos los datos formateados al asesor de mostrador.
++  4. **Pago con Tarjeta de Crédito**: Procesamiento (modo demo, preparado para Wompi/PayU/MercadoPago) con cuotas y bloqueo de cupo de seguro.
++  5. **Voucher Digital & WhatsApp Directo**: Generación de código único de reserva (`DIN-2026-XXXX`) con botón de enlace directo que envía todos los datos formateados al asesor de mostrador.
+ - 🛡️ **Políticas Claras de Garantía**: Información didáctica sobre la retención/bloqueo temporal en tarjeta de crédito (pre-autorización bancaria).
++- 🔄 **Sincronización Híbrida con Mostrador**: Las reservas web se guardan en PostgreSQL y se sincronizan con la app de escritorio (Firebird) vía `/api/sync`.
+ 
+ ---
+ 
+ ## 🏗️ Arquitectura del Ecosistema
+ 
+-El proyecto forma parte del ecosistema integral de Dinamo Rent a Car:
+-
+ ```
+ ┌─────────────────────────────────────────────────────────────┐
+ │                        NUBE (WEB)                           │
+-│  Dinamo Rent Web (SvelteKit 2 + Svelte 5 + Tailwind CSS v4) │
++│  Dinamo Rent Web (SvelteKit 2 + Svelte 5 + Tailwind v4)     │
++│  + Prisma + PostgreSQL (Neon)                               │
+ │  - Catálogo online, cotizador y firma digital               │
+ │  - Checkout, vouchers y pasarela de pagos                   │
+ └──────────────────────────────┬──────────────────────────────┘
+-                               │ Sincronización Segura
++                               │ API de Sincronización
+                                ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │                    MOSTRADOR (DESKTOP)                      │
+@@ -57,6 +59,8 @@ El proyecto forma parte del ecosistema integral de Dinamo Rent a Car:
+ | **Librería de Componentes** | [Svelte 5](https://svelte.dev/) (con sistema de *Runes*: `$state`, `$derived`, `$props`) |
+ | **Estilos y Diseño** | [Tailwind CSS v4](https://tailwindcss.com/) + `@tailwindcss/vite` |
+ | **Lenguaje** | [TypeScript](https://www.typescriptlang.org/) |
++| **Base de Datos** | [PostgreSQL](https://www.postgresql.org/) en [Neon](https://neon.tech) (serverless, MVCC sin bloqueos) |
++| **ORM** | [Prisma 6](https://www.prisma.io/) con migraciones y tipos end-to-end |
+ | **Tipografía e Íconos** | Google Fonts (*Outfit* & *Plus Jakarta Sans*) + FontAwesome 6 |
+ | **Despliegue** | Vercel / Cloudflare Pages con soporte SSR |
+ 
+@@ -66,35 +70,44 @@ El proyecto forma parte del ecosistema integral de Dinamo Rent a Car:
+ 
+ ```
+ dinamo_rent_web/
+-├── Assets/                 # Recursos gráficos originales de alta resolución
+-│   ├── LogoDinamo.png      # Logo original
+-│   └── LogoDinamo_clean.png# Logo procesado con transparencia
+-├── static/                 # Archivos estáticos servidos públicamente
+-│   ├── favicon.png         # Escudo Dinamo como favicon
+-│   └── images/             # Logotipos y fotos optimizadas
++├── prisma/
++│   └── schema.prisma          # Esquema DB: Vehicle, Reservation, Payment, InsuranceBlock, SyncLog
+ ├── src/
+-│   ├── app.css             # Estilos globales y tokens corporativos Tailwind v4
+-│   ├── app.html            # Plantilla HTML base con fuentes y metadatos SEO
++│   ├── app.css                # Estilos globales y tokens corporativos Tailwind v4
++│   ├── app.html               # Plantilla HTML base con fuentes y metadatos SEO
+ │   ├── lib/
+-│   │   ├── components/     # Componentes modulares Svelte 5
+-│   │   │   ├── Navbar.svelte         # Barra de navegación con logo y moneda
+-│   │   │   ├── HeroSearch.svelte     # Hero y buscador de fechas/horas
+-│   │   │   ├── FleetCatalog.svelte   # Catálogo y pestañas de categorías
+-│   │   │   ├── CarCard.svelte        # Tarjeta individual con precio dinámico
+-│   │   │   ├── BookingModal.svelte   # Modal de reserva en 4 pasos
+-│   │   │   ├── SignatureCanvas.svelte# Lienzo táctil para firma digital
+-│   │   │   ├── ProcessSteps.svelte   # Cómo funciona el alquiler
+-│   │   │   ├── TrustBadges.svelte    # Garantías y requisitos
+-│   │   │   └── Footer.svelte         # Ubicaciones y datos de contacto
++│   │   ├── components/        # Componentes modulares Svelte 5
++│   │   │   ├── Navbar.svelte
++│   │   │   ├── HeroSearch.svelte
++│   │   │   ├── FleetCatalog.svelte    # Carga la flota desde /api/vehicles
++│   │   │   ├── CarCard.svelte
++│   │   │   ├── BookingModal.svelte    # Flujo de 5 pasos con pago + sync
++│   │   │   ├── SignatureCanvas.svelte # Firma digital táctil
++│   │   │   ├── ProcessSteps.svelte
++│   │   │   ├── TrustBadges.svelte
++│   │   │   └── Footer.svelte
+ │   │   ├── data/
+-│   │   │   └── fleet.ts              # Catálogo de vehículos, categorías y tarifas
++│   │   │   └── fleet.ts       # Catálogo de vehículos (fallback + seed)
++│   │   ├── server/            # 🔒 Server-only (Prisma + helpers)
++│   │   │   ├── db.ts          # Cliente Prisma singleton
++│   │   │   └── helpers.ts     # Cálculos, formato COP, tarjetas, seguros
+ │   │   ├── stores/
+-│   │   │   └── bookingStore.svelte.ts# Store reactivo global con Svelte 5 runes
++│   │   │   └── bookingStore.svelte.ts  # Store reactivo con integración API
+ │   │   └── utils/
+-│   │       └── formatters.ts         # Formateadores de moneda (COP/USD) y fechas
++│   │       └── formatters.ts  # Formateadores de moneda (COP/USD) y fechas
+ │   └── routes/
+-│       ├── +layout.svelte  # Layout principal de la aplicación
+-│       └── +page.svelte    # Página de inicio con todas las secciones integradas
++│       ├── +layout.svelte
++│       ├── +page.svelte
++│       └── api/               # 📡 Endpoints SvelteKit
++│           ├── vehicles/+server.ts
++│           ├── availability/+server.ts
++│           ├── reservations/+server.ts
++│           ├── reservations/[id]/+server.ts
++│           ├── payments/+server.ts
++│           ├── sync/+server.ts
++│           └── seed/+server.ts
++├── .env.example               # Plantilla de variables de entorno
++├── SETUP_BACKEND.md           # Guía de configuración de PostgreSQL
+ ├── package.json
+ ├── svelte.config.js
+ ├── tsconfig.json
+@@ -106,36 +119,43 @@ dinamo_rent_web/
+ ## 🚀 Instalación y Desarrollo Local
+ 
+ ### 1. Prerrequisitos
+-- [Node.js](https://nodejs.org/) v20 o superior
+-- [npm](https://www.npmjs.com/) v10 o superior
++- [Node.js](https://nodejs.org/) v20+
++- [npm](https://www.npmjs.com/) v10+
++- Cuenta en [Neon](https://neon.tech) (Free) o cualquier PostgreSQL
+ 
+-### 2. Clonar el Repositorio
++### 2. Clonar e instalar
+ ```bash
+ git clone https://github.com/CORJAR-Computers/dinamo_rent_web.git
+ cd dinamo_rent_web
++npm install
+ ```
+ 
+-### 3. Instalar Dependencias
++### 3. Configurar base de datos
+ ```bash
+-npm install
++cp .env.example .env
++# Edita .env con tus URLs de Neon
++npm run db:migrate    # crea las tablas en PostgreSQL
+ ```
+ 
+-### 4. Iniciar Servidor de Desarrollo
++### 4. Iniciar servidor de desarrollo
+ ```bash
+ npm run dev
+ ```
+-La aplicación estará disponible de inmediato en `http://localhost:5174/`.
++La aplicación estará disponible en `http://localhost:5174/`.
+ 
+-### 5. Verificación de Tipos y Sintaxis
++### 5. Sembrar la flota
++Con el servidor corriendo, en otra terminal:
+ ```bash
+-npm run check
++curl -X POST http://localhost:5174/api/seed
+ ```
+ 
+-### 6. Compilar para Producción
++### 6. Verificación de Tipos y Sintaxis
+ ```bash
+-npm run build
++npm run check
+ ```
+ 
++Ver la guía completa en [`SETUP_BACKEND.md`](./SETUP_BACKEND.md).
++
+ ---
+ 
+ ## 📄 Licencia y Créditos
+diff --git a/SETUP_BACKEND.md b/SETUP_BACKEND.md
+new file mode 100644
+index 0000000..6407011
+--- /dev/null
++++ b/SETUP_BACKEND.md
+@@ -0,0 +1,91 @@
++# Setup Backend — Dinamo Rent Web (PostgreSQL + Prisma)
++
++Esta guía explica cómo activar el backend (APIs + base de datos PostgreSQL) sobre el proyecto SvelteKit existente.
++
++## 1. Requisitos
++
++- Cuenta en [Neon](https://neon.tech) (tier Free suficiente) o cualquier PostgreSQL
++- Node.js 20+ y npm 10+
++
++## 2. Configurar variables de entorno
++
++```bash
++cp .env.example .env
++```
++
++Edita `.env` y pega las dos URLs que te da Neon:
++
++- **DATABASE_URL**: usa la URL con `-pooler` en el host y `?pgbouncer=true` (para la app)
++- **DIRECT_URL**: usa la URL sin `-pooler` (para migraciones)
++
++Ambas terminan con `?sslmode=require`.
++
++## 3. Instalar dependencias
++
++```bash
++npm install
++```
++
++El `postinstall` ejecuta `prisma generate` automáticamente.
++
++## 4. Crear las tablas en PostgreSQL
++
++```bash
++npm run db:migrate
++```
++
++Esto crea las tablas `vehicles`, `reservations`, `payments`, `insurance_blocks` y `sync_logs` con todos los enums.
++
++## 5. Sembrar la flota inicial
++
++Levanta el dev server:
++
++```bash
++npm run dev
++```
++
++En otra terminal (o desde el navegador/Postman):
++
++```bash
++curl -X POST http://localhost:5174/api/seed
++```
++
++Esto inserta los 6 vehículos definidos en `src/lib/data/fleet.ts` en PostgreSQL.
++
++## 6. Verificar
++
++- `GET http://localhost:5174/api/vehicles` → debe devolver los 6 vehículos
++- `GET http://localhost:5174/api/sync` → estado del mostrador (CONECTADO)
++
++## 7. APIs disponibles
++
++| Método | Ruta | Descripción |
++|---|---|---|
++| GET | `/api/vehicles` | Lista la flota (filtros: `?category=&search=&available=`) |
++| POST | `/api/availability` | Verifica disponibilidad de un vehículo en fechas |
++| GET | `/api/reservations` | Lista reservas (filtros: `?email=&code=`) |
++| POST | `/api/reservations` | Crea una reserva con seguro y bloqueo de cupo |
++| GET | `/api/reservations/[id]` | Detalle de una reserva |
++| PUT | `/api/reservations/[id]` | Cambia estado de una reserva |
++| POST | `/api/payments` | Procesa pago con tarjeta (modo SIMULADO) |
++| GET | `/api/sync` | Estado de sincronización con la app de escritorio |
++| POST | `/api/sync` | Fuerza sincronización con el mostrador |
++| POST | `/api/seed` | Siembra la flota inicial |
++
++## 8. Sincronización con la app de escritorio
++
++El endpoint `POST /api/sync` simula el middleware de sincronización con Firebird. En producción, este endpoint debe:
++
++1. Recibir la reserva creada en PostgreSQL
++2. Transformar los datos al esquema de `RESERVAS_WEB` en Firebird
++3. Hacer el insert en la base de datos local del mostrador
++4. Marcar el `SyncLog` como `SYNCED` y guardar el `desktopRef`
++
++Mientras tanto, el botón "Sincronizar ahora" del voucher permite probar el flujo completo.
++
++## 9. Próximos pasos
++
++- [ ] Integrar Wompi / PayU / MercadoPago en `/api/payments` (reemplazar la simulación)
++- [ ] Implementar el middleware real Rust/Node que escriba en Firebird
++- [ ] Agregar autenticación de admin para un panel de gestión
++- [ ] Webhooks de pago (Wompi envía eventos a `/api/webhooks/payment`)
+diff --git a/package-lock.json b/package-lock.json
+index 96a4120..eab3a41 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,18 +1,23 @@
+ {
+   "name": "dinamo-rent-web",
+-  "version": "1.0.0",
++  "version": "1.1.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "dinamo-rent-web",
+-      "version": "1.0.0",
++      "version": "1.1.0",
++      "hasInstallScript": true,
++      "dependencies": {
++        "@prisma/client": "^6.11.1"
++      },
+       "devDependencies": {
+         "@sveltejs/adapter-auto": "^4.0.0",
+         "@sveltejs/adapter-vercel": "^5.10.3",
+         "@sveltejs/kit": "^2.16.0",
+         "@sveltejs/vite-plugin-svelte": "^5.0.0",
+         "@tailwindcss/vite": "^4.0.0",
++        "prisma": "^6.11.1",
+         "svelte": "^5.0.0",
+         "svelte-check": "^4.0.0",
+         "tailwindcss": "^4.0.0",
+@@ -603,6 +608,91 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/@prisma/client": {
++      "version": "6.19.3",
++      "resolved": "https://registry.npmjs.org/@prisma/client/-/client-6.19.3.tgz",
++      "integrity": "sha512-mKq3jQFhjvko5LTJFHGilsuQs+W+T3Gm451NzuTDGQxwCzwXHYnIu2zGkRoW+Exq3Rob7yp2MfzSrdIiZVhrBg==",
++      "hasInstallScript": true,
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=18.18"
++      },
++      "peerDependencies": {
++        "prisma": "*",
++        "typescript": ">=5.1.0"
++      },
++      "peerDependenciesMeta": {
++        "prisma": {
++          "optional": true
++        },
++        "typescript": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/@prisma/config": {
++      "version": "6.19.3",
++      "resolved": "https://registry.npmjs.org/@prisma/config/-/config-6.19.3.tgz",
++      "integrity": "sha512-CBPT44BjlQxEt8kiMEauji2WHTDoVBOKl7UlewXmUgBPnr/oPRZC3psci5chJnYmH0ivEIog2OU9PGWoki3DLQ==",
++      "devOptional": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "c12": "3.1.0",
++        "deepmerge-ts": "7.1.5",
++        "effect": "3.21.0",
++        "empathic": "2.0.0"
++      }
++    },
++    "node_modules/@prisma/debug": {
++      "version": "6.19.3",
++      "resolved": "https://registry.npmjs.org/@prisma/debug/-/debug-6.19.3.tgz",
++      "integrity": "sha512-ljkJ+SgpXNktLG0Q/n4JGYCkKf0f8oYLyjImS2I8e2q2WCfdRRtWER062ZV/ixaNP2M2VKlWXVJiGzZaUgbKZw==",
++      "devOptional": true,
++      "license": "Apache-2.0"
++    },
++    "node_modules/@prisma/engines": {
++      "version": "6.19.3",
++      "resolved": "https://registry.npmjs.org/@prisma/engines/-/engines-6.19.3.tgz",
++      "integrity": "sha512-RSYxtlYFl5pJ8ZePgMv0lZ9IzVCOdTPOegrs2qcbAEFrBI1G33h6wyC9kjQvo0DnYEhEVY0X4LsuFHXLKQk88g==",
++      "devOptional": true,
++      "hasInstallScript": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@prisma/debug": "6.19.3",
++        "@prisma/engines-version": "7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7",
++        "@prisma/fetch-engine": "6.19.3",
++        "@prisma/get-platform": "6.19.3"
++      }
++    },
++    "node_modules/@prisma/engines-version": {
++      "version": "7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7",
++      "resolved": "https://registry.npmjs.org/@prisma/engines-version/-/engines-version-7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7.tgz",
++      "integrity": "sha512-03bgb1VD5gvuumNf+7fVGBzfpJPjmqV423l/WxsWk2cNQ42JD0/SsFBPhN6z8iAvdHs07/7ei77SKu7aZfq8bA==",
++      "devOptional": true,
++      "license": "Apache-2.0"
++    },
++    "node_modules/@prisma/fetch-engine": {
++      "version": "6.19.3",
++      "resolved": "https://registry.npmjs.org/@prisma/fetch-engine/-/fetch-engine-6.19.3.tgz",
++      "integrity": "sha512-tKtl/qco9Nt7LU5iKhpultD8O4vMCZcU2CHjNTnRrL1QvSUr5W/GcyFPjNL87GtRrwBc7ubXXD9xy4EvLvt8JA==",
++      "devOptional": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@prisma/debug": "6.19.3",
++        "@prisma/engines-version": "7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7",
++        "@prisma/get-platform": "6.19.3"
++      }
++    },
++    "node_modules/@prisma/get-platform": {
++      "version": "6.19.3",
++      "resolved": "https://registry.npmjs.org/@prisma/get-platform/-/get-platform-6.19.3.tgz",
++      "integrity": "sha512-xFj1VcJ1N3MKooOQAGO0W5tsd0W2QzIvW7DD7c/8H14Zmp4jseeWAITm+w2LLoLrlhoHdPPh0NMZ8mfL6puoHA==",
++      "devOptional": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@prisma/debug": "6.19.3"
++      }
++    },
+     "node_modules/@rollup/pluginutils": {
+       "version": "5.4.0",
+       "resolved": "https://registry.npmjs.org/@rollup/pluginutils/-/pluginutils-5.4.0.tgz",
+@@ -1019,7 +1109,7 @@
+       "version": "1.1.0",
+       "resolved": "https://registry.npmjs.org/@standard-schema/spec/-/spec-1.1.0.tgz",
+       "integrity": "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==",
+-      "dev": true,
++      "devOptional": true,
+       "license": "MIT"
+     },
+     "node_modules/@sveltejs/acorn-typescript": {
+@@ -1599,11 +1689,40 @@
+         "balanced-match": "^1.0.0"
+       }
+     },
++    "node_modules/c12": {
++      "version": "3.1.0",
++      "resolved": "https://registry.npmjs.org/c12/-/c12-3.1.0.tgz",
++      "integrity": "sha512-uWoS8OU1MEIsOv8p/5a82c3H31LsWVR5qiyXVfBNOzfffjUWtPnhAb4BYI2uG2HfGmZmFjCtui5XNWaps+iFuw==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "chokidar": "^4.0.3",
++        "confbox": "^0.2.2",
++        "defu": "^6.1.4",
++        "dotenv": "^16.6.1",
++        "exsolve": "^1.0.7",
++        "giget": "^2.0.0",
++        "jiti": "^2.4.2",
++        "ohash": "^2.0.11",
++        "pathe": "^2.0.3",
++        "perfect-debounce": "^1.0.0",
++        "pkg-types": "^2.2.0",
++        "rc9": "^2.1.2"
++      },
++      "peerDependencies": {
++        "magicast": "^0.3.5"
++      },
++      "peerDependenciesMeta": {
++        "magicast": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/chokidar": {
+       "version": "4.0.3",
+       "resolved": "https://registry.npmjs.org/chokidar/-/chokidar-4.0.3.tgz",
+       "integrity": "sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==",
+-      "dev": true,
++      "devOptional": true,
+       "license": "MIT",
+       "dependencies": {
+         "readdirp": "^4.0.1"
+@@ -1625,6 +1744,16 @@
+         "node": ">=18"
+       }
+     },
++    "node_modules/citty": {
++      "version": "0.1.6",
++      "resolved": "https://registry.npmjs.org/citty/-/citty-0.1.6.tgz",
++      "integrity": "sha512-tskPPKEs8D2KPafUypv2gxwJP8h/OaJmC82QQGGDQcHvXX43xF2VDACcJVmZ0EuSxkpO9Kc4MlrA3q0+FG58AQ==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "consola": "^3.2.3"
++      }
++    },
+     "node_modules/clsx": {
+       "version": "2.1.1",
+       "resolved": "https://registry.npmjs.org/clsx/-/clsx-2.1.1.tgz",
+@@ -1655,11 +1784,18 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/confbox": {
++      "version": "0.2.4",
++      "resolved": "https://registry.npmjs.org/confbox/-/confbox-0.2.4.tgz",
++      "integrity": "sha512-ysOGlgTFbN2/Y6Cg3Iye8YKulHw+R2fNXHrgSmXISQdMnomY6eNDprVdW9R5xBguEqI954+S6709UyiO7B+6OQ==",
++      "devOptional": true,
++      "license": "MIT"
++    },
+     "node_modules/consola": {
+       "version": "3.4.2",
+       "resolved": "https://registry.npmjs.org/consola/-/consola-3.4.2.tgz",
+       "integrity": "sha512-5IKcdX0nnYavi6G7TtOhwkYzyjfJlatbjMjuLSfE2kYT5pMDOilZ4OvMhi637CcDICTmz3wARPoyhqyX1Y+XvA==",
+-      "dev": true,
++      "devOptional": true,
+       "license": "MIT",
+       "engines": {
+         "node": "^14.18.0 || >=16.10.0"
+@@ -1718,6 +1854,30 @@
+         "node": ">=0.10.0"
+       }
+     },
++    "node_modules/deepmerge-ts": {
++      "version": "7.1.5",
++      "resolved": "https://registry.npmjs.org/deepmerge-ts/-/deepmerge-ts-7.1.5.tgz",
++      "integrity": "sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==",
++      "devOptional": true,
++      "license": "BSD-3-Clause",
++      "engines": {
++        "node": ">=16.0.0"
++      }
++    },
++    "node_modules/defu": {
++      "version": "6.1.7",
++      "resolved": "https://registry.npmjs.org/defu/-/defu-6.1.7.tgz",
++      "integrity": "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==",
++      "devOptional": true,
++      "license": "MIT"
++    },
++    "node_modules/destr": {
++      "version": "2.0.5",
++      "resolved": "https://registry.npmjs.org/destr/-/destr-2.0.5.tgz",
++      "integrity": "sha512-ugFTXCtDZunbzasqBxrK93Ik/DRYsO6S/fedkWEMKqt04xZ4csmnmwGDBAb07QWNaGMAmnTIemsYZCksjATwsA==",
++      "devOptional": true,
++      "license": "MIT"
++    },
+     "node_modules/detect-libc": {
+       "version": "2.1.2",
+       "resolved": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz",
+@@ -1735,6 +1895,19 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/dotenv": {
++      "version": "16.6.1",
++      "resolved": "https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz",
++      "integrity": "sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==",
++      "devOptional": true,
++      "license": "BSD-2-Clause",
++      "engines": {
++        "node": ">=12"
++      },
++      "funding": {
++        "url": "https://dotenvx.com"
++      }
++    },
+     "node_modules/eastasianwidth": {
+       "version": "0.2.0",
+       "resolved": "https://registry.npmjs.org/eastasianwidth/-/eastasianwidth-0.2.0.tgz",
+@@ -1742,6 +1915,17 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/effect": {
++      "version": "3.21.0",
++      "resolved": "https://registry.npmjs.org/effect/-/effect-3.21.0.tgz",
++      "integrity": "sha512-PPN80qRokCd1f015IANNhrwOnLO7GrrMQfk4/lnZRE/8j7UPWrNNjPV0uBrZutI/nHzernbW+J0hdqQysHiSnQ==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "@standard-schema/spec": "^1.0.0",
++        "fast-check": "^3.23.1"
++      }
++    },
+     "node_modules/emoji-regex": {
+       "version": "9.2.2",
+       "resolved": "https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz",
+@@ -1749,6 +1933,16 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/empathic": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/empathic/-/empathic-2.0.0.tgz",
++      "integrity": "sha512-i6UzDscO/XfAcNYD75CfICkmfLedpyPDdozrLMmQc5ORaQcdMoc21OnlEylMIqI7U8eniKrPMxxtj8k0vhmJhA==",
++      "devOptional": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=14"
++      }
++    },
+     "node_modules/enhanced-resolve": {
+       "version": "5.24.5",
+       "resolved": "https://registry.npmjs.org/enhanced-resolve/-/enhanced-resolve-5.24.5.tgz",
+@@ -1837,6 +2031,36 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/exsolve": {
++      "version": "1.1.1",
++      "resolved": "https://registry.npmjs.org/exsolve/-/exsolve-1.1.1.tgz",
++      "integrity": "sha512-9U/jZUgjnSGyntRr6y5Muu1MJcwFl6kPu7k8qLF0IMNfLqvw0NZ4nnVDq0RVoZ0RvCyumib4Ez3KYrVfilrw+g==",
++      "devOptional": true,
++      "license": "MIT"
++    },
++    "node_modules/fast-check": {
++      "version": "3.23.2",
++      "resolved": "https://registry.npmjs.org/fast-check/-/fast-check-3.23.2.tgz",
++      "integrity": "sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==",
++      "devOptional": true,
++      "funding": [
++        {
++          "type": "individual",
++          "url": "https://github.com/sponsors/dubzzz"
++        },
++        {
++          "type": "opencollective",
++          "url": "https://opencollective.com/fast-check"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "pure-rand": "^6.1.0"
++      },
++      "engines": {
++        "node": ">=8.0.0"
++      }
++    },
+     "node_modules/fdir": {
+       "version": "6.5.0",
+       "resolved": "https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz",
+@@ -1894,6 +2118,24 @@
+         "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
+       }
+     },
++    "node_modules/giget": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/giget/-/giget-2.0.0.tgz",
++      "integrity": "sha512-L5bGsVkxJbJgdnwyuheIunkGatUF/zssUoxxjACCseZYAVbaqdh9Tsmmlkl8vYan09H7sbvKt4pS8GqKLBrEzA==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "citty": "^0.1.6",
++        "consola": "^3.4.0",
++        "defu": "^6.1.4",
++        "node-fetch-native": "^1.6.6",
++        "nypm": "^0.6.0",
++        "pathe": "^2.0.3"
++      },
++      "bin": {
++        "giget": "dist/cli.mjs"
++      }
++    },
+     "node_modules/glob": {
+       "version": "10.5.0",
+       "resolved": "https://registry.npmjs.org/glob/-/glob-10.5.0.tgz",
+@@ -1995,7 +2237,7 @@
+       "version": "2.7.0",
+       "resolved": "https://registry.npmjs.org/jiti/-/jiti-2.7.0.tgz",
+       "integrity": "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==",
+-      "dev": true,
++      "devOptional": true,
+       "license": "MIT",
+       "bin": {
+         "jiti": "lib/jiti-cli.mjs"
+@@ -2414,6 +2656,13 @@
+         }
+       }
+     },
++    "node_modules/node-fetch-native": {
++      "version": "1.6.7",
++      "resolved": "https://registry.npmjs.org/node-fetch-native/-/node-fetch-native-1.6.7.tgz",
++      "integrity": "sha512-g9yhqoedzIUm0nTnTqAQvueMPVOuIY16bqgAJJC8XOOubYFNwz6IER9qs0Gq2Xd0+CecCKFjtdDTMA4u4xG06Q==",
++      "devOptional": true,
++      "license": "MIT"
++    },
+     "node_modules/node-gyp-build": {
+       "version": "4.8.4",
+       "resolved": "https://registry.npmjs.org/node-gyp-build/-/node-gyp-build-4.8.4.tgz",
+@@ -2442,6 +2691,38 @@
+         "node": "^18.17.0 || >=20.5.0"
+       }
+     },
++    "node_modules/nypm": {
++      "version": "0.6.9",
++      "resolved": "https://registry.npmjs.org/nypm/-/nypm-0.6.9.tgz",
++      "integrity": "sha512-zxlE2yvSWZWmHcNdT3+5zV2lrCogeE9YOklHrR3dFjqutq5wO7GFDYLFDRXLsYnJzwvy/im9fYoxePvS0VTW0w==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "citty": "^0.2.2",
++        "pathe": "^2.0.3",
++        "tinyexec": "^1.2.4"
++      },
++      "bin": {
++        "nypm": "dist/cli.mjs"
++      },
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/nypm/node_modules/citty": {
++      "version": "0.2.2",
++      "resolved": "https://registry.npmjs.org/citty/-/citty-0.2.2.tgz",
++      "integrity": "sha512-+6vJA3L98yv+IdfKGZHBNiGW5KHn22e/JwID0Strsz8h4S/csAu/OuICwxrg44k5MRiZHWIo8XXuJgQTriRP4w==",
++      "devOptional": true,
++      "license": "MIT"
++    },
++    "node_modules/ohash": {
++      "version": "2.0.12",
++      "resolved": "https://registry.npmjs.org/ohash/-/ohash-2.0.12.tgz",
++      "integrity": "sha512-65S/5gk9YSsaRjcyf7Nfa6h/d3E8/1gslpXfI4W7Dxn/oap8IKRuNT5VXkLQ1YFKIEg4apRY4Pj6aiwFzrDdmw==",
++      "devOptional": true,
++      "license": "MIT"
++    },
+     "node_modules/package-json-from-dist": {
+       "version": "1.0.1",
+       "resolved": "https://registry.npmjs.org/package-json-from-dist/-/package-json-from-dist-1.0.1.tgz",
+@@ -2476,6 +2757,20 @@
+         "url": "https://github.com/sponsors/isaacs"
+       }
+     },
++    "node_modules/pathe": {
++      "version": "2.0.3",
++      "resolved": "https://registry.npmjs.org/pathe/-/pathe-2.0.3.tgz",
++      "integrity": "sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==",
++      "devOptional": true,
++      "license": "MIT"
++    },
++    "node_modules/perfect-debounce": {
++      "version": "1.0.0",
++      "resolved": "https://registry.npmjs.org/perfect-debounce/-/perfect-debounce-1.0.0.tgz",
++      "integrity": "sha512-xCy9V055GLEqoFaHoC1SoLIaLmWctgCUaBaWxDZ7/Zx4CTyX7cJQLJOok/orfjZAh9kEYpjJa4d0KcJmCbctZA==",
++      "devOptional": true,
++      "license": "MIT"
++    },
+     "node_modules/picocolors": {
+       "version": "1.1.1",
+       "resolved": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",
+@@ -2496,6 +2791,25 @@
+         "url": "https://github.com/sponsors/jonschlinkert"
+       }
+     },
++    "node_modules/pkg-types": {
++      "version": "2.3.2",
++      "resolved": "https://registry.npmjs.org/pkg-types/-/pkg-types-2.3.2.tgz",
++      "integrity": "sha512-v0sVXzj7oPGysr543YYZLYbcJNJsKikSsp/fFzoxQ12ewY3ZZr7oCPC8y7OlmxfYB3QPvriXmuPD8KZggE1vqg==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "confbox": "^0.3.0",
++        "exsolve": "^1.1.1",
++        "pathe": "^2.0.3"
++      }
++    },
++    "node_modules/pkg-types/node_modules/confbox": {
++      "version": "0.3.1",
++      "resolved": "https://registry.npmjs.org/confbox/-/confbox-0.3.1.tgz",
++      "integrity": "sha512-cKUSoKa8YxFZZSmraVi7onONx3amu77ngK3kGpsYHDH7drPwCRkQE1RYMPlLRrMtnciRj274XNRxcHxnKmDSnA==",
++      "devOptional": true,
++      "license": "MIT"
++    },
+     "node_modules/postcss": {
+       "version": "8.5.28",
+       "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.28.tgz",
+@@ -2525,11 +2839,65 @@
+         "node": "^10 || ^12 || >=14"
+       }
+     },
++    "node_modules/prisma": {
++      "version": "6.19.3",
++      "resolved": "https://registry.npmjs.org/prisma/-/prisma-6.19.3.tgz",
++      "integrity": "sha512-++ZJ0ijLrDJF6hNB4t4uxg2br3fC4H9Yc9tcbjr2fcNFP3rh/SBNrAgjhsqBU4Ght8JPrVofG/ZkXfnSfnYsFg==",
++      "devOptional": true,
++      "hasInstallScript": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@prisma/config": "6.19.3",
++        "@prisma/engines": "6.19.3"
++      },
++      "bin": {
++        "prisma": "build/index.js"
++      },
++      "engines": {
++        "node": ">=18.18"
++      },
++      "peerDependencies": {
++        "typescript": ">=5.1.0"
++      },
++      "peerDependenciesMeta": {
++        "typescript": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/pure-rand": {
++      "version": "6.1.0",
++      "resolved": "https://registry.npmjs.org/pure-rand/-/pure-rand-6.1.0.tgz",
++      "integrity": "sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==",
++      "devOptional": true,
++      "funding": [
++        {
++          "type": "individual",
++          "url": "https://github.com/sponsors/dubzzz"
++        },
++        {
++          "type": "opencollective",
++          "url": "https://opencollective.com/fast-check"
++        }
++      ],
++      "license": "MIT"
++    },
++    "node_modules/rc9": {
++      "version": "2.1.2",
++      "resolved": "https://registry.npmjs.org/rc9/-/rc9-2.1.2.tgz",
++      "integrity": "sha512-btXCnMmRIBINM2LDZoEmOogIZU7Qe7zn4BpomSKZ/ykbLObuBdvG+mFq11DL6fjH1DRwHhrlgtYWG96bJiC7Cg==",
++      "devOptional": true,
++      "license": "MIT",
++      "dependencies": {
++        "defu": "^6.1.4",
++        "destr": "^2.0.3"
++      }
++    },
+     "node_modules/readdirp": {
+       "version": "4.1.2",
+       "resolved": "https://registry.npmjs.org/readdirp/-/readdirp-4.1.2.tgz",
+       "integrity": "sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==",
+-      "dev": true,
++      "devOptional": true,
+       "license": "MIT",
+       "engines": {
+         "node": ">= 14.18.0"
+@@ -2883,6 +3251,16 @@
+         "node": ">=18"
+       }
+     },
++    "node_modules/tinyexec": {
++      "version": "1.3.0",
++      "resolved": "https://registry.npmjs.org/tinyexec/-/tinyexec-1.3.0.tgz",
++      "integrity": "sha512-QKAl9m8gWWGHV8jZcPeym6j+XULi6tOf1mT83WYJ4Lk2ytW/uwAWkrP0uFsdoYMdueVJ0qs26wZ+23xeB4ibNQ==",
++      "devOptional": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=18"
++      }
++    },
+     "node_modules/tinyglobby": {
+       "version": "0.2.17",
+       "resolved": "https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz",
+@@ -2921,7 +3299,7 @@
+       "version": "5.9.3",
+       "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+       "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+-      "dev": true,
++      "devOptional": true,
+       "license": "Apache-2.0",
+       "bin": {
+         "tsc": "bin/tsc",
+diff --git a/package.json b/package.json
+index dbcbe63..ff3d1b7 100644
+--- a/package.json
++++ b/package.json
+@@ -1,13 +1,19 @@
+ {
+   "name": "dinamo-rent-web",
+-  "version": "1.0.0",
++  "version": "1.1.0",
+   "private": true,
+   "type": "module",
+   "scripts": {
+     "dev": "vite dev",
+     "build": "vite build",
+     "preview": "vite preview",
+-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
++    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
++    "db:generate": "prisma generate",
++    "db:migrate": "prisma migrate dev --name init",
++    "db:push": "prisma db push",
++    "db:studio": "prisma studio",
++    "db:seed": "curl -X POST http://localhost:5174/api/seed",
++    "postinstall": "prisma generate"
+   },
+   "devDependencies": {
+     "@sveltejs/adapter-auto": "^4.0.0",
+@@ -15,10 +21,14 @@
+     "@sveltejs/kit": "^2.16.0",
+     "@sveltejs/vite-plugin-svelte": "^5.0.0",
+     "@tailwindcss/vite": "^4.0.0",
++    "prisma": "^6.11.1",
+     "svelte": "^5.0.0",
+     "svelte-check": "^4.0.0",
+     "tailwindcss": "^4.0.0",
+     "typescript": "^5.7.0",
+     "vite": "^6.0.0"
++  },
++  "dependencies": {
++    "@prisma/client": "^6.11.1"
+   }
+ }
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+new file mode 100644
+index 0000000..57d7e59
+--- /dev/null
++++ b/prisma/schema.prisma
+@@ -0,0 +1,232 @@
++// ============================================================================
++// Dinamo Rent a Car — Esquema Prisma para PostgreSQL
++// ----------------------------------------------------------------------------
++// Diseñado para:
++//   - Concurrencia sin bloqueos (MVCC de PostgreSQL)
++//   - Sincronización híbrida web <-> app de escritorio (Firebird)
++//   - Reservas online con pago con tarjeta y bloqueo de cupo de seguro
++//   - Código público de reserva: DIN-2026-XXXX
++//
++// Proveedor recomendado: Neon (PostgreSQL serverless) — tier Free suficiente
++// para empezar (0.5 GB ≈ 150k–250k reservas).
++//
++// IMPORTANTE: en producción usar `prisma migrate dev` (no `db push`).
++// ============================================================================
++
++generator client {
++  provider = "prisma-client-js"
++}
++
++datasource db {
++  provider  = "postgresql"
++  url       = env("DATABASE_URL")
++  directUrl = env("DIRECT_URL")
++}
++
++// ============================================================================
++// ENUMS (reales en PostgreSQL)
++// ============================================================================
++
++enum VehicleCategory {
++  ECONOMICO
++  SEDAN
++  SUV
++  CAMIONETA
++  VAN
++  LUJO
++  PREMIUM
++}
++
++enum Transmission {
++  AUTOMATICA
++  MECANICA
++  AUTOMATICA_4X4
++}
++
++enum FuelType {
++  GASOLINA
++  DIESEL
++  HIBRIDO
++  ELECTRICO
++}
++
++enum ReservationStatus {
++  PENDIENTE
++  CONFIRMADA
++  PAGADA
++  EN_CURSO
++  FINALIZADA
++  CANCELADA
++}
++
++enum InsurancePlan {
++  BASICO
++  TOTAL
++}
++
++enum PaymentStatus {
++  APROBADO
++  RECHAZADO
++  REEMBOLSADO
++  PENDIENTE
++}
++
++enum SyncStatus {
++  PENDING
++  SYNCED
++  FAILED
++}
++
++enum SyncEntity {
++  RESERVATION
++  VEHICLE
++  PAYMENT
++  INSURANCE_BLOCK
++}
++
++enum SyncAction {
++  CREATE
++  UPDATE
++  DELETE
++}
++
++// ============================================================================
++// MODELOS
++// ============================================================================
++
++model Vehicle {
++  id            String          @id @default(cuid())
++  name          String
++  category      VehicleCategory
++  categoryLabel String          @default("")
++  badge         String          @default("")
++  brand         String          @default("")
++  transmission  Transmission    @default(MECANICA)
++  fuelType      FuelType        @default(GASOLINA)
++  seats         Int             @default(5)
++  doors         Int             @default(4)
++  ac            Boolean         @default(true)
++  luggage       String          @default("")
++  pricePerDay   Int
++  deposit       Int             @default(1000000)
++  image         String
++  gallery       String[]        @default([])
++  features      String[]        @default([])
++  plate         String?         @unique
++  available     Boolean         @default(true)
++  createdAt     DateTime        @default(now())
++  updatedAt     DateTime        @updatedAt
++
++  reservations Reservation[]
++
++  @@index([category])
++  @@index([available])
++  @@map("vehicles")
++}
++
++model Reservation {
++  id        String  @id @default(cuid())
++  code      String  @unique
++  vehicleId String
++  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
++
++  customerName       String
++  customerLastname   String  @default("")
++  customerEmail      String
++  customerPhone      String
++  customerIdType     String  @default("CC")
++  customerIdNumber   String
++  customerLicense    String?
++  customerLicenseExp String?
++  customerHotel      String?
++
++  pickupDate     DateTime
++  returnDate     DateTime
++  pickupTime     String   @default("10:00")
++  returnTime     String   @default("10:00")
++  pickupLocation String   @default("Aeropuerto Internacional Rafael Núñez (CTG)")
++  returnLocation String   @default("Aeropuerto Internacional Rafael Núñez (CTG)")
++
++  days            Int
++  baseAmount      Int
++  extrasAmount    Int @default(0)
++  insuranceAmount Int @default(0)
++  blockingAmount  Int @default(0)
++  totalAmount     Int
++
++  status           ReservationStatus @default(PENDIENTE)
++  insurancePlan    InsurancePlan     @default(TOTAL)
++  extras           Json              @default("{}")
++  signatureDataUrl String?
++  notes            String?
++
++  synced     Boolean   @default(false)
++  syncedAt   DateTime?
++  desktopRef String?
++
++  createdAt DateTime @default(now())
++  updatedAt DateTime @updatedAt
++
++  payment        Payment?
++  insuranceBlock InsuranceBlock?
++
++  @@index([vehicleId])
++  @@index([status])
++  @@index([customerEmail])
++  @@index([pickupDate, returnDate])
++  @@index([synced])
++  @@map("reservations")
++}
++
++model Payment {
++  id            String      @id @default(cuid())
++  reservationId String      @unique
++  reservation   Reservation @relation(fields: [reservationId], references: [id])
++
++  cardHolder    String
++  cardLast4     String
++  cardBrand     String
++  amount        Int
++  status        PaymentStatus @default(APROBADO)
++  transactionId String        @unique
++  installments  Int           @default(1)
++  gateway       String        @default("SIMULADO")
++  gatewayRef    String?
++
++  createdAt DateTime @default(now())
++
++  @@map("payments")
++}
++
++model InsuranceBlock {
++  id            String        @id @default(cuid())
++  reservationId String        @unique
++  reservation   Reservation   @relation(fields: [reservationId], references: [id])
++  code          String        @unique
++  type          InsurancePlan
++  description   String
++  amount        Int
++  status        String        @default("ACTIVO")
++  releasedAt    DateTime?
++
++  createdAt DateTime @default(now())
++
++  @@map("insurance_blocks")
++}
++
++model SyncLog {
++  id        String     @id @default(cuid())
++  entity    SyncEntity
++  entityId  String
++  action    SyncAction
++  status    SyncStatus @default(PENDING)
++  message   String?
++  payload   Json?
++  createdAt DateTime   @default(now())
++  syncedAt  DateTime?
++
++  @@index([status])
++  @@index([entity, entityId])
++  @@index([createdAt])
++  @@map("sync_logs")
++}
+diff --git a/src/lib/components/BookingModal.svelte b/src/lib/components/BookingModal.svelte
+index cd1b64e..ac1c241 100644
+--- a/src/lib/components/BookingModal.svelte
++++ b/src/lib/components/BookingModal.svelte
+@@ -29,7 +29,41 @@
+     return true;
+   }
+ 
+-  function nextStep() {
++  function validatePayment(): boolean {
++    const p = booking.payment;
++    if (!p.cardHolder.trim() || p.cardHolder.trim().length < 3) {
++      formError = 'Ingresa el nombre del titular como aparece en la tarjeta.';
++      return false;
++    }
++    if (p.cardNumber.replace(/\s/g, '').length < 13) {
++      formError = 'Número de tarjeta inválido.';
++      return false;
++    }
++    if (!/^\d{2}\/\d{2}$/.test(p.cardExpiry)) {
++      formError = 'Vencimiento inválido (formato MM/AA).';
++      return false;
++    }
++    if (!/^\d{3,4}$/.test(p.cardCvc)) {
++      formError = 'CVC inválido.';
++      return false;
++    }
++    formError = null;
++    return true;
++  }
++
++  function handleCardNumber(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const digits = input.value.replace(/\D/g, '').slice(0, 19);
++    booking.payment.cardNumber = digits.replace(/(.{4})/g, '$1 ').trim();
++  }
++
++  function handleExpiry(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const d = input.value.replace(/\D/g, '').slice(0, 4);
++    booking.payment.cardExpiry = d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
++  }
++
++  async function nextStep() {
+     formError = null;
+     if (booking.modalStep === 2) {
+       if (!validateStep2()) return;
+@@ -43,8 +77,23 @@
+         formError = 'Debes aceptar los términos y condiciones del servicio.';
+         return;
+       }
++      // Crea la reserva en PostgreSQL al avanzar de la firma
++      const ok = await booking.createReservation();
++      if (!ok) {
++        formError = booking.paymentMessage || 'No se pudo crear la reserva. Intenta de nuevo.';
++        return;
++      }
+     }
+-    if (booking.modalStep < 4) {
++    if (booking.modalStep === 4) {
++      // Paso de pago: procesa la tarjeta
++      if (!validatePayment()) return;
++      const ok = await booking.processPayment();
++      if (!ok) {
++        formError = booking.paymentMessage;
++        return;
++      }
++    }
++    if (booking.modalStep < 5) {
+       booking.modalStep++;
+     }
+   }
+@@ -69,8 +118,9 @@
+       `🪪 *Documento:* ${booking.driver.docType} ${booking.driver.docNumber}%0A` +
+       `📱 *WhatsApp:* ${booking.driver.phone}%0A` +
+       `💰 *Total Alquiler:* ${formatCurrency(booking.grandTotal, 'COP')}%0A` +
+-      `🛡 *Garantía Requerida:* ${formatCurrency(booking.depositAmount, 'COP')}%0A%0A` +
+-      `_He completado el check-in digital y firmado mi solicitud. Deseo confirmar disponibilidad y pago._`;
++      `🛡 *Garantía Requerida:* ${formatCurrency(booking.depositAmount, 'COP')}%0A` +
++      `✅ *Estado:* PAGADA (confirmada online)%0A%0A` +
++      `_He completado el check-in digital, firmado y pagado. Deseo recoger el vehículo en mostrador._`;
+     return `https://wa.me/573000000000?text=${text}`;
+   }
+ 
+@@ -80,15 +130,13 @@
+ </script>
+ 
+ {#if booking.isModalOpen && vehicle}
+-  <!-- Backdrop -->
+-  <div 
++  <div
+     class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in"
+     role="dialog"
+     aria-modal="true"
+   >
+-    <!-- Modal Dialog -->
+     <div class="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+-      
++
+       <!-- Modal Header -->
+       <div class="relative bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+         <div class="flex items-center gap-3">
+@@ -105,8 +153,8 @@
+           </div>
+         </div>
+ 
+-        <button 
+-          type="button" 
++        <button
++          type="button"
+           onclick={() => booking.closeModal()}
+           class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+           aria-label="Cerrar modal"
+@@ -115,33 +163,37 @@
+         </button>
+       </div>
+ 
+-      <!-- Step Indicator Bar -->
+-      <div class="bg-slate-950 px-6 py-2.5 border-b border-slate-800/80 flex items-center justify-between text-xs font-semibold">
+-        <div class="flex items-center gap-2">
++      <!-- Step Indicator Bar (ahora 5 pasos: Seguros, Conductor, Firma, Pago, Voucher) -->
++      <div class="bg-slate-950 px-4 sm:px-6 py-2.5 border-b border-slate-800/80 flex items-center justify-between text-xs font-semibold overflow-x-auto">
++        <div class="flex items-center gap-2 shrink-0">
+           <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {booking.modalStep >= 1 ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-500'}">1</span>
+-          <span class="{booking.modalStep === 1 ? 'text-white' : 'text-slate-500'}">Seguros</span>
++          <span class="{booking.modalStep === 1 ? 'text-white' : 'text-slate-500'} hidden sm:inline">Seguros</span>
+         </div>
+         <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"></i>
+-        <div class="flex items-center gap-2">
++        <div class="flex items-center gap-2 shrink-0">
+           <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {booking.modalStep >= 2 ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-500'}">2</span>
+-          <span class="{booking.modalStep === 2 ? 'text-white' : 'text-slate-500'}">Conductor</span>
++          <span class="{booking.modalStep === 2 ? 'text-white' : 'text-slate-500'} hidden sm:inline">Conductor</span>
+         </div>
+         <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"></i>
+-        <div class="flex items-center gap-2">
++        <div class="flex items-center gap-2 shrink-0">
+           <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {booking.modalStep >= 3 ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-500'}">3</span>
+-          <span class="{booking.modalStep === 3 ? 'text-white' : 'text-slate-500'}">Firma</span>
++          <span class="{booking.modalStep === 3 ? 'text-white' : 'text-slate-500'} hidden sm:inline">Firma</span>
++        </div>
++        <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"></i>
++        <div class="flex items-center gap-2 shrink-0">
++          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {booking.modalStep >= 4 ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-500'}">4</span>
++          <span class="{booking.modalStep === 4 ? 'text-white' : 'text-slate-500'} hidden sm:inline">Pago</span>
+         </div>
+         <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"></i>
+-        <div class="flex items-center gap-2">
+-          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {booking.modalStep >= 4 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}">4</span>
+-          <span class="{booking.modalStep === 4 ? 'text-white' : 'text-slate-500'}">Voucher</span>
++        <div class="flex items-center gap-2 shrink-0">
++          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black {booking.modalStep >= 5 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}">5</span>
++          <span class="{booking.modalStep === 5 ? 'text-white' : 'text-slate-500'} hidden sm:inline">Voucher</span>
+         </div>
+       </div>
+ 
+       <!-- Modal Body (Scrollable) -->
+       <div class="p-6 overflow-y-auto flex-1 space-y-6">
+-        
+-        <!-- Error Alert if any -->
++
+         {#if formError}
+           <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+             <i class="fa-solid fa-circle-exclamation text-red-400"></i>
+@@ -149,11 +201,17 @@
+           </div>
+         {/if}
+ 
++        {#if booking.submitting}
++          <div class="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center gap-3">
++            <i class="fa-solid fa-circle-notch fa-spin text-cyan-400"></i>
++            <span>Procesando, por favor espera...</span>
++          </div>
++        {/if}
++
+         <!-- ================= STEP 1: EXTRAS & COBERTURAS ================= -->
+         {#if booking.modalStep === 1}
+           <div class="space-y-6">
+-            
+-            <!-- Trip summary mini-bar -->
++
+             <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+               <div class="flex items-center gap-2">
+                 <i class="fa-solid fa-calendar-days text-orange-400"></i>
+@@ -166,272 +224,239 @@
+               </div>
+             </div>
+ 
+-            <!-- Insurance options -->
+             <div class="space-y-3">
+               <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                 Selecciona tu Nivel de Cobertura
+               </h4>
+ 
+               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+-                <!-- Seguro Total (Recomendado) -->
+                 <button
+                   type="button"
+                   class="p-4 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer {booking.insuranceCoverage === 'total' ? 'bg-cyan-950/40 border-cyan-500 shadow-lg shadow-cyan-500/10' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}"
+                   onclick={() => (booking.insuranceCoverage = 'total')}
+                 >
+-                  <div class="space-y-1.5">
+-                    <div class="flex items-center justify-between">
+-                      <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-cyan-500 text-slate-950">Recomendado</span>
+-                      <i class="fa-solid {booking.insuranceCoverage === 'total' ? 'fa-circle-check text-cyan-400' : 'fa-circle text-slate-700'}"></i>
+-                    </div>
+-                    <h5 class="font-heading font-black text-white text-base">Cobertura Total Cero Deducible</h5>
+-                    <p class="text-[11px] text-slate-400">Protección contra colisión, robo total y daños a terceros sin deducible. Reduce la garantía un 30%.</p>
+-                  </div>
+-                  <div class="mt-3 text-xs font-bold text-cyan-300">
+-                    + {formatCurrency(35000, booking.currency, booking.usdRate)} / día
++                  <div>
++                    <span class="text-[10px] font-bold uppercase tracking-wider text-cyan-400">Recomendado</span>
++                    <h5 class="font-heading font-black text-base text-white mt-1">Cobertura Total</h5>
++                    <p class="text-[11px] text-slate-400 mt-1">Cero Deducible · Reducción del 30% en la garantía</p>
+                   </div>
++                  <p class="text-sm font-black text-cyan-400 mt-3">
++                    {formatCurrency(35000, booking.currency, booking.usdRate)}<span class="text-[11px] font-medium text-slate-400">/día</span>
++                  </p>
+                 </button>
+ 
+-                <!-- Seguro Básico -->
+                 <button
+                   type="button"
+-                  class="p-4 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer {booking.insuranceCoverage === 'basic' ? 'bg-slate-800/80 border-orange-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}"
++                  class="p-4 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer {booking.insuranceCoverage === 'basic' ? 'bg-cyan-950/40 border-cyan-500 shadow-lg shadow-cyan-500/10' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}"
+                   onclick={() => (booking.insuranceCoverage = 'basic')}
+                 >
+-                  <div class="space-y-1.5">
+-                    <div class="flex items-center justify-between">
+-                      <span class="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-400 bg-slate-800">Estándar</span>
+-                      <i class="fa-solid {booking.insuranceCoverage === 'basic' ? 'fa-circle-check text-orange-400' : 'fa-circle text-slate-700'}"></i>
+-                    </div>
+-                    <h5 class="font-heading font-bold text-white text-base">Seguro Básico Legal</h5>
+-                    <p class="text-[11px] text-slate-400">SOAT y responsabilidad civil incluidos. Aplica deducible de 20% en caso de siniestro.</p>
+-                  </div>
+-                  <div class="mt-3 text-xs font-bold text-emerald-400">
+-                    Incluido en la tarifa
++                  <div>
++                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Estándar</span>
++                    <h5 class="font-heading font-black text-base text-white mt-1">Seguro Básico Legal</h5>
++                    <p class="text-[11px] text-slate-400 mt-1">Deducible del 20% · Garantía completa requerida</p>
+                   </div>
++                  <p class="text-sm font-black text-emerald-400 mt-3">Incluido</p>
+                 </button>
+               </div>
+             </div>
+ 
+-            <!-- Extras list -->
+             <div class="space-y-3">
+               <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">
+-                Adicionales para tu Comodidad
++                Adicionales Opcionales
+               </h4>
+-
+-              <div class="space-y-2">
+-                <label class="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-center justify-between cursor-pointer transition">
+-                  <div class="flex items-center gap-3">
+-                    <input type="checkbox" bind:checked={booking.extraBabySeat} class="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer" />
+-                    <div>
+-                      <span class="text-xs font-bold text-white block">Silla de Bebé / Niño</span>
+-                      <span class="text-[11px] text-slate-400">Homologada para seguridad infantil</span>
+-                    </div>
+-                  </div>
+-                  <span class="text-xs font-bold text-slate-300">
+-                    +{formatCurrency(20000, booking.currency, booking.usdRate)}/día
+-                  </span>
+-                </label>
+-
+-                <label class="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-center justify-between cursor-pointer transition">
+-                  <div class="flex items-center gap-3">
+-                    <input type="checkbox" bind:checked={booking.extraSecondDriver} class="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer" />
+-                    <div>
+-                      <span class="text-xs font-bold text-white block">Segundo Conductor Autorizado</span>
+-                      <span class="text-[11px] text-slate-400">Habilita a un acompañante con licencia</span>
+-                    </div>
+-                  </div>
+-                  <span class="text-xs font-bold text-slate-300">
+-                    +{formatCurrency(15000, booking.currency, booking.usdRate)}/día
+-                  </span>
+-                </label>
+-
+-                <label class="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-center justify-between cursor-pointer transition">
+-                  <div class="flex items-center gap-3">
+-                    <input type="checkbox" bind:checked={booking.extraFullTank} class="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer" />
+-                    <div>
+-                      <span class="text-xs font-bold text-white block">Tanque Lleno Pre-pagado</span>
+-                      <span class="text-[11px] text-slate-400">Devuelve el auto sin preocuparte por tanquear</span>
+-                    </div>
+-                  </div>
+-                  <span class="text-xs font-bold text-slate-300">
+-                    +{formatCurrency(140000, booking.currency, booking.usdRate)} (Único)
+-                  </span>
+-                </label>
++              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
++                <button
++                  type="button"
++                  class="p-3 rounded-xl border text-left transition cursor-pointer {booking.extraBabySeat ? 'bg-orange-500/10 border-orange-500/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}"
++                  onclick={() => (booking.extraBabySeat = !booking.extraBabySeat)}
++                >
++                  <i class="fa-solid fa-baby text-orange-400 text-lg"></i>
++                  <p class="font-bold text-sm text-white mt-2">Silla de Bebé</p>
++                  <p class="text-[11px] text-slate-400">{formatCurrency(20000, booking.currency, booking.usdRate)}/día</p>
++                </button>
++                <button
++                  type="button"
++                  class="p-3 rounded-xl border text-left transition cursor-pointer {booking.extraSecondDriver ? 'bg-orange-500/10 border-orange-500/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}"
++                  onclick={() => (booking.extraSecondDriver = !booking.extraSecondDriver)}
++                >
++                  <i class="fa-solid fa-users text-orange-400 text-lg"></i>
++                  <p class="font-bold text-sm text-white mt-2">2do Conductor</p>
++                  <p class="text-[11px] text-slate-400">{formatCurrency(15000, booking.currency, booking.usdRate)}/día</p>
++                </button>
++                <button
++                  type="button"
++                  class="p-3 rounded-xl border text-left transition cursor-pointer {booking.extraFullTank ? 'bg-orange-500/10 border-orange-500/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}"
++                  onclick={() => (booking.extraFullTank = !booking.extraFullTank)}
++                >
++                  <i class="fa-solid fa-gas-pump text-orange-400 text-lg"></i>
++                  <p class="font-bold text-sm text-white mt-2">Tanque Lleno</p>
++                  <p class="text-[11px] text-slate-400">{formatCurrency(140000, booking.currency, booking.usdRate)} pago único</p>
++                </button>
+               </div>
+             </div>
+-
+           </div>
+         {/if}
+ 
+-        <!-- ================= STEP 2: DATOS DEL CONDUCTOR ================= -->
++        <!-- ================= STEP 2: CONDUCTOR ================= -->
+         {#if booking.modalStep === 2}
+           <div class="space-y-4">
+-            
+-            <div class="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs flex items-center gap-2">
+-              <i class="fa-solid fa-id-card text-cyan-400"></i>
+-              <span>Ingresa los datos del conductor titular que retirará el vehículo en Cartagena.</span>
++            <div>
++              <h4 class="font-heading font-black text-lg text-white">Registro del Conductor Titular</h4>
++              <p class="text-xs text-slate-400">Estos datos se validarán en el mostrador al entregar el vehículo.</p>
+             </div>
+ 
+-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+-              <div class="space-y-1">
++            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
++              <div class="space-y-1.5">
+                 <label for="d-names" class="text-xs font-bold text-slate-300">Nombres *</label>
+-                <input 
+-                  id="d-names"
+-                  type="text" 
+-                  bind:value={booking.driver.names} 
+-                  placeholder="Ej: Carlos Andrés"
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none"
+-                />
++                <input id="d-names" type="text" bind:value={booking.driver.names} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="Ej: Juan Carlos" />
+               </div>
+-
+-              <div class="space-y-1">
++              <div class="space-y-1.5">
+                 <label for="d-lastnames" class="text-xs font-bold text-slate-300">Apellidos *</label>
+-                <input 
+-                  id="d-lastnames"
+-                  type="text" 
+-                  bind:value={booking.driver.lastnames} 
+-                  placeholder="Ej: Gómez Martínez"
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none"
+-                />
++                <input id="d-lastnames" type="text" bind:value={booking.driver.lastnames} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="Ej: Pérez López" />
+               </div>
+-            </div>
+-
+-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+-              <div class="space-y-1">
+-                <label for="d-doctype" class="text-xs font-bold text-slate-300">Tipo Doc. *</label>
+-                <select 
+-                  id="d-doctype"
+-                  bind:value={booking.driver.docType}
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer"
+-                >
+-                  <option value="CC">Cédula Ciudadanía (CC)</option>
+-                  <option value="CE">Cédula Extranjería (CE)</option>
+-                  <option value="PASSPORT">Pasaporte</option>
++              <div class="space-y-1.5">
++                <label for="d-doc-type" class="text-xs font-bold text-slate-300">Tipo de Documento *</label>
++                <select id="d-doc-type" bind:value={booking.driver.docType} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none">
++                  <option value="CC">Cédula de Ciudadanía (CC)</option>
++                  <option value="CE">Cédula de Extranjería (CE)</option>
++                  <option value="PAS">Pasaporte (PAS)</option>
++                  <option value="NIT">NIT (empresa)</option>
+                 </select>
+               </div>
+-
+-              <div class="space-y-1 sm:col-span-2">
+-                <label for="d-docnum" class="text-xs font-bold text-slate-300">Número de Documento *</label>
+-                <input 
+-                  id="d-docnum"
+-                  type="text" 
+-                  bind:value={booking.driver.docNumber} 
+-                  placeholder="Ej: 1047458921"
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none"
+-                />
++              <div class="space-y-1.5">
++                <label for="d-doc-number" class="text-xs font-bold text-slate-300">Número de Documento *</label>
++                <input id="d-doc-number" type="text" bind:value={booking.driver.docNumber} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="Número sin puntos" />
+               </div>
+-            </div>
+-
+-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+-              <div class="space-y-1">
++              <div class="space-y-1.5">
+                 <label for="d-phone" class="text-xs font-bold text-slate-300">WhatsApp / Celular *</label>
+-                <input 
+-                  id="d-phone"
+-                  type="tel" 
+-                  bind:value={booking.driver.phone} 
+-                  placeholder="+57 300 000 0000"
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none"
+-                />
++                <input id="d-phone" type="tel" bind:value={booking.driver.phone} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="+57 300 000 0000" />
+               </div>
+-
+-              <div class="space-y-1">
++              <div class="space-y-1.5">
+                 <label for="d-email" class="text-xs font-bold text-slate-300">Correo Electrónico *</label>
+-                <input 
+-                  id="d-email"
+-                  type="email" 
+-                  bind:value={booking.driver.email} 
+-                  placeholder="correo@ejemplo.com"
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none"
+-                />
++                <input id="d-email" type="email" bind:value={booking.driver.email} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="tucorreo@email.com" />
+               </div>
+-            </div>
+-
+-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+-              <div class="space-y-1">
+-                <label for="d-license" class="text-xs font-bold text-slate-300">N° Licencia de Conducción</label>
+-                <input 
+-                  id="d-license"
+-                  type="text" 
+-                  bind:value={booking.driver.license} 
+-                  placeholder="Ej: 13001-998822"
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none"
+-                />
++              <div class="space-y-1.5">
++                <label for="d-license" class="text-xs font-bold text-slate-300">Licencia de Conducción</label>
++                <input id="d-license" type="text" bind:value={booking.driver.license} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="Número de licencia" />
+               </div>
+-
+-              <div class="space-y-1">
+-                <label for="d-hotel" class="text-xs font-bold text-slate-300">Hotel / Alojamiento en Cartagena</label>
+-                <input 
+-                  id="d-hotel"
+-                  type="text" 
+-                  bind:value={booking.driver.hotel} 
+-                  placeholder="Ej: Hotel Almirante Bocagrande"
+-                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none"
+-                />
++              <div class="space-y-1.5">
++                <label for="d-license-exp" class="text-xs font-bold text-slate-300">Vencimiento Licencia</label>
++                <input id="d-license-exp" type="date" bind:value={booking.driver.licenseExp} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" />
++              </div>
++              <div class="space-y-1.5 sm:col-span-2">
++                <label for="d-hotel" class="text-xs font-bold text-slate-300">Hotel / Airbnb (opcional)</label>
++                <input id="d-hotel" type="text" bind:value={booking.driver.hotel} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="Nombre del hotel o dirección" />
+               </div>
+             </div>
+-
+           </div>
+         {/if}
+ 
+         <!-- ================= STEP 3: FIRMA DIGITAL ================= -->
+         {#if booking.modalStep === 3}
+           <div class="space-y-5">
+-            
+-            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-2">
+-              <div class="flex items-center justify-between font-bold text-white">
+-                <span>Resumen del Titular</span>
+-                <span class="text-orange-400">{booking.driver.names} {booking.driver.lastnames}</span>
+-              </div>
+-              <div class="text-[11px] text-slate-400">
+-                Documento: {booking.driver.docType} {booking.driver.docNumber} • Tel: {booking.driver.phone}
+-              </div>
++            <div>
++              <h4 class="font-heading font-black text-lg text-white">Firma Digital del Titular</h4>
++              <p class="text-xs text-slate-400">Conforme a la Ley 527 de 1999 (comercio electrónico en Colombia), tu firma tiene validez pre-contractual.</p>
+             </div>
+ 
+-            <!-- Signature Canvas Component -->
+             <SignatureCanvas />
+ 
+-            <!-- Legal Terms & Checkbox -->
+-            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-2">
+-              <label class="flex items-start gap-2.5 cursor-pointer">
+-                <input 
+-                  type="checkbox" 
+-                  bind:checked={termsAccepted}
+-                  class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer"
+-                />
+-                <span class="text-slate-300 text-[11px] leading-relaxed">
+-                  Declaro que la información suministrada es verídica, autorizo el tratamiento de datos personales conforme a la Ley 1581 de 2012 y entiendo que al retirar el vehículo en mostrador se requerirá presentar documento original, licencia vigente y tarjeta de crédito para el bloqueo de la garantía de <strong class="text-cyan-400">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>.
+-                </span>
+-              </label>
++            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 text-xs text-slate-300">
++              <h5 class="font-bold text-white uppercase tracking-wider text-[11px] border-b border-slate-800 pb-2">Resumen a confirmar</h5>
++              <div class="flex justify-between"><span>Vehículo:</span><span class="font-semibold text-white">{vehicle.name}</span></div>
++              <div class="flex justify-between"><span>Entrega:</span><span class="font-semibold text-white">{formatDatePretty(booking.pickupDate)} {booking.pickupTime}</span></div>
++              <div class="flex justify-between"><span>Devolución:</span><span class="font-semibold text-white">{formatDatePretty(booking.returnDate)} {booking.returnTime}</span></div>
++              <div class="flex justify-between"><span>Duración:</span><span class="font-semibold text-white">{booking.rentalDays} día(s)</span></div>
++              <div class="flex justify-between"><span>Cobertura:</span><span class="font-semibold text-white">{booking.insuranceCoverage === 'total' ? 'Total Cero Deducible' : 'Básica Legal'}</span></div>
++              <div class="flex justify-between pt-2 border-t border-slate-800 text-sm font-black"><span class="text-white">Total Alquiler:</span><span class="text-orange-400">{formatCurrency(booking.grandTotal, booking.currency, booking.usdRate)}</span></div>
++              <div class="flex justify-between text-[11px] text-slate-400"><span>Bloqueo de Garantía en Mostrador:</span><span class="font-semibold text-cyan-300">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</span></div>
+             </div>
+ 
++            <label class="flex items-start gap-2.5 cursor-pointer">
++              <input type="checkbox" bind:checked={termsAccepted} class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer" />
++              <span class="text-slate-300 text-[11px] leading-relaxed">
++                Declaro que la información suministrada es verídica, autorizo el tratamiento de datos personales conforme a la Ley 1581 de 2012 y entiendo que al retirar el vehículo en mostrador se requerirá presentar documento original, licencia vigente y tarjeta de crédito para el bloqueo de la garantía de <strong class="text-cyan-400">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>.
++              </span>
++            </label>
+           </div>
+         {/if}
+ 
+-        <!-- ================= STEP 4: VOUCHER / CONFIRMACIÓN ================= -->
++        <!-- ================= STEP 4: PAGO CON TARJETA ================= -->
+         {#if booking.modalStep === 4}
++          <div class="space-y-5">
++            <div>
++              <h4 class="font-heading font-black text-lg text-white">Pago con Tarjeta de Crédito</h4>
++              <p class="text-xs text-slate-400">
++                Pago seguro encriptado (modo demo). Prueba con <code class="px-1 py-0.5 rounded bg-slate-800 text-cyan-300">4000 1234 5678 9010</code> para aprobar o <code class="px-1 py-0.5 rounded bg-slate-800 text-cyan-300">4000 0000 0000 0002</code> para simular declinación.
++              </p>
++            </div>
++
++            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
++              <span class="text-slate-400">Total a pagar</span>
++              <span class="font-heading font-black text-xl text-orange-400">
++                {formatCurrency(booking.persistedReservation?.totalAmount ?? booking.grandTotal, booking.currency, booking.usdRate)}
++              </span>
++            </div>
++
++            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
++              <div class="space-y-1.5 sm:col-span-2">
++                <label for="card-holder" class="text-xs font-bold text-slate-300">Titular de la Tarjeta *</label>
++                <input id="card-holder" type="text" bind:value={booking.payment.cardHolder} class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm uppercase focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="COMO APARECE EN LA TARJETA" />
++              </div>
++              <div class="space-y-1.5 sm:col-span-2">
++                <label for="card-number" class="text-xs font-bold text-slate-300">Número de Tarjeta *</label>
++                <input id="card-number" type="text" value={booking.payment.cardNumber} oninput={handleCardNumber} inputmode="numeric" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm font-mono focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="0000 0000 0000 0000" />
++              </div>
++              <div class="space-y-1.5">
++                <label for="card-expiry" class="text-xs font-bold text-slate-300">Vencimiento *</label>
++                <input id="card-expiry" type="text" value={booking.payment.cardExpiry} oninput={handleExpiry} inputmode="numeric" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm font-mono focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="MM/AA" />
++              </div>
++              <div class="space-y-1.5">
++                <label for="card-cvc" class="text-xs font-bold text-slate-300">CVC *</label>
++                <input id="card-cvc" type="password" bind:value={booking.payment.cardCvc} inputmode="numeric" maxlength="4" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm font-mono focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none" placeholder="123" />
++              </div>
++              <div class="space-y-1.5 sm:col-span-2">
++                <label for="installments" class="text-xs font-bold text-slate-300">Cuotas</label>
++                <div class="grid grid-cols-4 gap-2">
++                  {#each [1, 3, 6, 12] as ins}
++                    <button
++                      type="button"
++                      class="py-2 rounded-xl text-xs font-bold transition cursor-pointer {booking.payment.installments === ins ? 'bg-orange-500 text-white' : 'bg-slate-950 border border-slate-700 text-slate-400 hover:text-white'}"
++                      onclick={() => (booking.payment.installments = ins)}
++                    >
++                      {ins}x
++                    </button>
++                  {/each}
++                </div>
++              </div>
++            </div>
++
++            <div class="flex items-start gap-2 rounded-xl bg-cyan-500/5 border border-cyan-500/20 p-3 text-[11px] text-slate-300">
++              <i class="fa-solid fa-lock text-cyan-400 mt-0.5"></i>
++              <span>Al confirmar el pago se bloquea el cupo del seguro sobre tu tarjeta. El monto del seguro se libera al devolver el vehículo sin novedad.</span>
++            </div>
++          </div>
++        {/if}
++
++        <!-- ================= STEP 5: VOUCHER / CONFIRMACIÓN ================= -->
++        {#if booking.modalStep === 5}
+           <div class="space-y-6">
+-            
+-            <!-- Success Banner -->
++
+             <div class="p-5 rounded-3xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-emerald-950/60 border border-emerald-500/40 text-center space-y-2">
+               <div class="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 text-2xl flex items-center justify-center mx-auto">
+                 <i class="fa-solid fa-check"></i>
+               </div>
+-              <h4 class="font-heading font-black text-xl text-white">¡Pre-reserva Generada con Éxito!</h4>
++              <h4 class="font-heading font-black text-xl text-white">¡Reserva Confirmada y Pagada!</h4>
+               <p class="text-xs text-emerald-300/80">Código de Referencia: <span class="font-mono font-bold text-white">{booking.reservationId}</span></p>
++              <p class="text-[11px] text-slate-400">Total pagado: <span class="font-bold text-emerald-400">{formatCurrency(booking.persistedReservation?.totalAmount ?? booking.grandTotal, 'COP')}</span></p>
+             </div>
+ 
+-            <!-- Cost Breakdown Table -->
+             <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 text-xs">
+-              <h5 class="font-bold text-white uppercase tracking-wider text-[11px] border-b border-slate-800 pb-2">
+-                Desglose de la Reserva
+-              </h5>
+-
++              <h5 class="font-bold text-white uppercase tracking-wider text-[11px] border-b border-slate-800 pb-2">Desglose de la Reserva</h5>
+               <div class="flex justify-between text-slate-300">
+                 <span>Vehículo: {vehicle.name} ({booking.rentalDays} días)</span>
+                 <span class="font-semibold text-white">{formatCurrency(booking.baseVehicleTotal, booking.currency, booking.usdRate)}</span>
+               </div>
+-
+               {#if booking.insuranceCoverage === 'total'}
+                 <div class="flex justify-between text-cyan-400">
+                   <span>Cobertura Total Cero Deducible ({booking.rentalDays} días)</span>
+@@ -443,26 +468,22 @@
+                   <span class="font-semibold text-emerald-400">Incluido</span>
+                 </div>
+               {/if}
+-
+               {#if booking.extrasTotal > 0}
+                 <div class="flex justify-between text-amber-400">
+                   <span>Adicionales seleccionados</span>
+                   <span class="font-semibold">{formatCurrency(booking.extrasTotal, booking.currency, booking.usdRate)}</span>
+                 </div>
+               {/if}
+-
+               <div class="pt-2 border-t border-slate-800 flex justify-between text-sm font-black">
+-                <span class="text-white">Total Estimado Alquiler:</span>
+-                <span class="text-orange-400 text-base">{formatCurrency(booking.grandTotal, booking.currency, booking.usdRate)}</span>
++                <span class="text-white">Total Pagado:</span>
++                <span class="text-emerald-400 text-base">{formatCurrency(booking.persistedReservation?.totalAmount ?? booking.grandTotal, booking.currency, booking.usdRate)}</span>
+               </div>
+-
+               <div class="pt-2 border-t border-slate-800/60 flex justify-between text-[11px] text-slate-400">
+                 <span>Bloqueo de Garantía en Mostrador:</span>
+                 <span class="font-semibold text-cyan-300">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</span>
+               </div>
+             </div>
+ 
+-            <!-- Signature preview thumbnail -->
+             {#if booking.signatureDataUrl}
+               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                 <span class="text-slate-400">Firma Digital del Titular:</span>
+@@ -470,9 +491,39 @@
+               </div>
+             {/if}
+ 
+-            <!-- CTAs -->
++            <!-- Sincronización con mostrador -->
++            <div class="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-4 space-y-3">
++              <div class="flex items-center justify-between">
++                <div class="flex items-center gap-2">
++                  <i class="fa-solid fa-rotate {booking.syncedToDesktop ? 'text-emerald-400' : 'text-orange-400'} {booking.submitting ? 'fa-spin' : ''}"></i>
++                  <span class="text-sm font-bold text-white">
++                    {booking.syncedToDesktop ? 'Sincronizado con mostrador' : 'Sincronizar con la app de escritorio'}
++                  </span>
++                </div>
++                {#if booking.syncedToDesktop}
++                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">LISTO</span>
++                {:else}
++                  <button
++                    type="button"
++                    onclick={() => booking.syncWithDesktop()}
++                    disabled={booking.submitting}
++                    class="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-orange-500/50 text-orange-300 hover:bg-orange-500/10 transition cursor-pointer disabled:opacity-50"
++                  >
++                    Sincronizar ahora
++                  </button>
++                {/if}
++              </div>
++              <p class="text-[11px] text-slate-400 leading-relaxed">
++                {#if booking.syncedToDesktop && booking.persistedReservation?.desktopRef}
++                  La reserva <span class="font-mono text-white">{booking.reservationId}</span> ya está disponible en la app de mostrador para convertirla en renta. Ref: <span class="font-mono text-white">{booking.persistedReservation.desktopRef}</span>
++                {:else}
++                  Al sincronizar, la reserva aparecerá en la app de escritorio del mostrador para que el asistente la convierta en una renta al entregar el vehículo.
++                {/if}
++              </p>
++            </div>
++
+             <div class="space-y-3">
+-              <a 
++              <a
+                 href={getWhatsAppUrl()}
+                 target="_blank"
+                 rel="noopener noreferrer"
+@@ -507,14 +558,15 @@
+ 
+       </div>
+ 
+-      <!-- Modal Footer (Navigation buttons) -->
+-      {#if booking.modalStep < 4}
++      <!-- Modal Footer -->
++      {#if booking.modalStep < 5}
+         <div class="bg-slate-950 px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-3">
+           {#if booking.modalStep > 1}
+             <button
+               type="button"
+               onclick={prevStep}
+-              class="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer"
++              disabled={booking.submitting}
++              class="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+             >
+               <i class="fa-solid fa-chevron-left text-[10px]"></i>
+               <span>Anterior</span>
+@@ -523,7 +575,6 @@
+             <div></div>
+           {/if}
+ 
+-          <!-- Live price total in footer -->
+           <div class="text-right">
+             <span class="text-[10px] text-slate-400 block">Total Estimado</span>
+             <span class="font-heading font-black text-lg text-orange-400">
+@@ -534,10 +585,16 @@
+           <button
+             type="button"
+             onclick={nextStep}
+-            class="px-6 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer"
++            disabled={booking.submitting}
++            class="px-6 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:active:scale-100"
+           >
+-            <span>{booking.modalStep === 3 ? 'Confirmar y Firmar' : 'Continuar'}</span>
+-            <i class="fa-solid fa-arrow-right text-[10px]"></i>
++            {#if booking.submitting}
++              <i class="fa-solid fa-circle-notch fa-spin"></i>
++              <span>Procesando...</span>
++            {:else}
++              <span>{booking.modalStep === 3 ? 'Crear Reserva' : booking.modalStep === 4 ? 'Pagar y Confirmar' : 'Continuar'}</span>
++              <i class="fa-solid fa-arrow-right text-[10px]"></i>
++            {/if}
+           </button>
+         </div>
+       {/if}
+diff --git a/src/lib/components/FleetCatalog.svelte b/src/lib/components/FleetCatalog.svelte
+index 762c2b7..6a0cec5 100644
+--- a/src/lib/components/FleetCatalog.svelte
++++ b/src/lib/components/FleetCatalog.svelte
+@@ -1,13 +1,72 @@
+ <script lang="ts">
++  import { onMount } from 'svelte';
+   import { FLEET_DATABASE, type Vehicle } from '$lib/data/fleet';
+   import CarCard from './CarCard.svelte';
+ 
+   let selectedCategory = $state<'all' | 'economico' | 'sedan' | 'suv' | 'premium'>('all');
++  let vehicles = $state<Vehicle[]>(FLEET_DATABASE);
++  let loading = $state<boolean>(true);
++  let usingFallback = $state<boolean>(false);
++
++  // Mapea categorías de la DB (uppercase) a las del frontend
++  const DB_TO_FRONT: Record<string, 'economico' | 'sedan' | 'suv' | 'premium'> = {
++    ECONOMICO: 'economico',
++    SEDAN: 'sedan',
++    SUV: 'suv',
++    CAMIONETA: 'suv',
++    VAN: 'suv',
++    LUJO: 'premium',
++    PREMIUM: 'premium'
++  };
++
++  // Carga la flota desde PostgreSQL; si falla, usa el catálogo estático
++  async function loadVehicles() {
++    loading = true;
++    try {
++      const res = await fetch('/api/vehicles');
++      const data = await res.json();
++      if (data?.ok && Array.isArray(data.vehicles) && data.vehicles.length > 0) {
++        // Convierte el formato de la DB al formato del frontend
++        vehicles = data.vehicles.map((v: any) => ({
++          id: v.id,
++          name: v.name,
++          category: DB_TO_FRONT[v.category] ?? 'economico',
++          categoryLabel: v.categoryLabel || v.category,
++          badge: v.badge || '',
++          priceCOP: v.pricePerDay,
++          depositCOP: v.deposit,
++          passengers: v.seats,
++          transmission: (v.transmission === 'AUTOMATICA'
++            ? 'Automático'
++            : v.transmission === 'AUTOMATICA_4X4'
++              ? 'Automático 4x4'
++              : 'Mecánico') as Vehicle['transmission'],
++          luggage: v.luggage || '',
++          fuel: (v.fuelType === 'DIESEL' ? 'Diésel' : 'Gasolina') as Vehicle['fuel'],
++          ac: v.ac,
++          plate: v.plate || '',
++          image: v.image,
++          features: v.features || []
++        }));
++        usingFallback = false;
++      } else {
++        vehicles = FLEET_DATABASE;
++        usingFallback = true;
++      }
++    } catch {
++      vehicles = FLEET_DATABASE;
++      usingFallback = true;
++    } finally {
++      loading = false;
++    }
++  }
++
++  onMount(loadVehicles);
+ 
+   let filteredFleet = $derived(
+     selectedCategory === 'all'
+-      ? FLEET_DATABASE
+-      : FLEET_DATABASE.filter((v: Vehicle) => v.category === selectedCategory)
++      ? vehicles
++      : vehicles.filter((v: Vehicle) => v.category === selectedCategory)
+   );
+ 
+   const CATEGORIES = [
+@@ -20,27 +79,31 @@
+ </script>
+ 
+ <section id="flota" class="py-16 md:py-24 bg-slate-950 relative">
+-  <!-- Subtle ambient glow -->
+   <div class="absolute top-1/2 left-0 w-96 h-96 bg-blue-600/5 blur-[120px] rounded-full pointer-events-none"></div>
+ 
+   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+-    
+-    <!-- Section Title -->
++
+     <div class="text-center max-w-3xl mx-auto space-y-3">
+       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-bold uppercase tracking-wider">
+         <i class="fa-solid fa-car-rear"></i> Flota Disponible en Cartagena
+       </div>
+-      
++
+       <h2 class="font-heading font-black text-3xl sm:text-4xl lg:text-5xl text-white tracking-tight">
+         Elige el Auto Perfecto para tu Viaje
+       </h2>
+-      
++
+       <p class="text-slate-400 text-sm sm:text-base">
+         Vehículos modernos, mantenidos rigurosamente, con aire acondicionado de alto rendimiento para el clima de Cartagena.
+       </p>
++
++      {#if usingFallback}
++        <div class="mt-2 inline-flex items-center gap-2 text-[11px] text-amber-400/80">
++          <i class="fa-solid fa-circle-info"></i>
++          Mostrando catálogo de demostración. Configura PostgreSQL para ver disponibilidad real.
++        </div>
++      {/if}
+     </div>
+ 
+-    <!-- Category Filter Tabs -->
+     <div class="mt-10 flex items-center justify-center flex-wrap gap-2 sm:gap-3">
+       {#each CATEGORIES as cat}
+         <button
+@@ -54,14 +117,18 @@
+       {/each}
+     </div>
+ 
+-    <!-- Vehicles Grid -->
+     <div class="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+-      {#each filteredFleet as vehicle (vehicle.id)}
+-        <CarCard {vehicle} />
+-      {/each}
++      {#if loading}
++        {#each Array(6) as _, i}
++          <div class="h-96 rounded-3xl bg-slate-900/60 border border-slate-800 animate-pulse" role="status" aria-label="Cargando vehículo"></div>
++        {/each}
++      {:else}
++        {#each filteredFleet as vehicle (vehicle.id)}
++          <CarCard {vehicle} />
++        {/each}
++      {/if}
+     </div>
+ 
+-    <!-- Guarantee Callout -->
+     <div class="mt-16 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-slate-800 p-8 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
+       <div class="flex items-center gap-5">
+         <div class="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl shrink-0">
+@@ -72,8 +139,8 @@
+           <p class="text-slate-400 text-xs sm:text-sm mt-0.5">Tenemos tarifas especiales corporativas y para alquileres de largo plazo en Cartagena.</p>
+         </div>
+       </div>
+-      <a 
+-        href="https://wa.me/573000000000?text=Hola%20Dinamo%20Rent,%20deseo%20cotizar%20un%20alquiler%20de%20largo%20plazo" 
++      <a
++        href="https://wa.me/573000000000?text=Hola%20Dinamo%20Rent,%20deseo%20cotizar%20un%20alquiler%20de%20largo%20plazo"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="px-6 py-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 transition whitespace-nowrap active:scale-95"
+diff --git a/src/lib/server/db.ts b/src/lib/server/db.ts
+new file mode 100644
+index 0000000..6b9bfd9
+--- /dev/null
++++ b/src/lib/server/db.ts
+@@ -0,0 +1,26 @@
++// Cliente Prisma singleton para SvelteKit (server-side only)
++// ----------------------------------------------------------------------------
++// En SvelteKit, los endpoints +server.ts corren en el servidor y pueden
++// instanciar Prisma directamente. Este singleton evita agotar conexiones
++// durante el hot-reload en desarrollo.
++
++import PrismaClient from '@prisma/client';
++import { env } from '$env/dynamic/private';
++
++const { PrismaClient: Prisma } = PrismaClient as unknown as {
++  PrismaClient: typeof import('@prisma/client').PrismaClient;
++};
++
++const globalForPrisma = globalThis as unknown as {
++  prisma?: InstanceType<typeof Prisma>;
++};
++
++export const db =
++  globalForPrisma.prisma ??
++  new Prisma({
++    log: env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
++  });
++
++if (env.NODE_ENV !== 'production') {
++  globalForPrisma.prisma = db;
++}
+diff --git a/src/lib/server/helpers.ts b/src/lib/server/helpers.ts
+new file mode 100644
+index 0000000..117505e
+--- /dev/null
++++ b/src/lib/server/helpers.ts
+@@ -0,0 +1,124 @@
++// Helpers compartidos del backend: formato COP, fechas, códigos, tarjetas,
++// planes de seguro y extras. Sincronizados con el bookingStore del frontend.
++
++import type { InsurancePlan } from '@prisma/client';
++
++export function formatCOP(value: number): string {
++  return new Intl.NumberFormat('es-CO', {
++    style: 'currency',
++    currency: 'COP',
++    maximumFractionDigits: 0,
++  }).format(value);
++}
++
++export function formatUSD(value: number, usdRate = 4000): string {
++  const usd = Math.round(value / usdRate);
++  return new Intl.NumberFormat('en-US', {
++    style: 'currency',
++    currency: 'USD',
++    maximumFractionDigits: 0,
++  }).format(usd);
++}
++
++export function formatDate(date: Date | string): string {
++  const d = typeof date === 'string' ? new Date(date) : date;
++  return new Intl.DateTimeFormat('es-CO', {
++    day: '2-digit',
++    month: 'short',
++    year: 'numeric',
++  }).format(d);
++}
++
++export function daysBetween(start: Date | string, end: Date | string): number {
++  const s = typeof start === 'string' ? new Date(start) : start;
++  const e = typeof end === 'string' ? new Date(end) : end;
++  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e <= s) return 0;
++  return Math.max(1, Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
++}
++
++// Genera código DIN-2026-XXXX (formato acordado por el equipo)
++export function genReservationCode(): string {
++  const year = new Date().getFullYear();
++  const n = Math.floor(1000 + Math.random() * 9000);
++  return `DIN-${year}-${n}`;
++}
++
++export function genBlockCode(): string {
++  const n = Math.floor(100000 + Math.random() * 900000);
++  return `BLK-${n}`;
++}
++
++export function genTxId(): string {
++  return `TX-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
++}
++
++export function detectCardBrand(cardNumber: string): string {
++  const n = cardNumber.replace(/\s/g, '');
++  if (/^4/.test(n)) return 'VISA';
++  if (/^(5[1-5]|2[2-7])/.test(n)) return 'MASTERCARD';
++  if (/^3[47]/.test(n)) return 'AMEX';
++  if (/^6/.test(n)) return 'CODENSA';
++  return 'OTRO';
++}
++
++export function maskCard(cardNumber: string): string {
++  const n = cardNumber.replace(/\s/g, '');
++  return n.length < 4 ? '****' : n.slice(-4);
++}
++
++// Configuración de seguros y extras (espejo del bookingStore del frontend)
++export const INSURANCE_CONFIG: Record<
++  InsurancePlan,
++  { name: string; perDay: number; depositFactor: number; description: string }
++> = {
++  BASICO: {
++    name: 'Seguro Básico Legal',
++    perDay: 0,
++    depositFactor: 1.0, // depósito completo
++    description: 'Deducible del 20%. Depósito/garantía completo requerido.',
++  },
++  TOTAL: {
++    name: 'Cobertura Total Cero Deducible',
++    perDay: 35000,
++    depositFactor: 0.7, // depósito reducido 30%
++    description: 'Sin deducible. Depósito/garantía reducido al 70%.',
++  },
++};
++
++export const EXTRA_PRICES = {
++  babySeat: 20000, // COP/día
++  secondDriver: 15000, // COP/día
++  fullTank: 140000, // COP pago único
++} as const;
++
++export interface ExtrasSelection {
++  babySeat?: boolean;
++  secondDriver?: boolean;
++  fullTank?: boolean;
++}
++
++export function calcExtrasAmount(extras: ExtrasSelection, days: number): number {
++  let total = 0;
++  if (extras.babySeat) total += EXTRA_PRICES.babySeat * days;
++  if (extras.secondDriver) total += EXTRA_PRICES.secondDriver * days;
++  if (extras.fullTank) total += EXTRA_PRICES.fullTank;
++  return total;
++}
++
++// Bloqueo de cupo: 25% del total (base + extras + seguro) como garantía
++export const BLOCK_PERCENT = 0.25;
++
++export function calcBlockingAmount(base: number, extras: number, insurance: number): number {
++  return Math.round((base + extras + insurance) * BLOCK_PERCENT);
++}
++
++export const PICKUP_LOCATIONS = [
++  'Aeropuerto Internacional Rafael Núñez (CTG)',
++  'Bocagrande (Oficina Principal / Hotel)',
++  'Centro Histórico (Torre del Reloj / Getsemaní)',
++  'Manga / Zona Portuaria',
++  'Zona Norte / Manzanillo del Mar',
++  'Entrega a Domicilio en Hotel / Airbnb',
++];
++
++export const WHATSAPP_ADVISOR_NUMBER = '573000000000'; // actualizar con el real
+diff --git a/src/lib/stores/bookingStore.svelte.ts b/src/lib/stores/bookingStore.svelte.ts
+index e7e3144..113e8ee 100644
+--- a/src/lib/stores/bookingStore.svelte.ts
++++ b/src/lib/stores/bookingStore.svelte.ts
+@@ -13,26 +13,44 @@ export interface DriverData {
+   hotel: string;
+ }
+ 
++export interface PaymentData {
++  cardHolder: string;
++  cardNumber: string;
++  cardExpiry: string;
++  cardCvc: string;
++  installments: number;
++}
++
++export interface ReservationResult {
++  id: string;
++  code: string;
++  status: string;
++  totalAmount: number;
++  blockingAmount: number;
++  synced: boolean;
++  desktopRef: string | null;
++}
++
+ class BookingStore {
+   currency = $state<'COP' | 'USD'>('COP');
+   usdRate = $state<number>(4000);
+-  
++
+   pickupPlace = $state<string>(PICKUP_LOCATIONS[0]);
+   returnPlace = $state<string>(PICKUP_LOCATIONS[0]);
+-  
++
+   pickupDate = $state<string>('');
+   pickupTime = $state<string>('10:00');
+   returnDate = $state<string>('');
+   returnTime = $state<string>('10:00');
+-  
++
+   selectedVehicle = $state<Vehicle | null>(null);
+-  
++
+   // Insurance and Extras
+-  insuranceCoverage = $state<'basic' | 'total'>('total'); // 'basic' (deducible 20%) | 'total' (cero deducible)
++  insuranceCoverage = $state<'basic' | 'total'>('total');
+   extraBabySeat = $state<boolean>(false);
+   extraSecondDriver = $state<boolean>(false);
+   extraFullTank = $state<boolean>(false);
+-  
++
+   // Driver Data
+   driver = $state<DriverData>({
+     docType: 'CC',
+@@ -45,16 +63,30 @@ class BookingStore {
+     licenseExp: '',
+     hotel: ''
+   });
+-  
++
+   // Signature data url
+   signatureDataUrl = $state<string | null>(null);
+-  
++
++  // Payment data (nuevo)
++  payment = $state<PaymentData>({
++    cardHolder: '',
++    cardNumber: '',
++    cardExpiry: '',
++    cardCvc: '',
++    installments: 1
++  });
++
+   // Modal state
+   isModalOpen = $state<boolean>(false);
+-  modalStep = $state<number>(1); // 1: Extras/Seguro, 2: Conductor, 3: Firma, 4: Voucher
+-  
+-  // Unique reservation code generated on confirmation
++  modalStep = $state<number>(1); // 1: Seguros, 2: Conductor, 3: Firma, 4: Pago, 5: Voucher
++
++  // Reservation persisted (nuevo)
+   reservationId = $state<string>('');
++  persistedReservation = $state<ReservationResult | null>(null);
++  submitting = $state<boolean>(false);
++  paymentStatus = $state<'idle' | 'success' | 'declined' | 'error'>('idle');
++  paymentMessage = $state<string>('');
++  syncedToDesktop = $state<boolean>(false);
+ 
+   constructor() {
+     this.initDates();
+@@ -72,7 +104,6 @@ class BookingStore {
+     this.returnDate = toISO(returnD);
+   }
+ 
+-  // Calculated rental days
+   get rentalDays(): number {
+     if (!this.pickupDate || !this.returnDate) return 1;
+     const d1 = new Date(this.pickupDate);
+@@ -82,7 +113,6 @@ class BookingStore {
+     return days < 1 ? 1 : days;
+   }
+ 
+-  // Costs calculation
+   get baseVehicleTotal(): number {
+     if (!this.selectedVehicle) return 0;
+     return this.selectedVehicle.priceCOP * this.rentalDays;
+@@ -100,7 +130,7 @@ class BookingStore {
+     let total = 0;
+     if (this.extraBabySeat) total += 20000 * this.rentalDays;
+     if (this.extraSecondDriver) total += 15000 * this.rentalDays;
+-    if (this.extraFullTank) total += 140000; // pago único
++    if (this.extraFullTank) total += 140000;
+     return total;
+   }
+ 
+@@ -110,16 +140,24 @@ class BookingStore {
+ 
+   get depositAmount(): number {
+     if (!this.selectedVehicle) return 0;
+-    // Si tiene seguro total, el depósito/garantía de franquicia se reduce un 30%
+-    return this.insuranceCoverage === 'total' 
++    return this.insuranceCoverage === 'total'
+       ? Math.round(this.selectedVehicle.depositCOP * 0.7)
+       : this.selectedVehicle.depositCOP;
+   }
+ 
++  // Bloqueo de cupo (25% del total) — se captura en tarjeta como garantía
++  get blockingAmount(): number {
++    return Math.round(this.grandTotal * 0.25);
++  }
++
+   openBooking(vehicle: Vehicle) {
+     this.selectedVehicle = vehicle;
+     this.modalStep = 1;
+     this.isModalOpen = true;
++    this.persistedReservation = null;
++    this.paymentStatus = 'idle';
++    this.paymentMessage = '';
++    this.syncedToDesktop = false;
+     if (!this.reservationId) {
+       this.generateReservationId();
+     }
+@@ -138,6 +176,146 @@ class BookingStore {
+   toggleCurrency() {
+     this.currency = this.currency === 'COP' ? 'USD' : 'COP';
+   }
++
++  // === INTEGRACIÓN CON BACKEND ===
++
++  resetPaymentFields() {
++    this.payment.cardHolder = '';
++    this.payment.cardNumber = '';
++    this.payment.cardExpiry = '';
++    this.payment.cardCvc = '';
++    this.payment.installments = 1;
++  }
++
++  // Crea la reserva en PostgreSQL (llamada al avanzar de paso 3 firma)
++  async createReservation(): Promise<boolean> {
++    if (!this.selectedVehicle) return false;
++    this.submitting = true;
++    try {
++      const res = await fetch('/api/reservations', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          vehicleId: this.selectedVehicle.id,
++          pickupDate: this.pickupDate,
++          returnDate: this.returnDate,
++          pickupTime: this.pickupTime,
++          returnTime: this.returnTime,
++          pickupLocation: this.pickupPlace,
++          returnLocation: this.returnPlace,
++          customerName: this.driver.names,
++          customerLastname: this.driver.lastnames,
++          customerEmail: this.driver.email,
++          customerPhone: this.driver.phone,
++          customerIdType: this.driver.docType,
++          customerIdNumber: this.driver.docNumber,
++          customerLicense: this.driver.license,
++          customerLicenseExp: this.driver.licenseExp,
++          customerHotel: this.driver.hotel,
++          insurancePlan: this.insuranceCoverage === 'total' ? 'TOTAL' : 'BASICO',
++          extras: {
++            babySeat: this.extraBabySeat,
++            secondDriver: this.extraSecondDriver,
++            fullTank: this.extraFullTank
++          },
++          signatureDataUrl: this.signatureDataUrl,
++          notes: ''
++        })
++      });
++      const data = await res.json();
++      if (!data?.ok) throw new Error(data?.error || 'Error al crear reserva');
++      this.persistedReservation = {
++        id: data.reservation.id,
++        code: data.reservation.code,
++        status: data.reservation.status,
++        totalAmount: data.reservation.totalAmount,
++        blockingAmount: data.reservation.blockingAmount,
++        synced: data.reservation.synced,
++        desktopRef: data.reservation.desktopRef
++      };
++      this.reservationId = data.reservation.code;
++      return true;
++    } catch (e) {
++      console.error('createReservation error:', e);
++      this.paymentStatus = 'error';
++      this.paymentMessage = (e as Error).message;
++      return false;
++    } finally {
++      this.submitting = false;
++    }
++  }
++
++  // Procesa el pago (modo SIMULADO, preparado para Wompi/PayU)
++  async processPayment(): Promise<boolean> {
++    if (!this.persistedReservation) return false;
++    this.submitting = true;
++    this.paymentStatus = 'idle';
++    try {
++      const res = await fetch('/api/payments', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          reservationId: this.persistedReservation.id,
++          cardHolder: this.payment.cardHolder,
++          cardNumber: this.payment.cardNumber,
++          cardExpiry: this.payment.cardExpiry,
++          cardCvc: this.payment.cardCvc,
++          installments: this.payment.installments,
++          amount: this.persistedReservation.totalAmount
++        })
++      });
++      const data = await res.json();
++      if (data?.ok && data.status === 'APROBADO') {
++        this.paymentStatus = 'success';
++        this.paymentMessage = 'Pago aprobado. Reserva confirmada.';
++        if (this.persistedReservation) {
++          this.persistedReservation.status = 'PAGADA';
++        }
++        return true;
++      } else if (data?.status === 'RECHAZADO') {
++        this.paymentStatus = 'declined';
++        this.paymentMessage = data.declinedReason || 'Pago rechazado por la entidad financiera.';
++        return false;
++      } else {
++        this.paymentStatus = 'error';
++        this.paymentMessage = data?.error || 'No se pudo procesar el pago.';
++        return false;
++      }
++    } catch (e) {
++      this.paymentStatus = 'error';
++      this.paymentMessage = (e as Error).message;
++      return false;
++    } finally {
++      this.submitting = false;
++    }
++  }
++
++  // Fuerza sincronización con la app de escritorio
++  async syncWithDesktop(): Promise<boolean> {
++    if (!this.persistedReservation) return false;
++    try {
++      const res = await fetch('/api/sync', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          entity: 'RESERVATION',
++          entityId: this.persistedReservation.id
++        })
++      });
++      const data = await res.json();
++      if (data?.ok) {
++        this.syncedToDesktop = true;
++        if (this.persistedReservation) {
++          this.persistedReservation.synced = true;
++          this.persistedReservation.desktopRef = data.desktopRef || null;
++        }
++        return true;
++      }
++      return false;
++    } catch {
++      return false;
++    }
++  }
+ }
+ 
+ export const booking = new BookingStore();
+diff --git a/src/routes/api/availability/+server.ts b/src/routes/api/availability/+server.ts
+new file mode 100644
+index 0000000..776a510
+--- /dev/null
++++ b/src/routes/api/availability/+server.ts
+@@ -0,0 +1,49 @@
++// POST /api/availability — verifica disponibilidad de un vehículo en fechas
++import { json } from '@sveltejs/kit';
++import type { RequestHandler } from './$types';
++import { db } from '$lib/server/db';
++import { daysBetween } from '$lib/server/helpers';
++
++export const POST: RequestHandler = async ({ request }) => {
++  try {
++    const body = await request.json();
++    const { vehicleId, pickupDate, returnDate } = body;
++    if (!vehicleId || !pickupDate || !returnDate) {
++      return json({ ok: false, error: 'Faltan datos' }, { status: 400 });
++    }
++
++    const start = new Date(pickupDate);
++    const end = new Date(returnDate);
++    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
++      return json({ ok: false, error: 'Fechas inválidas' }, { status: 400 });
++    }
++
++    const vehicle = await db.vehicle.findUnique({ where: { id: vehicleId } });
++    if (!vehicle) {
++      return json({ ok: false, error: 'Vehículo no encontrado' }, { status: 404 });
++    }
++
++    // Verifica choques con reservas existentes (concurrencia segura en PostgreSQL)
++    const conflict = await db.reservation.findFirst({
++      where: {
++        vehicleId,
++        status: { in: ['PENDIENTE', 'CONFIRMADA', 'PAGADA', 'EN_CURSO'] },
++        pickupDate: { lte: end },
++        returnDate: { gte: start },
++      },
++    });
++
++    const days = daysBetween(start, end);
++    return json({
++      ok: true,
++      available: !conflict,
++      vehicleId,
++      days,
++      baseAmount: vehicle.pricePerDay * days,
++      deposit: vehicle.deposit,
++    });
++  } catch (e) {
++    console.error('[api/availability] error:', e);
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
+diff --git a/src/routes/api/payments/+server.ts b/src/routes/api/payments/+server.ts
+new file mode 100644
+index 0000000..50214c7
+--- /dev/null
++++ b/src/routes/api/payments/+server.ts
+@@ -0,0 +1,104 @@
++// POST /api/payments — procesa pago con tarjeta (modo SIMULADO por ahora,
++// preparado para integrar Wompi/PayU/MercadoPago después)
++import { json } from '@sveltejs/kit';
++import type { RequestHandler } from './$types';
++import { db } from '$lib/server/db';
++import { detectCardBrand, maskCard, genTxId } from '$lib/server/helpers';
++
++export const POST: RequestHandler = async ({ request }) => {
++  try {
++    const b = await request.json();
++    const {
++      reservationId,
++      cardHolder,
++      cardNumber,
++      cardExpiry,
++      cardCvc,
++      installments = 1,
++      amount,
++    } = b || {};
++
++    if (!reservationId || !cardHolder || !cardNumber || !cardExpiry || !cardCvc) {
++      return json({ ok: false, error: 'Faltan datos de la tarjeta' }, { status: 400 });
++    }
++
++    const reservation = await db.reservation.findUnique({
++      where: { id: reservationId },
++      include: { vehicle: true },
++    });
++    if (!reservation) {
++      return json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
++    }
++    if (reservation.status === 'PAGADA') {
++      return json({ ok: false, error: 'La reserva ya está pagada' }, { status: 400 });
++    }
++
++    const digits = String(cardNumber).replace(/\s/g, '');
++    if (digits.length < 13 || digits.length > 19) {
++      return json({ ok: false, error: 'Número de tarjeta inválido' }, { status: 400 });
++    }
++    if (!/^\d{3,4}$/.test(String(cardCvc))) {
++      return json({ ok: false, error: 'CVC inválido' }, { status: 400 });
++    }
++
++    const brand = detectCardBrand(digits);
++    const last4 = maskCard(digits);
++    const tx = genTxId();
++    const payAmount = typeof amount === 'number' ? amount : reservation.totalAmount;
++
++    // Tarjeta de prueba para declinar: 4000 0000 0000 0002
++    const declined = /^4000000000/.test(digits);
++    const status = declined ? 'RECHAZADO' : 'APROBADO';
++
++    // Transacción atómica: borra pago previo si existe, crea nuevo, actualiza reserva
++    const payment = await db.$transaction(async (txn) => {
++      const existing = await txn.payment.findUnique({ where: { reservationId } }).catch(() => null);
++      if (existing) {
++        await txn.payment.delete({ where: { id: existing.id } });
++      }
++      const p = await txn.payment.create({
++        data: {
++          reservationId,
++          cardHolder,
++          cardLast4: last4,
++          cardBrand: brand,
++          amount: payAmount,
++          status: status as 'APROBADO' | 'RECHAZADO',
++          transactionId: tx,
++          installments: Number(installments) || 1,
++          gateway: 'SIMULADO',
++        },
++      });
++
++      if (status === 'APROBADO') {
++        await txn.reservation.update({
++          where: { id: reservationId },
++          data: { status: 'PAGADA' },
++        });
++        await txn.syncLog.create({
++          data: {
++            entity: 'PAYMENT',
++            entityId: p.id,
++            action: 'CREATE',
++            status: 'PENDING',
++            message: `Pago ${tx} aprobado para reserva ${reservation.code}`,
++            payload: { transactionId: tx, amount: payAmount },
++          },
++        });
++      }
++      return p;
++    });
++
++    return json({
++      ok: status === 'APROBADO',
++      status,
++      payment,
++      reservationId,
++      reservationCode: reservation.code,
++      declinedReason: declined ? 'Tarjeta de prueba declinada (modo demo)' : null,
++    });
++  } catch (e) {
++    console.error('[api/payments] error:', e);
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
+diff --git a/src/routes/api/reservations/+server.ts b/src/routes/api/reservations/+server.ts
+new file mode 100644
+index 0000000..32244d8
+--- /dev/null
++++ b/src/routes/api/reservations/+server.ts
+@@ -0,0 +1,168 @@
++// GET /api/reservations?email=&code=  |  POST /api/reservations
++import { json } from '@sveltejs/kit';
++import type { RequestHandler } from './$types';
++import { db } from '$lib/server/db';
++import {
++  genReservationCode,
++  genBlockCode,
++  daysBetween,
++  INSURANCE_CONFIG,
++  calcExtrasAmount,
++  calcBlockingAmount,
++  type ExtrasSelection,
++} from '$lib/server/helpers';
++import type { InsurancePlan } from '@prisma/client';
++
++export const GET: RequestHandler = async ({ url }) => {
++  try {
++    const email = url.searchParams.get('email');
++    const code = url.searchParams.get('code');
++    const where: Record<string, unknown> = {};
++    if (email) where.customerEmail = email;
++    if (code) where.code = code.toUpperCase();
++
++    const reservations = await db.reservation.findMany({
++      where,
++      include: { vehicle: true, payment: true },
++      orderBy: { createdAt: 'desc' },
++      take: 50,
++    });
++
++    return json({ ok: true, reservations, count: reservations.length });
++  } catch (e) {
++    console.error('[api/reservations GET] error:', e);
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
++
++export const POST: RequestHandler = async ({ request }) => {
++  try {
++    const b = await request.json();
++    const {
++      vehicleId,
++      pickupDate,
++      returnDate,
++      pickupTime = '10:00',
++      returnTime = '10:00',
++      pickupLocation,
++      returnLocation,
++      customerName,
++      customerLastname = '',
++      customerEmail,
++      customerPhone,
++      customerIdType = 'CC',
++      customerIdNumber,
++      customerLicense,
++      customerLicenseExp,
++      customerHotel,
++      insurancePlan = 'TOTAL',
++      extras = {},
++      signatureDataUrl,
++      notes,
++    } = b || {};
++
++    if (!vehicleId || !pickupDate || !returnDate || !customerName || !customerEmail || !customerPhone) {
++      return json({ ok: false, error: 'Faltan campos obligatorios' }, { status: 400 });
++    }
++
++    const vehicle = await db.vehicle.findUnique({ where: { id: vehicleId } });
++    if (!vehicle) return json({ ok: false, error: 'Vehículo no encontrado' }, { status: 404 });
++    if (!vehicle.available) return json({ ok: false, error: 'Vehículo no disponible' }, { status: 400 });
++
++    const start = new Date(pickupDate);
++    const end = new Date(returnDate);
++    if (end <= start) {
++      return json({ ok: false, error: 'La fecha de devolución debe ser mayor a la de entrega' }, { status: 400 });
++    }
++
++    // Verificación de conflicto (concurrencia segura en PostgreSQL)
++    const conflict = await db.reservation.findFirst({
++      where: {
++        vehicleId,
++        status: { in: ['PENDIENTE', 'CONFIRMADA', 'PAGADA', 'EN_CURSO'] },
++        pickupDate: { lte: end },
++        returnDate: { gte: start },
++      },
++    });
++    if (conflict) {
++      return json({ ok: false, error: 'El vehículo ya está reservado en esas fechas' }, { status: 409 });
++    }
++
++    const days = daysBetween(start, end);
++    const baseAmount = vehicle.pricePerDay * days;
++    const plan = INSURANCE_CONFIG[insurancePlan as InsurancePlan] ?? INSURANCE_CONFIG.TOTAL;
++    const insuranceAmount = plan.perDay * days;
++    const extrasAmount = calcExtrasAmount(extras as ExtrasSelection, days);
++    const blockingAmount = calcBlockingAmount(baseAmount, extrasAmount, insuranceAmount);
++    const totalAmount = baseAmount + extrasAmount + insuranceAmount;
++
++    const code = genReservationCode();
++    const depositAmount = Math.round(vehicle.deposit * plan.depositFactor);
++
++    // Transacción atómica: reserva + bloqueo + sync log
++    const reservation = await db.$transaction(async (tx) => {
++      const r = await tx.reservation.create({
++        data: {
++          code,
++          vehicleId,
++          customerName,
++          customerLastname,
++          customerEmail,
++          customerPhone,
++          customerIdType,
++          customerIdNumber,
++          customerLicense,
++          customerLicenseExp,
++          customerHotel,
++          pickupDate: start,
++          returnDate: end,
++          pickupTime,
++          returnTime,
++          pickupLocation: pickupLocation ?? 'Aeropuerto Internacional Rafael Núñez (CTG)',
++          returnLocation: returnLocation ?? pickupLocation ?? 'Aeropuerto Internacional Rafael Núñez (CTG)',
++          days,
++          baseAmount,
++          extrasAmount,
++          insuranceAmount,
++          blockingAmount,
++          totalAmount,
++          status: 'PENDIENTE',
++          insurancePlan: insurancePlan as InsurancePlan,
++          extras: extras,
++          signatureDataUrl,
++          notes,
++        },
++        include: { vehicle: true },
++      });
++
++      await tx.insuranceBlock.create({
++        data: {
++          reservationId: r.id,
++          code: genBlockCode(),
++          type: insurancePlan as InsurancePlan,
++          description: `Bloqueo de cupo por ${plan.name} para reserva ${code}. Garantía: ${depositAmount} COP.`,
++          amount: blockingAmount,
++          status: 'ACTIVO',
++        },
++      });
++
++      await tx.syncLog.create({
++        data: {
++          entity: 'RESERVATION',
++          entityId: r.id,
++          action: 'CREATE',
++          status: 'PENDING',
++          message: `Reserva ${code} creada desde web, pendiente sincronizar con app de escritorio`,
++          payload: { code, vehicleId, totalAmount },
++        },
++      });
++
++      return r;
++    });
++
++    return json({ ok: true, reservation });
++  } catch (e) {
++    console.error('[api/reservations POST] error:', e);
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
+diff --git a/src/routes/api/reservations/[id]/+server.ts b/src/routes/api/reservations/[id]/+server.ts
+new file mode 100644
+index 0000000..f32cc71
+--- /dev/null
++++ b/src/routes/api/reservations/[id]/+server.ts
+@@ -0,0 +1,37 @@
++// GET /api/reservations/[id]  |  PUT /api/reservations/[id] (cambiar estado)
++import { json } from '@sveltejs/kit';
++import type { RequestHandler } from './$types';
++import { db } from '$lib/server/db';
++
++export const GET: RequestHandler = async ({ params }) => {
++  try {
++    const reservation = await db.reservation.findUnique({
++      where: { id: params.id },
++      include: { vehicle: true, payment: true, insuranceBlock: true },
++    });
++    if (!reservation) {
++      return json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
++    }
++    return json({ ok: true, reservation });
++  } catch (e) {
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
++
++const VALID_STATUS = ['PENDIENTE', 'CONFIRMADA', 'PAGADA', 'EN_CURSO', 'FINALIZADA', 'CANCELADA'];
++
++export const PUT: RequestHandler = async ({ params, request }) => {
++  try {
++    const { status } = await request.json();
++    if (!VALID_STATUS.includes(status)) {
++      return json({ ok: false, error: 'Estado inválido' }, { status: 400 });
++    }
++    const reservation = await db.reservation.update({
++      where: { id: params.id },
++      data: { status: status as 'PENDIENTE' | 'CONFIRMADA' | 'PAGADA' | 'EN_CURSO' | 'FINALIZADA' | 'CANCELADA' },
++    });
++    return json({ ok: true, reservation });
++  } catch (e) {
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
+diff --git a/src/routes/api/seed/+server.ts b/src/routes/api/seed/+server.ts
+new file mode 100644
+index 0000000..0a32554
+--- /dev/null
++++ b/src/routes/api/seed/+server.ts
+@@ -0,0 +1,71 @@
++// POST /api/seed — siembra la flota inicial en PostgreSQL desde fleet.ts
++import { json } from '@sveltejs/kit';
++import type { RequestHandler } from './$types';
++import { db } from '$lib/server/db';
++import { FLEET_DATABASE } from '$lib/data/fleet';
++import type { VehicleCategory, Transmission, FuelType } from '@prisma/client';
++
++const CATEGORY_MAP: Record<string, VehicleCategory> = {
++  economico: 'ECONOMICO',
++  sedan: 'SEDAN',
++  suv: 'SUV',
++  premium: 'PREMIUM',
++};
++
++const TRANS_MAP: Record<string, Transmission> = {
++  'Automático': 'AUTOMATICA',
++  'Mecánico': 'MECANICA',
++  'Automático 4x4': 'AUTOMATICA_4X4',
++};
++
++const FUEL_MAP: Record<string, FuelType> = {
++  'Gasolina': 'GASOLINA',
++  'Diésel': 'DIESEL',
++};
++
++export const POST: RequestHandler = async () => {
++  try {
++    const existing = await db.vehicle.count();
++    if (existing > 0) {
++      return json({
++        ok: true,
++        seeded: false,
++        message: 'La flota ya existe en la base de datos',
++        count: existing,
++      });
++    }
++
++    const data = FLEET_DATABASE.map((v) => ({
++      name: v.name,
++      category: CATEGORY_MAP[v.category] ?? 'ECONOMICO',
++      categoryLabel: v.categoryLabel,
++      badge: v.badge,
++      brand: v.name.split(' ')[0],
++      transmission: TRANS_MAP[v.transmission] ?? 'MECANICA',
++      fuelType: FUEL_MAP[v.fuel] ?? 'GASOLINA',
++      seats: v.passengers,
++      doors: 4,
++      ac: v.ac,
++      luggage: v.luggage,
++      pricePerDay: v.priceCOP,
++      deposit: v.depositCOP,
++      image: v.image,
++      gallery: [],
++      features: v.features,
++      plate: v.plate,
++      available: true,
++    }));
++
++    await db.vehicle.createMany({ data });
++
++    return json({
++      ok: true,
++      seeded: true,
++      count: data.length,
++      message: 'Flota sembrada correctamente en PostgreSQL',
++    });
++  } catch (e) {
++    console.error('[api/seed] error:', e);
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
+diff --git a/src/routes/api/sync/+server.ts b/src/routes/api/sync/+server.ts
+new file mode 100644
+index 0000000..138d0b2
+--- /dev/null
++++ b/src/routes/api/sync/+server.ts
+@@ -0,0 +1,92 @@
++// GET /api/sync — estado de sincronización con la app de escritorio
++// POST /api/sync — fuerza sincronización (simula el middleware Rust/Firebird)
++import { json } from '@sveltejs/kit';
++import type { RequestHandler } from './$types';
++import { db } from '$lib/server/db';
++
++export const GET: RequestHandler = async () => {
++  try {
++    const [pending, synced, failed] = await Promise.all([
++      db.syncLog.count({ where: { status: 'PENDING' } }),
++      db.syncLog.count({ where: { status: 'SYNCED' } }),
++      db.syncLog.count({ where: { status: 'FAILED' } }),
++    ]);
++    const total = pending + synced + failed;
++
++    const recent = await db.syncLog.findMany({
++      orderBy: { createdAt: 'desc' },
++      take: 8,
++    });
++
++    const [reservationsSynced, reservationsTotal] = await Promise.all([
++      db.reservation.count({ where: { synced: true } }),
++      db.reservation.count(),
++    ]);
++
++    return json({
++      ok: true,
++      desktopApp: {
++        name: 'Dinamo Rent ERP — Mostrador',
++        version: '1.4.2',
++        status: 'CONECTADO',
++        lastHeartbeat: new Date().toISOString(),
++        database: 'Firebird SQL 3.0 Embedded (local mostrador)',
++      },
++      counters: { total, pending, synced, failed, reservationsSynced, reservationsTotal },
++      recent,
++    });
++  } catch (e) {
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
++
++export const POST: RequestHandler = async ({ request }) => {
++  try {
++    const b = await request.json().catch(() => ({}));
++    const { entityId, entity } = b || {};
++
++    // Sincronizar una entidad específica
++    if (entityId && entity) {
++      const log = await db.syncLog.findFirst({
++        where: { entityId, entity, status: 'PENDING' },
++        orderBy: { createdAt: 'desc' },
++      });
++      if (log) {
++        await db.syncLog.update({
++          where: { id: log.id },
++          data: { status: 'SYNCED', syncedAt: new Date() },
++        });
++      }
++      if (entity === 'RESERVATION') {
++        const desktopRef = `DESK-${Math.floor(100000 + Math.random() * 900000)}`;
++        await db.reservation.updateMany({
++          where: { id: entityId },
++          data: { synced: true, syncedAt: new Date(), desktopRef },
++        });
++        return json({ ok: true, message: 'Sincronizado con mostrador', desktopRef });
++      }
++      return json({ ok: true, message: 'Sincronizado' });
++    }
++
++    // Sincronizar todo lo pendiente
++    const pendings = await db.syncLog.findMany({ where: { status: 'PENDING' }, take: 50 });
++    let count = 0;
++    for (const p of pendings) {
++      await db.syncLog.update({
++        where: { id: p.id },
++        data: { status: 'SYNCED', syncedAt: new Date() },
++      });
++      if (p.entity === 'RESERVATION') {
++        const desktopRef = `DESK-${Math.floor(100000 + Math.random() * 900000)}`;
++        await db.reservation.updateMany({
++          where: { id: p.entityId },
++          data: { synced: true, syncedAt: new Date(), desktopRef },
++        });
++      }
++      count++;
++    }
++    return json({ ok: true, syncedCount: count, message: 'Sincronización completa' });
++  } catch (e) {
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
+diff --git a/src/routes/api/vehicles/+server.ts b/src/routes/api/vehicles/+server.ts
+new file mode 100644
+index 0000000..8c8f00b
+--- /dev/null
++++ b/src/routes/api/vehicles/+server.ts
+@@ -0,0 +1,35 @@
++// GET /api/vehicles?category=&search=&available=
++import { json } from '@sveltejs/kit';
++import type { RequestHandler } from './$types';
++import { db } from '$lib/server/db';
++import type { VehicleCategory } from '@prisma/client';
++
++export const GET: RequestHandler = async ({ url }) => {
++  try {
++    const category = url.searchParams.get('category');
++    const search = url.searchParams.get('search');
++    const onlyAvailable = url.searchParams.get('available') !== 'false';
++
++    const where: Record<string, unknown> = {};
++    if (onlyAvailable) where.available = true;
++    if (category && category !== 'all' && category !== 'TODOS') {
++      where.category = category.toUpperCase() as VehicleCategory;
++    }
++    if (search) {
++      where.OR = [
++        { name: { contains: search, mode: 'insensitive' } },
++        { brand: { contains: search, mode: 'insensitive' } },
++      ];
++    }
++
++    const vehicles = await db.vehicle.findMany({
++      where,
++      orderBy: [{ category: 'asc' }, { pricePerDay: 'asc' }],
++    });
++
++    return json({ ok: true, vehicles, count: vehicles.length });
++  } catch (e) {
++    console.error('[api/vehicles] error:', e);
++    return json({ ok: false, error: (e as Error).message }, { status: 500 });
++  }
++};
+-- 
+2.47.3
+

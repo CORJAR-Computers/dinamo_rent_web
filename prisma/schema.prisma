@@ -1,0 +1,236 @@
+// ============================================================================
+// Dinamo Rent a Car — Esquema Prisma para PostgreSQL (Neon Serverless)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum VehicleCategory {
+  ECONOMICO
+  SEDAN
+  SUV
+  CAMIONETA
+  VAN
+  LUJO
+  PREMIUM
+}
+
+enum Transmission {
+  AUTOMATICA
+  MECANICA
+  AUTOMATICA_4X4
+}
+
+enum FuelType {
+  GASOLINA
+  DIESEL
+  HIBRIDO
+  ELECTRICO
+}
+
+enum ReservationStatus {
+  PENDIENTE
+  CONFIRMADA
+  PAGADA
+  EN_CURSO
+  FINALIZADA
+  CANCELADA
+}
+
+enum InsurancePlan {
+  BASICO
+  TOTAL
+}
+
+enum PaymentStatus {
+  APROBADO
+  RECHAZADO
+  REEMBOLSADO
+  PENDIENTE
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+enum SyncEntity {
+  RESERVATION
+  VEHICLE
+  PAYMENT
+  INSURANCE_BLOCK
+}
+
+enum SyncAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+// ============================================================================
+// MODELOS
+// ============================================================================
+
+model Vehicle {
+  id            String          @id @default(cuid())
+  name          String
+  category      VehicleCategory
+  categoryLabel String          @default("")
+  badge         String          @default("")
+  brand         String          @default("")
+  transmission  Transmission    @default(MECANICA)
+  fuelType      FuelType        @default(GASOLINA)
+  seats         Int             @default(5)
+  doors         Int             @default(4)
+  ac            Boolean         @default(true)
+  luggage       String          @default("")
+  pricePerDay   Int
+  deposit       Int             @default(1000000)
+  image         String
+  gallery       String[]        @default([])
+  features      String[]        @default([])
+  plate         String?         @unique
+  available     Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  reservations Reservation[]
+
+  @@index([category])
+  @@index([available])
+  @@map("vehicles")
+}
+
+model Reservation {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  // Datos del Conductor Titular
+  customerName       String
+  customerLastname   String  @default("")
+  customerEmail      String
+  customerPhone      String
+  customerIdType     String  @default("CC")
+  customerIdNumber   String
+  customerLicense    String?
+  customerLicenseExp String?
+  customerHotel      String?
+
+  // Fechas y Ubicaciones
+  pickupDate     DateTime
+  returnDate     DateTime
+  pickupTime     String   @default("10:00")
+  returnTime     String   @default("10:00")
+  pickupLocation String   @default("Aeropuerto Internacional Rafael Núñez (CTG)")
+  returnLocation String   @default("Aeropuerto Internacional Rafael Núñez (CTG)")
+
+  // Montos calculados
+  days            Int
+  baseAmount      Int
+  extrasAmount    Int @default(0)
+  insuranceAmount Int @default(0)
+  blockingAmount  Int @default(0)
+  totalAmount     Int
+
+  // Configuración y contrato
+  status           ReservationStatus @default(PENDIENTE)
+  insurancePlan    InsurancePlan     @default(TOTAL)
+  extras           Json              @default("{}")
+  signatureDataUrl String?
+  notes            String?
+
+  // Sincronización con Software de Escritorio (Mostrador)
+  synced     Boolean   @default(false)
+  syncedAt   DateTime?
+  desktopRef String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payment        Payment?
+  insuranceBlock InsuranceBlock?
+
+  @@index([vehicleId])
+  @@index([status])
+  @@index([customerEmail])
+  @@index([pickupDate, returnDate])
+  @@index([synced])
+  @@map("reservations")
+}
+
+model Payment {
+  id            String      @id @default(cuid())
+  reservationId String      @unique
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+
+  amount        Int
+  status        PaymentStatus @default(PENDIENTE)
+  transactionId String?       @unique
+  installments  Int           @default(1)
+  gateway       String        @default("PLACETOPAY")
+  gatewayRef    String?
+
+  // Datos de tarjeta (cuando la pasarela los comparte enmascarados)
+  cardHolder    String @default("")
+  cardLast4     String @default("")
+  cardBrand     String @default("")
+
+  // Integración Place to Pay (Evertec)
+  p2pRequestId      String?
+  p2pProcessUrl     String?
+  p2pSessionStatus  String?
+  p2pStatusMessage  String?
+  p2pOpType         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payments")
+}
+
+model InsuranceBlock {
+  id            String        @id @default(cuid())
+  reservationId String        @unique
+  reservation   Reservation   @relation(fields: [reservationId], references: [id])
+  code          String        @unique
+  type          InsurancePlan
+  description   String
+  amount        Int
+  status        String        @default("ACTIVO")
+  releasedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@map("insurance_blocks")
+}
+
+model SyncLog {
+  id        String     @id @default(cuid())
+  entity    SyncEntity
+  entityId  String
+  action    SyncAction
+  status    SyncStatus @default(PENDING)
+  message   String?
+  payload   Json?
+  syncedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([entity, entityId])
+  @@map("sync_logs")
+}
