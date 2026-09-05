@@ -134,6 +134,7 @@ model Vehicle {
   gallery       String[]        @default([])
   features      String[]        @default([])
   plate         String?         @unique
+  units         Int             @default(1)
   available     Boolean         @default(true)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt

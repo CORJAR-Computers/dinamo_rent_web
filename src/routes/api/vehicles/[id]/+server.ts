@@ -71,6 +71,7 @@ export const PUT: RequestHandler = async ({ params, request, cookies }) => {
 		if (data.image !== undefined) updateData.image = data.image;
 		if (data.features !== undefined && Array.isArray(data.features)) updateData.features = data.features;
 		if (data.plate !== undefined) updateData.plate = data.plate ? data.plate.toUpperCase().trim() : null;
+		if (data.units !== undefined) updateData.units = Math.max(1, Math.round(Number(data.units)));
 		if (data.available !== undefined) updateData.available = Boolean(data.available);
 
 		const updated = await prisma.vehicle.update({

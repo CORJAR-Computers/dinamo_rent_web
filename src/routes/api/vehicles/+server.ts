@@ -91,6 +91,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				image: data.image || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=85',
 				features: Array.isArray(data.features) ? data.features : ['Aire Acondicionado', 'Bluetooth'],
 				plate: data.plate ? data.plate.toUpperCase().trim() : null,
+				units: Math.max(1, Math.round(Number(data.units) || 1)),
 				available: data.available !== undefined ? Boolean(data.available) : true
 			}
 		});

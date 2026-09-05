@@ -19,6 +19,7 @@
 		image: string;
 		features: string[];
 		plate: string | null;
+		units: number;
 		available: boolean;
 	}
 
@@ -45,6 +46,7 @@
 	let formCategoryLabel = $state('');
 	let formBadge = $state('');
 	let formPlate = $state('');
+	let formUnits = $state<number>(1);
 	let formPricePerDay = $state<number>(160000);
 	let formDeposit = $state<number>(1000000);
 	let formTransmission = $state('AUTOMATICA');
@@ -59,6 +61,7 @@
 
 	// Contadores
 	let totalVehicles = $derived(vehicles.length);
+	let totalUnits = $derived(vehicles.reduce((acc, v) => acc + (v.units || 1), 0));
 	let activeVehicles = $derived(vehicles.filter((v) => v.available).length);
 	let inactiveVehicles = $derived(vehicles.filter((v) => !v.available).length);
 
@@ -97,6 +100,7 @@
 		formCategoryLabel = 'Económico • 2024';
 		formBadge = '';
 		formPlate = '';
+		formUnits = 1;
 		formPricePerDay = 160000;
 		formDeposit = 1000000;
 		formTransmission = 'AUTOMATICA';
@@ -121,6 +125,7 @@
 		formCategoryLabel = v.categoryLabel || '';
 		formBadge = v.badge || '';
 		formPlate = v.plate || '';
+		formUnits = v.units || 1;
 		formPricePerDay = v.pricePerDay;
 		formDeposit = v.deposit;
 		formTransmission = v.transmission;
@@ -172,6 +177,7 @@
 			categoryLabel: formCategoryLabel.trim(),
 			badge: formBadge.trim(),
 			plate: formPlate.trim(),
+			units: Math.max(1, Math.round(Number(formUnits) || 1)),
 			pricePerDay: Number(formPricePerDay),
 			deposit: Number(formDeposit),
 			transmission: formTransmission,
@@ -222,7 +228,7 @@
 		<div>
 			<h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">Gestión de Flota</h2>
 			<p class="text-xs sm:text-sm text-slate-400 mt-1">
-				Administra los vehículos visibles en la web, fotos, precios diarios y estado operativo.
+				Administra los vehículos visibles en la web, fotos, unidades disponibles y tarifas.
 			</p>
 		</div>
 
@@ -243,34 +249,44 @@
 		</div>
 	{/if}
 
-	<!-- Métricas rápidas -->
-	<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+	<!-- Métricas rápidas (4 Columnas) -->
+	<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
 		<div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
-			<div class="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-lg">
+			<div class="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-lg shrink-0">
 				<i class="fa-solid fa-car-side"></i>
 			</div>
 			<div>
-				<p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Flota</p>
+				<p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Líneas de Auto</p>
 				<p class="text-2xl font-black text-white">{totalVehicles}</p>
 			</div>
 		</div>
 
 		<div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
-			<div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-lg">
+			<div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 text-lg shrink-0">
+				<i class="fa-solid fa-layer-group"></i>
+			</div>
+			<div>
+				<p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Unidades Físicas</p>
+				<p class="text-2xl font-black text-purple-400">{totalUnits}</p>
+			</div>
+		</div>
+
+		<div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
+			<div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-lg shrink-0">
 				<i class="fa-solid fa-circle-check"></i>
 			</div>
 			<div>
-				<p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Habilitados en Web</p>
+				<p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Habilitadas en Web</p>
 				<p class="text-2xl font-black text-emerald-400">{activeVehicles}</p>
 			</div>
 		</div>
 
 		<div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
-			<div class="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-lg">
+			<div class="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-lg shrink-0">
 				<i class="fa-solid fa-ban"></i>
 			</div>
 			<div>
-				<p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Inhabilitados / Taller</p>
+				<p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Inhabilitados</p>
 				<p class="text-2xl font-black text-rose-400">{inactiveVehicles}</p>
 			</div>
 		</div>
@@ -294,21 +310,21 @@
 				onclick={() => (filterStatus = 'ALL')}
 				class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer {filterStatus === 'ALL' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}"
 			>
-				Todos ({totalVehicles})
+				Todas ({totalVehicles})
 			</button>
 			<button
 				type="button"
 				onclick={() => (filterStatus = 'ACTIVE')}
 				class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer {filterStatus === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}"
 			>
-				Habilitados ({activeVehicles})
+				Habilitadas ({activeVehicles})
 			</button>
 			<button
 				type="button"
 				onclick={() => (filterStatus = 'INACTIVE')}
 				class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer {filterStatus === 'INACTIVE' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'}"
 			>
-				Inhabilitados ({inactiveVehicles})
+				Inhabilitadas ({inactiveVehicles})
 			</button>
 		</div>
 	</div>
@@ -320,7 +336,7 @@
 				<thead class="bg-slate-950/80 text-slate-400 uppercase tracking-wider text-[10px] font-bold border-b border-slate-800">
 					<tr>
 						<th class="py-3.5 px-4">Vehículo</th>
-						<th class="py-3.5 px-4">Categoría / Placa</th>
+						<th class="py-3.5 px-4">Categoría / Unidades</th>
 						<th class="py-3.5 px-4">Precio / Día</th>
 						<th class="py-3.5 px-4">Garantía</th>
 						<th class="py-3.5 px-4 text-center">Estado Web</th>
@@ -345,15 +361,26 @@
 								</div>
 							</td>
 
-							<!-- Categoría + Placa -->
+							<!-- Categoría + Stock + Placa -->
 							<td class="py-3.5 px-4">
-								<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
-									{v.category}
-								</span>
+								<div class="flex items-center gap-1.5 flex-wrap">
+									<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+										{v.category}
+									</span>
+									{#if (v.units ?? 1) > 1}
+										<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-500/15 text-purple-300 border border-purple-500/30" title="Varias unidades físicas disponibles de este modelo">
+											<i class="fa-solid fa-layer-group text-[9px]"></i> {v.units} unidades
+										</span>
+									{:else}
+										<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800/80 text-slate-400">
+											1 unidad
+										</span>
+									{/if}
+								</div>
 								{#if v.plate}
-									<p class="text-xs font-mono font-bold text-orange-400 mt-1">{v.plate}</p>
+									<p class="text-xs font-mono font-bold text-orange-400 mt-1">Placa Ref: {v.plate}</p>
 								{:else}
-									<p class="text-[11px] text-slate-500 mt-1">Sin placa asignada</p>
+									<p class="text-[11px] text-slate-500 mt-1">Línea sin placa fija</p>
 								{/if}
 							</td>
 
@@ -419,7 +446,7 @@
 						{isEditing ? 'Editar Vehículo' : 'Registrar Nuevo Vehículo'}
 					</h3>
 					<p class="text-xs text-slate-400 mt-0.5">
-						Configura los detalles técnicos, precio y visibilidad en la web.
+						Configura los detalles técnicos, precio y cantidad de unidades en flota.
 					</p>
 				</div>
 				<button
@@ -469,8 +496,8 @@
 					</div>
 				</div>
 
-				<!-- Fila 2: Categoría y Placa -->
-				<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+				<!-- Fila 2: Categoría, Unidades, Placa e Insignia -->
+				<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
 					<div>
 						<label for="form-cat" class="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
 							Categoría
@@ -487,6 +514,20 @@
 							<option value="VAN">Van / Pasajeros</option>
 							<option value="PREMIUM">Gama Alta / Premium</option>
 						</select>
+					</div>
+					<div>
+						<label for="form-units" class="block text-[11px] font-bold uppercase tracking-wider text-purple-400 mb-1">
+							Unidades (Stock) *
+						</label>
+						<input
+							id="form-units"
+							type="number"
+							min="1"
+							max="50"
+							bind:value={formUnits}
+							class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-purple-500/40 text-purple-300 font-bold text-xs focus:border-purple-400 focus:outline-none"
+							required
+						/>
 					</div>
 					<div>
 						<label for="form-plate" class="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
