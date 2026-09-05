@@ -6,6 +6,9 @@ export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	server: {
 		port: 5174,
-		host: true
+		host: true,
+		watch: {
+			ignored: ['**/*.patch', '**/*.zip', '**/*.pdf', '**/*.md']
+		}
 	}
 });
