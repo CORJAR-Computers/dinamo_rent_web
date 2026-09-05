@@ -71,6 +71,7 @@ enum SyncEntity {
   VEHICLE
   PAYMENT
   INSURANCE_BLOCK
+  CUSTOMER
 }
 
 enum SyncAction {
@@ -82,6 +83,37 @@ enum SyncAction {
 // ============================================================================
 // MODELOS
 // ============================================================================
+
+model Customer {
+  id                String   @id @default(cuid())
+  docType           String   @default("CC")
+  docNumber         String   @unique
+  names             String
+  lastnames         String   @default("")
+  fullName          String   @default("")
+  email             String
+  phone             String
+  phone2            String?
+  city              String?  @default("Cartagena")
+  country           String?  @default("Colombia")
+  address           String?
+  hotel             String?
+  license           String?
+  licenseExp        String?
+
+  // Vínculo bidireccional con software de mostrador (Firebird clientes.id)
+  desktopId         Int?     @unique
+  syncedWithDesktop Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reservations      Reservation[]
+
+  @@index([docNumber])
+  @@index([email])
+  @@map("customers")
+}
 
 model Vehicle {
   id            String          @id @default(cuid())
@@ -119,7 +151,11 @@ model Reservation {
   vehicleId String
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
 
-  // Datos del Conductor Titular
+  // Relación con Cliente Maestro (Cero Duplicados)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  // Snapshot histórico de datos del conductor al momento de reservar
   customerName       String
   customerLastname   String  @default("")
   customerEmail      String
@@ -164,9 +200,11 @@ model Reservation {
   payment        Payment?
   insuranceBlock InsuranceBlock?
 
+  @@index([customerId])
   @@index([vehicleId])
   @@index([status])
   @@index([customerEmail])
+  @@index([customerIdNumber])
   @@index([pickupDate, returnDate])
   @@index([synced])
   @@map("reservations")

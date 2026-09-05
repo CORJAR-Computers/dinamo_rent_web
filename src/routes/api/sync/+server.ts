@@ -16,6 +16,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
         include: {
           vehicle: true,
           payment: true,
+          customer: true,
         },
         orderBy: { createdAt: 'asc' },
         take: 50,
@@ -40,9 +41,10 @@ export const GET: RequestHandler = async ({ url, request }) => {
       take: 10,
     });
 
-    const [reservationsSynced, reservationsTotal] = await Promise.all([
+    const [reservationsSynced, reservationsTotal, customersCount] = await Promise.all([
       db.reservation.count({ where: { synced: true } }),
       db.reservation.count(),
+      db.customer.count(),
     ]);
 
     return json({
@@ -61,6 +63,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
         failed,
         reservationsSynced,
         reservationsTotal,
+        customersCount,
       },
       recent,
     });
@@ -72,13 +75,27 @@ export const GET: RequestHandler = async ({ url, request }) => {
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const b = await request.json().catch(() => ({}));
-    const { entityId, entity, desktopRef: providedRef } = b || {};
+    const {
+      entityId,
+      entity,
+      desktopRef: providedRef,
+      desktopCustomerId,
+    } = b || {};
 
     if (entityId && entity) {
       const desktopRef = providedRef || `DESK-${Math.floor(100000 + Math.random() * 900000)}`;
 
       if (entity === 'RESERVATION') {
-        await db.reservation.updateMany({
+        const res = await db.reservation.findUnique({
+          where: { id: entityId },
+          include: { customer: true },
+        });
+
+        if (!res) {
+          return json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
+        }
+
+        await db.reservation.update({
           where: { id: entityId },
           data: {
             synced: true,
@@ -87,13 +104,24 @@ export const POST: RequestHandler = async ({ request }) => {
           },
         });
 
+        // Si el software de escritorio envió el id_cliente de Firebird, vincular al cliente maestro
+        if (desktopCustomerId && res.customerId) {
+          await db.customer.update({
+            where: { id: res.customerId },
+            data: {
+              desktopId: Number(desktopCustomerId),
+              syncedWithDesktop: true,
+            },
+          });
+        }
+
         await db.syncLog.create({
           data: {
             entity: 'RESERVATION',
             entityId,
             action: 'UPDATE',
             status: 'SYNCED',
-            message: `Reserva confirmada e importada en mostrador con contrato ${desktopRef}`,
+            message: `Reserva ${res.code} sincronizada con contrato Firebird ${desktopRef}${desktopCustomerId ? ` (Cliente ID: ${desktopCustomerId})` : ''}`,
             syncedAt: new Date(),
           },
         });
@@ -102,7 +130,21 @@ export const POST: RequestHandler = async ({ request }) => {
           ok: true,
           message: 'Sincronizado con software de escritorio',
           desktopRef,
+          desktopCustomerId: desktopCustomerId || null,
         });
+      }
+
+      if (entity === 'CUSTOMER') {
+        if (desktopCustomerId) {
+          await db.customer.update({
+            where: { id: entityId },
+            data: {
+              desktopId: Number(desktopCustomerId),
+              syncedWithDesktop: true,
+            },
+          });
+          return json({ ok: true, message: 'Cliente sincronizado con mostrador' });
+        }
       }
     }
 
