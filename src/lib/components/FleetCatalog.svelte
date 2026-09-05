@@ -2,12 +2,18 @@
   import { FLEET_DATABASE, type Vehicle } from '$lib/data/fleet';
   import CarCard from './CarCard.svelte';
 
+  interface Props {
+    vehicles?: Vehicle[];
+  }
+
+  let { vehicles = FLEET_DATABASE }: Props = $props();
+
   let selectedCategory = $state<'all' | 'economico' | 'sedan' | 'suv' | 'premium'>('all');
 
   let filteredFleet = $derived(
     selectedCategory === 'all'
-      ? FLEET_DATABASE
-      : FLEET_DATABASE.filter((v: Vehicle) => v.category === selectedCategory)
+      ? vehicles
+      : vehicles.filter((v: Vehicle) => v.category === selectedCategory)
   );
 
   const CATEGORIES = [

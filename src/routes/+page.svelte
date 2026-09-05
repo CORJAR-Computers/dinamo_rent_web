@@ -4,6 +4,8 @@
   import ProcessSteps from '$lib/components/ProcessSteps.svelte';
   import TrustBadges from '$lib/components/TrustBadges.svelte';
 
+  let { data } = $props();
+
   let openFaq = $state<number | null>(0);
 
   const FAQS = [
@@ -42,7 +44,7 @@
 <HeroSearch />
 
 <!-- Fleet Catalog Section -->
-<FleetCatalog />
+<FleetCatalog vehicles={data.vehicles} />
 
 <!-- 3 Steps Process -->
 <ProcessSteps />
