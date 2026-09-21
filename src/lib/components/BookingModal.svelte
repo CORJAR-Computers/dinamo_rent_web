@@ -761,13 +761,12 @@
                                 >
                             </div>
                             <div class="flex items-start gap-2">
-                                <i class="fa-solid fa-lock text-cyan-400 mt-0.5"
+                                <i class="fa-solid fa-shield-check text-cyan-400 mt-0.5"
                                 ></i>
                                 <span
                                     ><strong class="text-white"
-                                        >Garantía:</strong
-                                    > el bloqueo de cupo se realiza en mostrador
-                                    al entregar el vehículo, no en este pago.</span
+                                        >Depósito de Garantía:</strong
+                                    > al pagar el canon, tu tarjeta se vincula de forma segura mediante Place to Pay (Evertec) como respaldo del depósito del vehículo (<strong class="text-cyan-300">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>), sin congelar ni debitar saldo anticipadamente de este valor.</span
                                 >
                             </div>
                         </div>

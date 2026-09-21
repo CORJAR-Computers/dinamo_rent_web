@@ -34,8 +34,24 @@ export const load: PageServerLoad = async () => {
 						cardBrand: true,
 						cardLast4: true,
 						p2pRequestId: true,
-						createdAt: true
+						createdAt: true,
+						token: true,
+						tokenStatus: true,
+						tokenValidUntil: true,
+						tokenFranchise: true,
 					}
+				},
+				depositCharges: {
+					select: {
+						id: true,
+						amount: true,
+						concept: true,
+						description: true,
+						status: true,
+						transactionId: true,
+						createdAt: true,
+					},
+					orderBy: { createdAt: 'desc' }
 				}
 			}
 		});

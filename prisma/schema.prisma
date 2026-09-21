@@ -200,6 +200,7 @@ model Reservation {
 
   payment        Payment?
   insuranceBlock InsuranceBlock?
+  depositCharges DepositCharge[]
 
   @@index([customerId])
   @@index([vehicleId])
@@ -235,10 +236,34 @@ model Payment {
   p2pStatusMessage  String?
   p2pOpType         String?
 
+  // Tokenización de Tarjeta para Garantía (Place to Pay Suscripción)
+  token             String?       // Token seguro emitido por Evertec
+  tokenStatus       String?       // ACTIVO, UTILIZADO, EXPIRADO
+  tokenValidUntil   String?       // Fecha de vencimiento informada por pasarela
+  tokenFranchise    String?       // Franquicia bancaria del token
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("payments")
+}
+
+model DepositCharge {
+  id               String        @id @default(cuid())
+  reservationId    String
+  reservation      Reservation   @relation(fields: [reservationId], references: [id])
+  amount           Int
+  concept          String        // DEDUCIBLE, GASOLINA, DIAS_EXTRA, MULTA, OTRO
+  description      String?
+  status           PaymentStatus @default(PENDIENTE)
+  transactionId    String?
+  p2pRequestId     String?
+  p2pStatusMessage String?
+  executedBy       String        @default("ADMIN")
+  createdAt        DateTime      @default(now())
+
+  @@index([reservationId])
+  @@map("deposit_charges")
 }
 
 model InsuranceBlock {

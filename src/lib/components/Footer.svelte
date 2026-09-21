@@ -103,7 +103,7 @@
         <span>•</span>
         <span>Política de Privacidad</span>
         <span>•</span>
-        <span>Habeas Data</span>
+        <a href="/admin/login" class="text-slate-600 hover:text-slate-400 transition">Acceso Admin</a>
       </div>
     </div>
 

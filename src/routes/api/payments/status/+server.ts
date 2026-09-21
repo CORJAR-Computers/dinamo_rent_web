@@ -47,6 +47,11 @@ export const GET: RequestHandler = async ({ url }) => {
           cardBrand: query.cardBrand || payment.cardBrand,
           cardLast4: query.cardLast4 || payment.cardLast4,
           transactionId: query.authorization || payment.transactionId,
+          // Tokenización de garantía (suscripción)
+          token: query.token || payment.token,
+          tokenStatus: query.tokenStatus || (query.token ? 'ACTIVO' : payment.tokenStatus),
+          tokenValidUntil: query.tokenValidUntil || payment.tokenValidUntil,
+          tokenFranchise: query.tokenFranchise || query.cardBrand || payment.tokenFranchise,
         },
       });
 
@@ -62,11 +67,14 @@ export const GET: RequestHandler = async ({ url }) => {
             entityId: payment.id,
             action: 'UPDATE',
             status: 'PENDING',
-            message: `Pago aprobado en Place to Pay para reserva ${reservation.code}`,
+            message: `Pago aprobado y tarjeta tokenizada para garantía en Place to Pay para reserva ${reservation.code}`,
             payload: {
               requestId: query.requestId,
               status: query.status,
               authorization: query.authorization,
+              hasToken: !!(query.token || payment.token),
+              cardBrand: query.cardBrand,
+              cardLast4: query.cardLast4,
             },
           },
         });
@@ -79,6 +87,9 @@ export const GET: RequestHandler = async ({ url }) => {
       status: newStatus,
       sessionStatus: query.status,
       message: query.message,
+      hasToken: !!(query.token || payment.token),
+      cardBrand: query.cardBrand || payment.cardBrand,
+      cardLast4: query.cardLast4 || payment.cardLast4,
     });
   } catch (err) {
     console.error('[payment/status error]:', err);

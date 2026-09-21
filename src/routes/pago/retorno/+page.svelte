@@ -36,6 +36,9 @@
             cardBrand: string;
             cardLast4: string;
             amount: number;
+            token?: string | null;
+            tokenStatus?: string | null;
+            tokenFranchise?: string | null;
         } | null;
     }
 
@@ -304,16 +307,29 @@
                     </div>
                 </div>
 
-                <!-- Info de tarjeta usada -->
+                <!-- Info de tarjeta usada y garantía tokenizada -->
                 {#if reservation.payment?.cardBrand}
                     <div
-                        class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs mb-6"
+                        class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5 text-xs mb-6"
                     >
-                        <span class="text-slate-400">Pagado con:</span>
-                        <span class="font-semibold text-white"
-                            >{reservation.payment.cardBrand} •••• {reservation
-                                .payment.cardLast4}</span
-                        >
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Método de pago del canon:</span>
+                            <span class="font-semibold text-white"
+                                >{reservation.payment.cardBrand} •••• {reservation.payment.cardLast4}</span
+                            >
+                        </div>
+                        {#if reservation.payment.token || reservation.payment.tokenStatus === 'ACTIVO'}
+                            <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
+                                <span class="text-slate-400 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                                    Depósito de Garantía:
+                                </span>
+                                <span class="font-semibold text-emerald-400">Tarjeta Vinculada (Suscripción Segura)</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                Tu tarjeta ha sido registrada de forma segura mediante Evertec Place to Pay como respaldo del depósito del vehículo ({formatCurrency(reservation.blockingAmount, "COP")}). No se ha descontado ni congelado cupo anticipadamente.
+                            </p>
+                        {/if}
                     </div>
                 {/if}
 
