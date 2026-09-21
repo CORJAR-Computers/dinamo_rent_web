@@ -38,10 +38,10 @@
     class="absolute inset-0 bg-radial-[at_top_center] from-blue-950/40 via-slate-950 to-slate-950 -z-10"
   ></div>
   <div
-    class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-cyan-600/10 blur-[130px] rounded-full pointer-events-none -z-10"
+    class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-175 h-87.5 bg-cyan-600/10 blur-[130px] rounded-full pointer-events-none -z-10"
   ></div>
   <div
-    class="absolute top-1/3 right-10 w-[400px] h-[300px] bg-orange-600/10 blur-[120px] rounded-full pointer-events-none -z-10"
+    class="absolute top-1/3 right-10 w-100 h-75 bg-orange-600/10 blur-[120px] rounded-full pointer-events-none -z-10"
   ></div>
 
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -60,7 +60,7 @@
         class="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.1]"
       >
         Explora Cartagena a tu Ritmo con <span
-          class="bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent"
+          class="bg-linear-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent"
           >Dinamo Rent a Car</span
         >
       </h1>
@@ -156,7 +156,7 @@
                 id="p-date"
                 type="date"
                 bind:value={booking.pickupDate}
-                class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:ring-2 focus:ring-orange-500 outline-none transition cursor-pointer [color-scheme:dark]"
+                class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:ring-2 focus:ring-orange-500 outline-none transition cursor-pointer scheme-dark"
               />
             </div>
 
@@ -198,7 +198,7 @@
                 type="date"
                 bind:value={booking.returnDate}
                 min={booking.pickupDate}
-                class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:ring-2 focus:ring-cyan-500 outline-none transition cursor-pointer [color-scheme:dark]"
+                class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:ring-2 focus:ring-cyan-500 outline-none transition cursor-pointer scheme-dark"
               />
             </div>
 
@@ -252,7 +252,7 @@
             <button
               type="button"
               onclick={handleSearchClick}
-              class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-heading font-black text-base text-white bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 active:scale-98"
+              class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-heading font-black text-base text-white bg-linear-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 active:scale-98"
             >
               <i class="fa-solid fa-magnifying-glass"></i>
               <span>Ver Autos Disponibles</span>

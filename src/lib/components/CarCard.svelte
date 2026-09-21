@@ -22,7 +22,7 @@
       class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
       loading="lazy"
     />
-    <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent"></div>
+    <div class="absolute inset-0 bg-linear-to-t from-slate-900 via-slate-900/20 to-transparent"></div>
     
     <!-- Top Badges -->
     <div class="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
@@ -106,7 +106,7 @@
       <button 
         type="button"
         onclick={() => booking.openBooking(vehicle)}
-        class="px-5 py-2.5 rounded-xl font-heading font-bold text-sm text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+        class="px-5 py-2.5 rounded-xl font-heading font-bold text-sm text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
       >
         <span>Reservar</span>
         <i class="fa-solid fa-arrow-right text-xs"></i>

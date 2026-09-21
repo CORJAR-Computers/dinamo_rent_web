@@ -98,7 +98,7 @@
 </section>
 
 <!-- Bottom CTA Banner -->
-<section class="py-16 bg-gradient-to-b from-slate-950 via-blue-950/40 to-slate-950 border-t border-slate-800">
+<section class="py-16 bg-linear-to-b from-slate-950 via-blue-950/40 to-slate-950 border-t border-slate-800">
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
     <div class="w-16 h-16 rounded-3xl bg-orange-500/10 border border-orange-500/30 text-orange-400 flex items-center justify-center text-3xl mx-auto">
       <i class="fa-solid fa-key"></i>
@@ -115,7 +115,7 @@
     <div class="pt-2 flex flex-wrap items-center justify-center gap-4">
       <a 
         href="#flota"
-        class="px-8 py-3.5 rounded-xl font-heading font-black text-base text-white bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-xl shadow-orange-500/25 active:scale-95"
+        class="px-8 py-3.5 rounded-xl font-heading font-black text-base text-white bg-linear-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-xl shadow-orange-500/25 active:scale-95"
       >
         <i class="fa-solid fa-car-side mr-2"></i> Elegir mi Vehículo
       </a>

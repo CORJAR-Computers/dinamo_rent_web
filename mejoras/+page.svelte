@@ -195,9 +195,9 @@
             <!-- Header de estado -->
             <div
                 class="rounded-3xl p-6 text-center space-y-3 mb-6 {isPaid
-                    ? 'bg-gradient-to-r from-emerald-950/60 via-slate-900 to-emerald-950/60 border border-emerald-500/40'
+                    ? 'bg-linear-to-r from-emerald-950/60 via-slate-900 to-emerald-950/60 border border-emerald-500/40'
                     : isRejected
-                      ? 'bg-gradient-to-r from-red-950/60 via-slate-900 to-red-950/60 border border-red-500/40'
+                      ? 'bg-linear-to-r from-red-950/60 via-slate-900 to-red-950/60 border border-red-500/40'
                       : 'bg-slate-900 border border-slate-700'}"
             >
                 <div
@@ -415,7 +415,7 @@
                 </div>
                 <a
                     href="/#flota"
-                    class="block w-full py-3.5 px-4 rounded-xl font-heading font-black text-sm text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition text-center"
+                    class="block w-full py-3.5 px-4 rounded-xl font-heading font-black text-sm text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition text-center"
                 >
                     <i class="fa-solid fa-arrow-left mr-2"></i>Volver e intentar
                     de nuevo

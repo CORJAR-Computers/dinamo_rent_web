@@ -68,7 +68,7 @@
     </div>
 
     <!-- Guarantee Callout -->
-    <div class="mt-16 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-slate-800 p-8 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
+    <div class="mt-16 rounded-3xl bg-linear-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-slate-800 p-8 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
       <div class="flex items-center gap-5">
         <div class="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl shrink-0">
           <i class="fa-solid fa-file-contract"></i>

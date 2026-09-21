@@ -93,7 +93,7 @@
         >
             <!-- Modal Header -->
             <div
-                class="relative bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 px-6 py-4 border-b border-slate-800 flex items-center justify-between"
+                class="relative bg-linear-to-r from-slate-900 via-blue-950 to-slate-900 px-6 py-4 border-b border-slate-800 flex items-center justify-between"
             >
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-12 flex items-center justify-center">
@@ -694,7 +694,7 @@
 
                         <!-- Resumen del pago -->
                         <div
-                            class="p-5 rounded-2xl bg-gradient-to-br from-slate-950 to-blue-950/30 border border-slate-800 space-y-3"
+                            class="p-5 rounded-2xl bg-linear-to-br from-slate-950 to-blue-950/30 border border-slate-800 space-y-3"
                         >
                             <div class="flex items-center justify-between">
                                 <span
@@ -826,7 +826,7 @@
                         type="button"
                         onclick={nextStep}
                         disabled={booking.submitting}
-                        class="px-6 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:active:scale-100"
+                        class="px-6 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-wider text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:active:scale-100"
                     >
                         {#if booking.submitting}
                             <i class="fa-solid fa-circle-notch fa-spin"></i>

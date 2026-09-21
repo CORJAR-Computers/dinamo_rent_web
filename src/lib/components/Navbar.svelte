@@ -10,7 +10,7 @@
 
 <header class="sticky top-0 z-50 w-full backdrop-blur-md bg-slate-950/90 border-b border-slate-800/80 transition-all duration-200 shadow-xl">
   <!-- Top announcement bar -->
-  <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/40 text-xs py-1.5 px-4">
+  <div class="bg-linear-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/40 text-xs py-1.5 px-4">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-slate-300">
       <div class="flex items-center gap-4 text-xs font-medium">
         <span class="flex items-center gap-1.5 text-orange-400">
@@ -97,7 +97,7 @@
       <div class="hidden md:flex items-center gap-3">
         <a 
           href="#flota"
-          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/25 active:scale-95"
+          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/25 active:scale-95"
         >
           <i class="fa-solid fa-car-side"></i>
           <span>Cotizar Flota</span>
