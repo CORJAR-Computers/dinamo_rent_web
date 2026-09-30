@@ -1,8 +1,17 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
+import { verifySyncToken, isUserAdmin } from '$lib/server/adminAuth';
 
-export const GET: RequestHandler = async ({ url, request }) => {
+export const GET: RequestHandler = async ({ url, request, cookies }) => {
+  // Verificación estricta de autorización para sincronización o panel administrativo
+  if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
+    return json(
+      { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const onlyPending = url.searchParams.get('pending') === 'true';
 
@@ -72,7 +81,15 @@ export const GET: RequestHandler = async ({ url, request }) => {
   }
 };
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
+  // Verificación estricta de autorización para sincronización o panel administrativo
+  if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
+    return json(
+      { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const b = await request.json().catch(() => ({}));
     const {

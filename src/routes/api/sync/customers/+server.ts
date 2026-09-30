@@ -1,12 +1,20 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
+import { verifySyncToken, isUserAdmin } from '$lib/server/adminAuth';
 
 /**
  * GET /api/sync/customers
  * Permite al software de escritorio consultar clientes registrados en la Web
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, request, cookies }) => {
+  if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
+    return json(
+      { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const unsyncedOnly = url.searchParams.get('unsynced') === 'true';
     const where: Record<string, unknown> = {};
@@ -29,7 +37,14 @@ export const GET: RequestHandler = async ({ url }) => {
  * Permite al software de escritorio sincronizar su padrón de clientes hacia la Web (Neon)
  * Garantiza deduplicación estricta por documento (docNumber)
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
+  if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
+    return json(
+      { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const { customers = [] } = body;

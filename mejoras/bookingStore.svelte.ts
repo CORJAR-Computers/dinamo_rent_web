@@ -274,3 +274,7 @@ class BookingStore {
 }
 
 export const booking = new BookingStore();
+
+if (typeof window !== 'undefined') {
+    (window as any).__booking = booking;
+}

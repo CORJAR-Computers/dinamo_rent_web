@@ -12,11 +12,27 @@ import {
 } from '$lib/server/helpers';
 import type { InsurancePlan } from '@prisma/client';
 
-export const GET: RequestHandler = async ({ url }) => {
+import { isUserAdmin } from '$lib/server/adminAuth';
+
+export const GET: RequestHandler = async ({ url, cookies }) => {
   try {
     const email = url.searchParams.get('email');
     const code = url.searchParams.get('code');
     const docNumber = url.searchParams.get('docNumber');
+
+    const isAdmin = isUserAdmin(cookies);
+
+    // Protección anti-scraping / anti-fuga de datos (PII):
+    // Si no es un administrador autenticado, se exige obligatoriamente un filtro de búsqueda específico.
+    if (!isAdmin && !code && !email && !docNumber) {
+      return json(
+        {
+          ok: false,
+          error: 'Por seguridad, debes indicar tu código de reserva, correo o número de documento para consultar.',
+        },
+        { status: 400 }
+      );
+    }
 
     const where: Record<string, unknown> = {};
     if (email) where.customerEmail = email.trim().toLowerCase();
@@ -31,7 +47,7 @@ export const GET: RequestHandler = async ({ url }) => {
         customer: true,
       },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: isAdmin ? 100 : 10,
     });
 
     return json({ ok: true, reservations, count: reservations.length });

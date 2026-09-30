@@ -1,0 +1,16 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"paths": {
+			"$lib": ["../src/lib"],
+			"$lib/*": ["../src/lib/*"]
+		}
+	},
+	"include": [
+		"../.svelte-kit/ambient.d.ts",
+		"../.svelte-kit/non-ambient.d.ts",
+		"../.svelte-kit/types/**/$types.d.ts",
+		"./**/*.ts",
+		"./**/*.svelte"
+	]
+}

@@ -1,6 +1,9 @@
 # Documento de Homologación Técnica y de Seguridad
+
 ## Integración Pasarela de Pagos Place to Pay (Evertec)
+
 ### Modelo: Hosted Checkout + Suscripción (Tokenización) + Collect
+
 ### Dinamo Rent a Car Cartagena de Indias
 
 ---
@@ -22,7 +25,8 @@
 
 En el modelo de negocio de alquiler de vehículos en Colombia, el servicio de **Preautorización (Hold / Retención temporal de cupo)** no se encuentra actualmente habilitado por las entidades adquirentes bancarias. En respuesta y siguiendo las directrices técnicas de **Evertec / Place to Pay**, se ha implementado el modelo oficial y certificado de **Suscripción (Tokenización de Tarjetas)** en combinación con el servicio Server-to-Server **`/api/collect`**.
 
-### Este modelo resuelve dos necesidades operativas críticas:
+### Este modelo resuelve dos necesidades operativas críticas
+
 1. **Cobro del Canon de Alquiler:** El cliente paga el valor correspondiente a los días de alquiler, seguros y accesorios seleccionados mediante la pasarela segura.
 2. **Depósito de Garantía sin Fricción:** En la misma sesión de checkout, el cliente autoriza la suscripción (tokenización) de su tarjeta de crédito/débito. Esto permite a Dinamo Rent respaldar la garantía del vehículo sin congelar cupo bancario anticipadamente al usuario, manteniendo la capacidad de procesar cobros justificados posteriores (deducibles de siniestros, combustible faltante, días adicionales de retraso o multas de tránsito) mediante llamadas seguras Server-to-Server.
 
@@ -32,7 +36,7 @@ En el modelo de negocio de alquiler de vehículos en Colombia, el servicio de **
 
 El sistema implementa una arquitectura moderna, desacoplada y con defensas criptográficas multicapa:
 
-```
+```text
 [ Cliente / Navegador Web ]
            │
            │  HTTPS / TLS 1.3
@@ -51,7 +55,8 @@ El sistema implementa una arquitectura moderna, desacoplada y con defensas cript
 • Bóveda de tarjetas (Tokenización)   • Registros inmutables
 ```
 
-### Componentes Técnicos:
+### Componentes Técnicos
+
 * **Framework Web & API Gateway:** SvelteKit 2 + TypeScript + Vite.
 * **Entorno de Ejecución:** Node.js en ambiente seguro con cifrado TLS 1.3 forzado.
 * **Base de Datos Principal:** PostgreSQL alojada en Neon Serverless (`sslmode=require`, cifrado en reposo y en tránsito).
@@ -64,7 +69,8 @@ El sistema implementa una arquitectura moderna, desacoplada y con defensas cript
 
 Dinamo Rent a Car implementa el modelo **Hosted Checkout (Redirección)** con estructura combinada de `payment` + `subscription`.
 
-### Ventajas de Seguridad:
+### Ventajas de Seguridad
+
 1. **Cumplimiento Estricto PCI-DSS SAQ A:** El cliente digita los 16 dígitos de su tarjeta (PAN), fecha de expiración y código CVV **exclusivamente dentro de los servidores seguros de Evertec**, amparados por su certificación PCI-DSS Nivel 1.
 2. **Cero Exposición de Datos Financieros:** Dinamo Rent **nunca recibe, nunca procesa, nunca transmite y nunca almacena números de tarjeta ni códigos CVV**.
 3. **Manejo de Tokens Criptográficos Opacos:** Evertec devuelve un `token` alfanumérico que únicamente tiene validez dentro de la plataforma de Evertec para el comercio autorizado.
@@ -130,6 +136,7 @@ sequenceDiagram
 ## 5. Especificación de Endpoints y Payloads de Evertec
 
 ### 5.1 Estructura del Objeto de Autenticación Dinámica (`auth`)
+
 Cada llamada saliente a las API de Place to Pay genera una cabecera criptográfica fresca:
 
 ```json
@@ -247,6 +254,7 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
 ## 6. Cumplimiento de Normativa PCI-DSS
 
 ### 6.1 Criterio SAQ A (Self-Assessment Questionnaire A)
+
 * Dinamo Rent a Car externaliza el 100% de la captura de instrumentos financieros hacia Place to Pay (Evertec).
 * **PAN (Primary Account Number de 16 dígitos):** NO se almacena, NO se procesa ni viaja por nuestros servidores.
 * **CVV / CVC:** NO se almacena ni se procesa.
@@ -277,7 +285,7 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
 ## 8. Guía de Preguntas Frecuentes para el Comité de Seguridad de Evertec
 
 | Pregunta de Evertec | Respuesta Técnica de Dinamo Rent a Car |
-|---|---|
+| :--- | :--- |
 | **¿Por qué utilizan el modelo de Suscripción en lugar de Preautorización?** | Debido a que la preautorización no se encuentra habilitada para el comercio adquirente en Colombia, Evertec recomendó el uso de Suscripción (Tokenización) para garantizar el respaldo del depósito de garantía del vehículo y procesar cobros de contingencias mediante `/api/collect`. |
 | **¿En algún momento Dinamo Rent manipula datos de tarjeta sin tokenizar?** | No. Tanto el pago del canon como la suscripción inicial ocurren 100% dentro del Hosted Checkout de Evertec bajo protocolo 3D Secure. Nuestro servidor solo recibe el `token` resultante. |
 | **¿Cómo garantizan que un cobro posterior con token esté justificado?** | La reserva cuenta con firma digital del contrato preliminar y aceptación de términos. Además, el endpoint `/api/payments/collect` requiere autenticación administrativa estricta y genera registros de auditoría en PostgreSQL con el concepto (deducible, gasolina, mora). |

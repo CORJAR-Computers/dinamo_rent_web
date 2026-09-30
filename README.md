@@ -29,7 +29,7 @@ Plataforma web oficial de reservas en línea para **Dinamo Rent a Car** en Carta
 
 El proyecto forma parte del ecosistema integral de Dinamo Rent a Car:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        NUBE (WEB)                           │
 │  Dinamo Rent Web (SvelteKit 2 + Svelte 5 + Tailwind CSS v4) │
@@ -64,7 +64,7 @@ El proyecto forma parte del ecosistema integral de Dinamo Rent a Car:
 
 ## 📂 Estructura del Proyecto
 
-```
+```text
 dinamo_rent_web/
 ├── Assets/                 # Recursos gráficos originales de alta resolución
 │   ├── LogoDinamo.png      # Logo original
@@ -106,32 +106,39 @@ dinamo_rent_web/
 ## 🚀 Instalación y Desarrollo Local
 
 ### 1. Prerrequisitos
+
 - [Node.js](https://nodejs.org/) v20 o superior
 - [npm](https://www.npmjs.com/) v10 o superior
 
 ### 2. Clonar el Repositorio
+
 ```bash
 git clone https://github.com/CORJAR-Computers/dinamo_rent_web.git
 cd dinamo_rent_web
 ```
 
 ### 3. Instalar Dependencias
+
 ```bash
 npm install
 ```
 
 ### 4. Iniciar Servidor de Desarrollo
+
 ```bash
 npm run dev
 ```
+
 La aplicación estará disponible de inmediato en `http://localhost:5174/`.
 
 ### 5. Verificación de Tipos y Sintaxis
+
 ```bash
 npm run check
 ```
 
 ### 6. Compilar para Producción
+
 ```bash
 npm run build
 ```

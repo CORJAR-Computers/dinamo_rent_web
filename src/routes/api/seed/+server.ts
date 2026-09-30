@@ -3,8 +3,20 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { FLEET_DATABASE } from '$lib/data/fleet';
 import type { VehicleCategory, Transmission, FuelType } from '@prisma/client';
+import { isUserAdmin } from '$lib/server/adminAuth';
+import { env } from '$env/dynamic/private';
 
-export const POST: RequestHandler = async () => {
+export const POST: RequestHandler = async ({ cookies }) => {
+  // Proteger con sesión de administrador
+  if (!isUserAdmin(cookies)) {
+    return json({ ok: false, error: 'No autorizado. Se requieren permisos de administrador.' }, { status: 401 });
+  }
+
+  // Prevenir reseteo accidental en producción sin confirmación
+  if (env.NODE_ENV === 'production') {
+    return json({ ok: false, error: 'El sembrado de base de datos está deshabilitado en ambiente de producción.' }, { status: 403 });
+  }
+
   try {
     let created = 0;
     let updated = 0;

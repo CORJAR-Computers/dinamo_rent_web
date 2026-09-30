@@ -7,11 +7,42 @@ const DEFAULT_PASSWORD = 'DinamoAdmin2026!*';
 const DEFAULT_SECRET = 'dinamo-default-secret-salt-2026';
 
 function getAdminSecret(): string {
-	return env.ADMIN_SECRET || DEFAULT_SECRET;
+	const secret = env.ADMIN_SECRET;
+	if (!secret) {
+		if (env.NODE_ENV === 'production') {
+			console.warn('[SECURITY WARNING] ADMIN_SECRET no está configurada en producción. Usando valor temporal.');
+		}
+		return DEFAULT_SECRET;
+	}
+	return secret;
 }
 
 export function getAdminPassword(): string {
-	return env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
+	const pass = env.ADMIN_PASSWORD;
+	if (!pass) {
+		if (env.NODE_ENV === 'production') {
+			console.warn('[SECURITY WARNING] ADMIN_PASSWORD no está configurada en producción. Usando valor temporal.');
+		}
+		return DEFAULT_PASSWORD;
+	}
+	return pass;
+}
+
+/**
+ * Valida la contraseña de administrador usando comparación en tiempo constante (anti-timing attacks).
+ */
+export function verifyAdminPassword(password: string): boolean {
+	if (!password || typeof password !== 'string') return false;
+	const expected = getAdminPassword();
+	const passBuf = Buffer.from(password, 'utf-8');
+	const expBuf = Buffer.from(expected, 'utf-8');
+
+	if (passBuf.length !== expBuf.length) {
+		// Ejecuta comparación dummy con el mismo buffer para mitigar análisis de tiempos
+		crypto.timingSafeEqual(expBuf, expBuf);
+		return false;
+	}
+	return crypto.timingSafeEqual(passBuf, expBuf);
 }
 
 /**
@@ -28,7 +59,7 @@ export function generateAdminSessionToken(): string {
 }
 
 /**
- * Valida un token de sesión de administrador
+ * Valida un token de sesión de administrador con verificación segura de longitud
  */
 export function verifyAdminSessionToken(token: string | undefined): boolean {
 	if (!token) return false;
@@ -47,10 +78,18 @@ export function verifyAdminSessionToken(token: string | undefined): boolean {
 		.update(payload)
 		.digest('hex');
 
-	return crypto.timingSafeEqual(
-		Buffer.from(signature, 'hex'),
-		Buffer.from(expectedSignature, 'hex')
-	);
+	try {
+		const sigBuf = Buffer.from(signature, 'hex');
+		const expBuf = Buffer.from(expectedSignature, 'hex');
+
+		if (sigBuf.length !== expBuf.length || sigBuf.length === 0) {
+			return false;
+		}
+
+		return crypto.timingSafeEqual(sigBuf, expBuf);
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -59,6 +98,36 @@ export function verifyAdminSessionToken(token: string | undefined): boolean {
 export function isUserAdmin(cookies: Cookies): boolean {
 	const sessionToken = cookies.get(COOKIE_NAME);
 	return verifyAdminSessionToken(sessionToken);
+}
+
+/**
+ * Valida el token de sincronización del mostrador (Firebird ERP) contra DESKTOP_SYNC_TOKEN
+ */
+export function verifySyncToken(request: Request): boolean {
+	const expectedToken = env.DESKTOP_SYNC_TOKEN || 'dinamo-desktop-sync-2026-secret-token';
+	if (!expectedToken) return false;
+
+	const authHeader = request.headers.get('authorization') || '';
+	const customHeader = request.headers.get('x-sync-token') || '';
+
+	let provided = '';
+	if (authHeader.startsWith('Bearer ')) {
+		provided = authHeader.slice(7).trim();
+	} else if (customHeader) {
+		provided = customHeader.trim();
+	}
+
+	if (!provided) return false;
+
+	const provBuf = Buffer.from(provided, 'utf-8');
+	const expBuf = Buffer.from(expectedToken, 'utf-8');
+
+	if (provBuf.length !== expBuf.length) {
+		crypto.timingSafeEqual(expBuf, expBuf);
+		return false;
+	}
+
+	return crypto.timingSafeEqual(provBuf, expBuf);
 }
 
 /**
