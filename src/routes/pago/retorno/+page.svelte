@@ -3,6 +3,7 @@
     import { page } from "$app/state";
     import { formatCurrency, formatDatePretty } from "$lib/utils/formatters";
     import { whatsappLink } from "$lib/data/contact";
+    import { FLEET_SECTION } from "$lib/data/sections";
 
     interface ReservationData {
         id: string;
@@ -181,7 +182,7 @@
                 </h2>
                 <p class="text-sm text-slate-400 max-w-md mx-auto">{error}</p>
                 <a
-                    href="/#flota"
+                    href={FLEET_SECTION.href}
                     class="inline-block px-6 py-3 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-white transition cursor-pointer"
                 >
                     Volver al inicio
@@ -408,7 +409,7 @@
                             <span>Imprimir Comprobante</span>
                         </button>
                         <a
-                            href="/#flota"
+                            href={FLEET_SECTION.href}
                             class="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1.5"
                         >
                             <i class="fa-solid fa-house"></i>
@@ -431,7 +432,7 @@
                     </p>
                 </div>
                 <a
-                    href="/#flota"
+                    href={FLEET_SECTION.href}
                     class="block w-full py-3.5 px-4 rounded-xl font-heading font-black text-sm text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition text-center"
                 >
                     <i class="fa-solid fa-arrow-left mr-2"></i>Volver e intentar
