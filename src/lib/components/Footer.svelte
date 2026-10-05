@@ -126,9 +126,9 @@
     <div class="mt-12 pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
       <p>© {new Date().getFullYear()} Dinamo Rent a Car Cartagena. Todos los derechos reservados.</p>
       <div class="flex items-center gap-4 text-[11px]">
-        <span>Términos y Condiciones</span>
+        <a href="/terminos" class="hover:text-white transition">Términos y Condiciones</a>
         <span>•</span>
-        <span>Política de Privacidad</span>
+        <a href="/privacidad" class="hover:text-white transition">Política de Privacidad</a>
         <span>•</span>
         <span>Diseño por: CORJAR Computers</span>
       </div>
