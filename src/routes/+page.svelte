@@ -3,6 +3,9 @@
   import FleetCatalog from '$lib/components/FleetCatalog.svelte';
   import ProcessSteps from '$lib/components/ProcessSteps.svelte';
   import TrustBadges from '$lib/components/TrustBadges.svelte';
+  import ContactSection from '$lib/components/ContactSection.svelte';
+  import { whatsappLink } from '$lib/data/contact';
+  import { FLEET_SECTION } from '$lib/data/sections';
 
   let { data } = $props();
 
@@ -97,6 +100,9 @@
   </div>
 </section>
 
+<!-- Contact Section -->
+<ContactSection />
+
 <!-- Bottom CTA Banner -->
 <section class="py-16 bg-linear-to-b from-slate-950 via-blue-950/40 to-slate-950 border-t border-slate-800">
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
@@ -114,13 +120,13 @@
 
     <div class="pt-2 flex flex-wrap items-center justify-center gap-4">
       <a 
-        href="#flota"
+        href={FLEET_SECTION.href}
         class="px-8 py-3.5 rounded-xl font-heading font-black text-base text-white bg-linear-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-xl shadow-orange-500/25 active:scale-95"
       >
         <i class="fa-solid fa-car-side mr-2"></i> Elegir mi Vehículo
       </a>
       <a 
-        href="https://wa.me/573000000000?text=Hola%20Dinamo%20Rent%20a%20Car,%20deseo%20asesoría%20para%20un%20alquiler"
+        href={whatsappLink('Hola%20Dinamo%20Rent%20a%20Car,%20deseo%20asesoría%20para%20un%20alquiler')}
         target="_blank"
         rel="noopener noreferrer"
         class="px-8 py-3.5 rounded-xl font-heading font-bold text-base text-emerald-400 bg-slate-900 border border-emerald-500/30 hover:bg-slate-800 transition"

@@ -7,7 +7,9 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-contact.mjs",
+    "check:contact": "node scripts/check-contact.mjs",
+    "prepare": "git config core.hooksPath scripts/githooks || echo [aviso] no se pudo configurar el hook de git"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^4.0.0",

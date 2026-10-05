@@ -1,0 +1,48 @@
+# CI — svelte-check + guardia de contacto.
+#
+# `npm run check` incluye scripts/check-contact.mjs: falla si un teléfono, un
+# enlace wa.me o un default de ubicación de la empresa aparece hardcodeado
+# fuera de su fuente de verdad (contact.ts / PICKUP_LOCATIONS).
+# El objetivo es que este check esté marcado como "required" en GitHub para que
+# bloquee los merges con números hardcodeados.
+name: Check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: svelte-check + guardia de contacto
+    runs-on: ubuntu-latest
+    env:
+      # .env no está versionado: prisma generate valida estas variables aunque
+      # no conecte a la base de datos, así que se proveen valores dummy de CI.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 26 (misma línea que el desarrollo local)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Instalar dependencias (package-lock.json)
+        run: npm ci
+
+      - name: Generar cliente de Prisma (tipos para svelte-check)
+        run: npx prisma generate
+
+      - name: svelte-check + guardia de contacto
+        run: npm run check

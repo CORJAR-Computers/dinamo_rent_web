@@ -1,3 +1,5 @@
+import { OFFICE_NEIGHBORHOOD, OFFICE_STREET } from '$lib/data/contact';
+
 export interface Vehicle {
   id: string;
   name: string;
@@ -123,9 +125,33 @@ export const FLEET_DATABASE: Vehicle[] = [
 
 export const PICKUP_LOCATIONS = [
   'Aeropuerto Internacional Rafael Núñez (CTG)',
-  'Bocagrande (Oficina Principal / Hotel)',
+  `${OFFICE_NEIGHBORHOOD} (Oficina Principal — ${OFFICE_STREET})`,
+  'Bocagrande / Castillogrande / El Laguito (Hotel)',
   'Centro Histórico (Torre del Reloj / Getsemaní)',
   'Manga / Zona Portuaria',
   'Zona Norte / Manzanillo del Mar',
   'Entrega a Domicilio en Hotel / Airbnb'
 ];
+
+/** Clave de comparación insensible a mayúsculas, acentos, guiones y espacios extra. */
+function locationKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u2010-\u2015]/g, '-')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Valida y normaliza un lugar de recogida contra PICKUP_LOCATIONS.
+ * Devuelve el valor canónico de la lista o `null` si no es un valor conocido.
+ * (El llamador decide: rechazar la petición o usar el default.)
+ */
+export function normalizePickupLocation(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const needle = locationKey(value);
+  if (!needle) return null;
+  return PICKUP_LOCATIONS.find((loc) => locationKey(loc) === needle) ?? null;
+}

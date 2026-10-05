@@ -1,5 +1,7 @@
 <script lang="ts">
   import { FLEET_DATABASE, type Vehicle } from '$lib/data/fleet';
+  import { whatsappLink } from '$lib/data/contact';
+  import { FLEET_SECTION } from '$lib/data/sections';
   import CarCard from './CarCard.svelte';
 
   interface Props {
@@ -25,7 +27,7 @@
   ] as const;
 </script>
 
-<section id="flota" class="py-16 md:py-24 bg-slate-950 relative">
+<section id={FLEET_SECTION.id} class="py-16 md:py-24 bg-slate-950 relative">
   <!-- Subtle ambient glow -->
   <div class="absolute top-1/2 left-0 w-96 h-96 bg-blue-600/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -79,7 +81,7 @@
         </div>
       </div>
       <a 
-        href="https://wa.me/573000000000?text=Hola%20Dinamo%20Rent,%20deseo%20cotizar%20un%20alquiler%20de%20largo%20plazo" 
+        href={whatsappLink('Hola%20Dinamo%20Rent,%20deseo%20cotizar%20un%20alquiler%20de%20largo%20plazo')}
         target="_blank"
         rel="noopener noreferrer"
         class="px-6 py-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 transition whitespace-nowrap active:scale-95"

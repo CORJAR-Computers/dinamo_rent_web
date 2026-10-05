@@ -2,6 +2,7 @@
     import { onMount } from "svelte";
     import { page } from "$app/state";
     import { formatCurrency, formatDatePretty } from "$lib/utils/formatters";
+    import { whatsappLink } from "$lib/data/contact";
 
     interface ReservationData {
         id: string;
@@ -143,7 +144,7 @@
             `💰 *Total Pagado:* ${formatCurrency(reservation.totalAmount, "COP")}%0A` +
             `✅ *Estado:* PAGADA (confirmado online)%0A%0A` +
             `_He completado el check-in digital, firmado y pagado. Deseo recoger el vehículo en mostrador._`;
-        return `https://wa.me/573000000000?text=${text}`;
+        return whatsappLink(text);
     }
 
     onMount(loadReservation);

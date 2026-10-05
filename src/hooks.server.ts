@@ -12,7 +12,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Strict-Transport-Security (HSTS)
 	response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
 
-	// Content-Security-Policy (CSP) equilibrada para SvelteKit, Google Fonts, FontAwesome y Place to Pay
+	// Content-Security-Policy (CSP) equilibrada para SvelteKit, Google Fonts, FontAwesome, Place to Pay
+	// y el mapa embebido de Google Maps (frame-src) en la sección de contacto.
 	const csp = [
 		"default-src 'self'",
 		"base-uri 'self'",
@@ -22,6 +23,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		"img-src 'self' data: https: blob:",
 		"connect-src 'self' https://checkout.placetopay.com https://checkout-test.placetopay.com",
 		"frame-ancestors 'none'",
+		"frame-src 'self' https://www.google.com https://maps.google.com",
 		"form-action 'self' https://checkout.placetopay.com https://checkout-test.placetopay.com"
 	].join('; ');
 

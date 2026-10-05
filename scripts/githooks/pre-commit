@@ -1,0 +1,23 @@
+#!/bin/sh
+# Pre-commit — Guardia de contacto (scripts/check-contact.mjs)
+#
+# Bloquea el commit si un teléfono o enlace wa.me de la empresa aparece
+# hardcodeado fuera de src/lib/data/contact.ts, o si index.html (generado)
+# está desincronizado de index.template.html.
+# Es el mismo check que corre `npm run check` y la CI; aquí se ejecuta
+# directo con node para que tarde menos de un segundo.
+#
+# Instalado vía: git config core.hooksPath scripts/githooks  (lo hace `npm install`)
+
+echo "🧾 Guardia de contacto: revisando números hardcodeados..."
+
+if node "$(dirname "$0")/../check-contact.mjs"; then
+  exit 0
+fi
+
+echo ""
+echo "✖  Commit bloqueado por la guardia de contacto."
+echo "   · Número fuera de src/lib/data/contact.ts → muévelo a contact.ts."
+echo "   · index.html desincronizado            → npm run generate:index"
+echo "   · Para saltártela en un caso excepcional → git commit --no-verify"
+exit 1

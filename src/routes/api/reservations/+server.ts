@@ -13,6 +13,7 @@ import {
 import type { InsurancePlan } from '@prisma/client';
 
 import { isUserAdmin } from '$lib/server/adminAuth';
+import { PICKUP_LOCATIONS, normalizePickupLocation } from '$lib/data/fleet';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   try {
@@ -85,6 +86,25 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (!vehicleId || !pickupDate || !returnDate || !customerName || !customerEmail || !customerPhone || !customerIdNumber) {
       return json({ ok: false, error: 'Faltan campos obligatorios para la reserva' }, { status: 400 });
+    }
+
+    // === UBICACIONES: solo valores conocidos (PICKUP_LOCATIONS) ===
+    // Se normaliza (mayúsculas/acentos/espacios/guiones) y lo que no exista en
+    // la lista se rechaza con 400. Vacío o ausente -> valor por defecto.
+    const rawPickup = typeof pickupLocation === 'string' ? pickupLocation.trim() : '';
+    const rawReturn = typeof returnLocation === 'string' ? returnLocation.trim() : '';
+    const resolvedPickup = rawPickup ? normalizePickupLocation(rawPickup) : PICKUP_LOCATIONS[0];
+    const resolvedReturn = rawReturn ? normalizePickupLocation(rawReturn) : PICKUP_LOCATIONS[0];
+    if (!resolvedPickup || !resolvedReturn) {
+      const invalid = !resolvedPickup ? `pickupLocation="${rawPickup}"` : `returnLocation="${rawReturn}"`;
+      return json(
+        {
+          ok: false,
+          error: `Ubicación desconocida (${invalid}). Valores permitidos: ${PICKUP_LOCATIONS.join(' | ')}`,
+          allowed: PICKUP_LOCATIONS,
+        },
+        { status: 400 }
+      );
     }
 
     let vehicle = await db.vehicle.findUnique({ where: { id: vehicleId } });
@@ -193,8 +213,8 @@ export const POST: RequestHandler = async ({ request }) => {
           returnDate: end,
           pickupTime,
           returnTime,
-          pickupLocation,
-          returnLocation,
+          pickupLocation: resolvedPickup,
+          returnLocation: resolvedReturn,
           days,
           baseAmount,
           extrasAmount,

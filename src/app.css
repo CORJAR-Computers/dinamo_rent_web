@@ -16,6 +16,18 @@
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
+/* Los anclas (#contacto, #flota, ...) no quedan tapadas por la barra sticky */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 7.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 h1, h2, h3, h4, h5, h6, .font-heading {
   font-family: 'Outfit', sans-serif;
 }

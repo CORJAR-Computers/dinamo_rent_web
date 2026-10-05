@@ -1,4 +1,15 @@
-<footer id="ubicaciones" class="bg-slate-950 border-t border-slate-800/80 text-slate-400 text-xs pt-16 pb-12">
+<script lang="ts">
+  import {
+    CONTACT_PHONES,
+    OFFICE_ADDRESS,
+    telLink,
+    whatsappLink,
+    whatsappLinkFor
+  } from '$lib/data/contact';
+  import { FLEET_SECTION, GUARANTEES_SECTION, LOCATIONS_SECTION } from '$lib/data/sections';
+</script>
+
+<footer id={LOCATIONS_SECTION.id} class="bg-slate-950 border-t border-slate-800/80 text-slate-400 text-xs pt-16 pb-12">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -22,7 +33,7 @@
           <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook Dinamo Rent" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center hover:text-cyan-400 hover:border-cyan-500 transition">
             <i class="fa-brands fa-facebook-f"></i>
           </a>
-          <a href="https://wa.me/573000000000" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp Dinamo Rent" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center hover:text-emerald-400 hover:border-emerald-500 transition">
+          <a href={whatsappLink()} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp Dinamo Rent" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center hover:text-emerald-400 hover:border-emerald-500 transition">
             <i class="fa-brands fa-whatsapp"></i>
           </a>
         </div>
@@ -34,6 +45,10 @@
           Puntos de Entrega
         </h4>
         <ul class="space-y-2 text-xs">
+          <li class="flex items-start gap-2">
+            <i class="fa-solid fa-building text-orange-400 mt-0.5"></i>
+            <span>Oficina: {OFFICE_ADDRESS}</span>
+          </li>
           <li class="flex items-start gap-2">
             <i class="fa-solid fa-plane-arrival text-orange-400 mt-0.5"></i>
             <span>Aeropuerto Rafael Núñez (CTG) — Sala de Llegadas</span>
@@ -59,11 +74,11 @@
           Flota de Vehículos
         </h4>
         <ul class="space-y-2 text-xs">
-          <li><a href="#flota" class="hover:text-white transition">Autos Económicos y Hatchbacks</a></li>
-          <li><a href="#flota" class="hover:text-white transition">Sedanes Familiares Automáticos</a></li>
-          <li><a href="#flota" class="hover:text-white transition">Camionetas SUV para Turismo</a></li>
-          <li><a href="#flota" class="hover:text-white transition">Toyota Prado 4x4 Diésel VIP</a></li>
-          <li><a href="#garantias" class="hover:text-cyan-400 transition">Política de Bloqueo de Garantía</a></li>
+          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Autos Económicos y Hatchbacks</a></li>
+          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Sedanes Familiares Automáticos</a></li>
+          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Camionetas SUV para Turismo</a></li>
+          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Toyota Prado 4x4 Diésel VIP</a></li>
+          <li><a href={GUARANTEES_SECTION.href} class="hover:text-cyan-400 transition">Política de Bloqueo de Garantía</a></li>
         </ul>
       </div>
 
@@ -73,10 +88,22 @@
           Central de Reservas
         </h4>
         <div class="space-y-2 text-xs">
-          <p class="flex items-center gap-2">
-            <i class="fa-solid fa-phone text-orange-400"></i>
-            <span class="text-slate-200">+57 300 000 0000</span>
-          </p>
+          {#each CONTACT_PHONES as phone}
+            <p class="flex items-center gap-2">
+              <i class="fa-solid fa-phone text-orange-400"></i>
+              <a href={telLink(phone)} class="text-slate-200 hover:text-white transition">{phone}</a>
+              <a
+                href={whatsappLinkFor(phone)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Escribir por WhatsApp a ${phone}`}
+                title="Escribir por WhatsApp"
+                class="text-emerald-400 hover:text-emerald-300 transition"
+              >
+                <i class="fa-brands fa-whatsapp"></i>
+              </a>
+            </p>
+          {/each}
           <p class="flex items-center gap-2">
             <i class="fa-solid fa-envelope text-cyan-400"></i>
             <span>reservas@dinamorent.com</span>

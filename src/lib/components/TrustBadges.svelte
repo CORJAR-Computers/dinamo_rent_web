@@ -1,4 +1,8 @@
-<section id="garantias" class="py-16 md:py-24 bg-slate-900/60 border-y border-slate-800/80 relative overflow-hidden">
+<script lang="ts">
+  import { GUARANTEES_SECTION } from '$lib/data/sections';
+</script>
+
+<section id={GUARANTEES_SECTION.id} class="py-16 md:py-24 bg-slate-900/60 border-y border-slate-800/80 relative overflow-hidden">
   <!-- Decorative elements -->
   <div class="absolute -right-20 top-1/2 -translate-y-1/2 w-80 h-80 bg-cyan-500/5 blur-[100px] rounded-full pointer-events-none"></div>
 

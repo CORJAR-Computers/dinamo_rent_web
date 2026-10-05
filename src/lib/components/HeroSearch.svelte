@@ -1,6 +1,7 @@
 <script lang="ts">
   import { booking } from "$lib/stores/bookingStore.svelte";
   import { PICKUP_LOCATIONS } from "$lib/data/fleet";
+  import { FLEET_SECTION } from "$lib/data/sections";
 
   const TIME_OPTIONS = [
     "06:00",
@@ -25,7 +26,7 @@
 
   function handleSearchClick(e: MouseEvent) {
     e.preventDefault();
-    const fleetSection = document.getElementById("flota");
+    const fleetSection = document.getElementById(FLEET_SECTION.id);
     if (fleetSection) {
       fleetSection.scrollIntoView({ behavior: "smooth" });
     }

@@ -110,11 +110,6 @@ export function calcBlockingAmount(base: number, extras: number, insurance: numb
   return Math.round((base + extras + insurance) * BLOCK_PERCENT);
 }
 
-export const PICKUP_LOCATIONS = [
-  'Aeropuerto Internacional Rafael Núñez (CTG)',
-  'Bocagrande (Oficina Principal / Hotel)',
-  'Centro Histórico (Torre del Reloj / Getsemaní)',
-  'Manga / Zona Portuaria',
-  'Zona Norte / Manzanillo del Mar',
-  'Entrega a Domicilio en Hotel / Airbnb',
-];
+// Única fuente de verdad de los lugares de recogida: src/lib/data/fleet.ts.
+// Se reexporta para no duplicar la lista (evita desincronizaciones).
+export { PICKUP_LOCATIONS } from '$lib/data/fleet';
