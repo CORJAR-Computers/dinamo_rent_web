@@ -87,6 +87,7 @@
           <a href="{{PROCESS_SECTION.href}}" class="nav-link">{{PROCESS_SECTION.label}}</a>
           <a href="{{GUARANTEES_SECTION.href}}" class="nav-link">{{GUARANTEES_SECTION.label}}</a>
           <a href="{{CONTACT_SECTION.href}}" class="nav-link">{{CONTACT_SECTION.label}}</a>
+          <a href="{{LOCATIONS_SECTION.href}}" class="nav-link">{{LOCATIONS_SECTION.label}}</a>
         </div>
 
         <div class="nav-cta">
@@ -127,11 +128,7 @@
             <div class="form-group">
               <label><i class="fa-solid fa-map-pin text-orange"></i> Lugar de Recogida</label>
               <select id="pickup-location" class="form-control" required>
-                <option value="aeropuerto" selected>Aeropuerto Rafael Núñez (CTG)</option>
-                <option value="bocagrande">Bocagrande / El Laguito</option>
-                <option value="centro">Centro Histórico / Getsemaní</option>
-                <option value="zona_norte">Zona Norte / Hoteles Manzanillo</option>
-                <option value="oficina">Oficina Principal Dinamo Rent</option>
+                {{LOCATION_OPTIONS}}
               </select>
             </div>
 
@@ -139,12 +136,7 @@
             <div class="form-group">
               <label><i class="fa-solid fa-location-arrow text-cyan"></i> Lugar de Devolución</label>
               <select id="return-location" class="form-control" required>
-                <option value="aeropuerto" selected>Mismo lugar de recogida</option>
-                <option value="aeropuerto_ret">Aeropuerto Rafael Núñez (CTG)</option>
-                <option value="bocagrande_ret">Bocagrande / El Laguito</option>
-                <option value="centro_ret">Centro Histórico / Getsemaní</option>
-                <option value="zona_norte_ret">Zona Norte / Manzanillo</option>
-                <option value="oficina_ret">Oficina Principal Dinamo Rent</option>
+                {{LOCATION_OPTIONS}}
               </select>
             </div>
 
@@ -368,13 +360,10 @@
           </div>
         </div>
 
-        <div class="footer-col">
+        <div class="footer-col" id="{{LOCATIONS_SECTION.id}}">
           <h4>Puntos de Entrega</h4>
           <ul>
-            <li><i class="fa-solid fa-location-dot text-orange"></i> Aeropuerto Rafael Núñez (CTG)</li>
-            <li><i class="fa-solid fa-location-dot text-orange"></i> Bocagrande / Castillogrande</li>
-            <li><i class="fa-solid fa-location-dot text-orange"></i> Centro Histórico & Getsemaní</li>
-            <li><i class="fa-solid fa-location-dot text-orange"></i> Hoteles Zona Norte & Manzanillo</li>
+            {{LOCATION_LIST}}
           </ul>
         </div>
 

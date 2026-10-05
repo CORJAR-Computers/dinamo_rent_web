@@ -7,6 +7,8 @@
  * tengan una única fuente de verdad.
  *
  * Reglas:
+ *  0. El escaneo cubre .ts/.svelte/.js/.mjs/.html/.css/.json y también
+ *     .md/.sql/.prisma (documentación, migraciones y schema.prisma).
  *  1. Ningún archivo (salvo contact.ts y el index.html generado por
  *     generate:index) puede contener los
  *     dígitos de los teléfonos de CONTACT_PHONES, en ningún formato: contiguos,
@@ -25,18 +27,22 @@
  *     del buscador debe mostrar exactamente sus elementos (sin opciones
  *     hardcodeadas ni each de otra lista).
  *  6. En src/ no puede haber ids ni enlaces de sección hardcodeados: los
- *     href ancla (/#... o #...) y los ids (id="...", getElementById(...),
- *     '#...') deben salir de src/lib/data/sections.ts. Los <section>/<footer>
- *     solo pueden llevar id={SECCION.id}, incluso si el id literal no está
- *     registrado (así no se cuela ninguna sección fuera de sections.ts).
+ *     href ancla (/#... o #...) y los ids (id="...", '#...') deben salir de
+ *     src/lib/data/sections.ts, y getElementById(...) no puede recibir un
+ *     string literal (usa SECTION.id o una referencia bind:this). Los
+ *     <section>/<footer> solo pueden llevar id={SECCION.id}, incluso si el id
+ *     literal no está registrado (así no se cuela ninguna sección fuera de
+ *     sections.ts).
  *  7. index.html (landing estática) debe ser idéntico al que produce
- *     index.template.html + sections.ts + contact.ts; si cambia cualquier
- *     fuente → npm run generate:index.
+ *     index.template.html + sections.ts + contact.ts + PICKUP_LOCATIONS;
+ *     si cambia cualquier fuente → npm run generate:index.
  *  8. Los literales de la dirección "Carrera 3" y "70-200" solo pueden
  *     aparecer en contact.ts y en el index.html generado; en ningún otro
  *     archivo recorrido (este propio archivo se salta: sus literales son
- *     los patrones que los vigilan).
- *  9. La migración de normalización debe seguir a PICKUP_LOCATIONS: cada
+ *     los patrones que los vigilan; prisma/migrations/ se salta porque su
+ *     dirección la valida la regla 9 contra PICKUP_LOCATIONS).
+ *  9. Cada migración de normalización de prisma/migrations/ (las que traen
+ *     el CTE norm(key, canonical)) debe seguir a PICKUP_LOCATIONS: cada
  *     valor canónico del CTE legacy ∈ lista y los literales DEFAULT de los
  *     coalesce = PICKUP_LOCATIONS[0].
  *
@@ -50,7 +56,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const CONTACT_FILE = join('src', 'lib', 'data', 'contact.ts');
 
-const EXTENSIONS = new Set(['.ts', '.svelte', '.js', '.mjs', '.html', '.css', '.json']);
+const EXTENSIONS = new Set(['.ts', '.svelte', '.js', '.mjs', '.html', '.css', '.json', '.md', '.sql', '.prisma']);
 const SKIP_DIRS = new Set(['node_modules', '.svelte-kit', '.vercel', '.git', 'mejoras', 'dist', 'build']);
 const SKIP_FILES = new Set(['package-lock.json']);
 
@@ -157,6 +163,9 @@ const SECTION_PATTERNS = [
   { rule: 'enlace de sección hardcodeado', re: /href\s*=\s*\{?\s*["']\/?#[^"']*["']/g },
   // literal '/#x' en JS (hash, history, constantes…)
   { rule: 'enlace de sección hardcodeado', re: /["']\/#[^"']*["']/g },
+  // getElementById('x') con string literal: el id debe venir de sections.ts
+  // (SECTION.id) o de una referencia bind:this, nunca escrito a mano.
+  { rule: 'getElementById con id literal', re: /getElementById\(\s*["'][^"']+["']/g },
   // <section>/<footer> con id literal (registrado o no): debe ser id={SECCION.id}
   { rule: 'id de sección hardcodeado', re: /<(?:section|footer)\s[^>]*\bid\s*=\s*\{?\s*["'][^"']+["']/g }
 ];
@@ -170,8 +179,6 @@ try {
   SECTION_PATTERNS.push(
     // id="x" / id={'x'} en elementos y asignaciones .id = 'x'
     { rule: 'id de sección hardcodeado', re: new RegExp(`\\bid\\s*=\\s*\\{?\\s*["'](?:${alt})["']`, 'g') },
-    // document.getElementById('x')
-    { rule: 'id de sección hardcodeado', re: new RegExp(`getElementById\\(\\s*["'](?:${alt})["']`, 'g') },
     // literales '#x': querySelector('#x'), location.hash, etc.
     { rule: 'id de sección hardcodeado', re: new RegExp(`["']#(?:${alt})["']`, 'g') }
   );
@@ -208,7 +215,9 @@ for (const rel of files) {
 
   // El propio guardia nombra los literales que vigila (doc y patrones):
   // solo se salta a sí mismo para esta regla, el resto de reglas lo cubren.
-  if (rel !== 'scripts/check-contact.mjs') {
+  // prisma/migrations/ se salta: su copia de la dirección es un valor canónico
+  // de PICKUP_LOCATIONS que la regla 9 valida contra contact.ts.
+  if (rel !== 'scripts/check-contact.mjs' && !rel.startsWith('prisma/migrations/')) {
     for (const { label, re } of ADDRESS_LITERALS) {
       re.lastIndex = 0;
       let m;
@@ -542,14 +551,25 @@ try {
   });
 }
 
-// Regla 9: la migración de normalización debe apuntar a PICKUP_LOCATIONS
-// (si la lista cambia de orden o de valores, sus literales quedan obsoletos).
-const MIGRATION_FILE = join(
-  'prisma',
-  'migrations',
-  '20261004210000_normalize_pickup_return_locations',
-  'migration.sql'
-);
+// Regla 9: cada migración de normalización de prisma/migrations/ debe
+// apuntar a PICKUP_LOCATIONS (si la lista cambia de orden o de valores, sus
+// literales quedan obsoletos). Se descubren por su CTE norm(key, canonical),
+// sin depender del nombre del directorio.
+const MIGRATIONS_DIR = join('prisma', 'migrations');
+
+/** migration.sql que contienen el CTE de normalización (legacy → canónico). */
+function findNormalizationMigrations() {
+  return readdirSync(join(ROOT, MIGRATIONS_DIR), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => join(MIGRATIONS_DIR, e.name, 'migration.sql').split(sep).join('/'))
+    .filter((file) => {
+      try {
+        return readFileSync(join(ROOT, file), 'utf8').includes('norm (key, canonical)');
+      } catch {
+        return false;
+      }
+    });
+}
 
 try {
   const fleetSrc = readFileSync(join(ROOT, FLEET_FILE), 'utf8');
@@ -566,51 +586,82 @@ try {
       rel: rel(FLEET_FILE),
       line: 1,
       rule: 'PICKUP_LOCATIONS ilegible (regla 9)',
-      detail: 'No se pudo leer el array para validar la migración'
+      detail: 'No se pudo leer el array para validar las migraciones'
     });
   } else {
-    const sql = readFileSync(join(ROOT, MIGRATION_FILE), 'utf8');
+    const migrations = findNormalizationMigrations();
+    if (migrations.length === 0) {
+      push({
+        rel: MIGRATIONS_DIR.split(sep).join('/'),
+        line: 1,
+        rule: 'migración ilegible',
+        detail:
+          'No se encontró ninguna migración con el CTE norm (key, canonical): ¿se movió o renombró prisma/migrations/?'
+      });
+    }
 
-    // Pares (old, canonical) dentro del CTE legacy de la migración.
-    const start = sql.indexOf('WITH legacy');
-    const end = sql.indexOf('norm (key, canonical)');
-    if (start < 0 || end <= start) {
-      throw new Error('No se encontró el CTE legacy(...) en migration.sql');
-    }
-    const pairs = [...sql.slice(start, end).matchAll(/\(\s*'([^']*)'\s*,\s*'([^']*)'\s*\)/g)];
-    if (pairs.length === 0) {
-      throw new Error('El CTE legacy de migration.sql no contiene pares (old, canonical)');
-    }
-    for (const p of pairs) {
-      if (!list.includes(p[2])) {
+    for (const file of migrations) {
+      const sql = readFileSync(join(ROOT, file), 'utf8');
+
+      // Pares (old, canonical) dentro del CTE legacy de la migración.
+      const start = sql.indexOf('WITH legacy');
+      const end = sql.indexOf('norm (key, canonical)');
+      if (start < 0 || end <= start) {
         push({
-          rel: rel(MIGRATION_FILE),
-          line: lineOf(sql, start + p.index),
-          rule: 'migración: canónico fuera de PICKUP_LOCATIONS',
-          detail: `"${p[2]}" (destino de "${p[1]}") no es un valor de PICKUP_LOCATIONS`
+          rel: file,
+          line: 1,
+          rule: 'migración ilegible',
+          detail: 'No se encontró el CTE legacy(...) en migration.sql'
         });
+        continue;
       }
-    }
-
-    // Literales DEFAULT de los dos coalesce(np|nr).canonical.
-    const defaults = [...sql.matchAll(/coalesce\(\s*n[pr]\.canonical,\s*'([^']+)'\s*\)/g)];
-    if (defaults.length === 0) {
-      throw new Error('No se encontró ningún coalesce(n*.canonical, DEFAULT) en migration.sql');
-    }
-    for (const d of defaults) {
-      if (d[1] !== list[0]) {
+      const pairs = [...sql.slice(start, end).matchAll(/\(\s*'([^']*)'\s*,\s*'([^']*)'\s*\)/g)];
+      if (pairs.length === 0) {
         push({
-          rel: rel(MIGRATION_FILE),
-          line: lineOf(sql, d.index),
-          rule: 'migración: DEFAULT ≠ primer elemento de PICKUP_LOCATIONS',
-          detail: `DEFAULT: "${d[1]}" | PICKUP_LOCATIONS[0]: "${list[0]}"`
+          rel: file,
+          line: lineOf(sql, start),
+          rule: 'migración ilegible',
+          detail: 'El CTE legacy de migration.sql no contiene pares (old, canonical)'
         });
+        continue;
+      }
+      for (const p of pairs) {
+        if (!list.includes(p[2])) {
+          push({
+            rel: file,
+            line: lineOf(sql, start + p.index),
+            rule: 'migración: canónico fuera de PICKUP_LOCATIONS',
+            detail: `"${p[2]}" (destino de "${p[1]}") no es un valor de PICKUP_LOCATIONS`
+          });
+        }
+      }
+
+      // Literales DEFAULT de los coalesce(np|nr).canonical.
+      const defaults = [...sql.matchAll(/coalesce\(\s*n[pr]\.canonical,\s*'([^']+)'\s*\)/g)];
+      if (defaults.length === 0) {
+        push({
+          rel: file,
+          line: 1,
+          rule: 'migración ilegible',
+          detail: 'No se encontró ningún coalesce(n*.canonical, DEFAULT) en migration.sql'
+        });
+        continue;
+      }
+      for (const d of defaults) {
+        if (d[1] !== list[0]) {
+          push({
+            rel: file,
+            line: lineOf(sql, d.index),
+            rule: 'migración: DEFAULT ≠ primer elemento de PICKUP_LOCATIONS',
+            detail: `DEFAULT: "${d[1]}" | PICKUP_LOCATIONS[0]: "${list[0]}"`
+          });
+        }
       }
     }
   }
 } catch (err) {
   push({
-    rel: rel(MIGRATION_FILE),
+    rel: MIGRATIONS_DIR.split(sep).join('/'),
     line: 1,
     rule: 'migración ilegible',
     detail: err.message
@@ -635,6 +686,9 @@ if (errors.length > 0) {
   if (errors.some((e) => e.rule.includes('duplic') || e.rule.includes('vacío') || e.rule.includes('select de') || e.rule.includes('PICKUP_LOCATIONS ilegible'))) {
     console.error('Revisa la lista PICKUP_LOCATIONS de src/lib/data/fleet.ts y los <select> de lugar de HeroSearch.svelte.');
   }
+  if (errors.some((e) => e.rule.includes('getElementById'))) {
+    console.error('getElementById no admite ids escritos a mano: usa SECTION.id de sections.ts o una referencia bind:this.');
+  }
   if (errors.some((e) => e.rule.includes('sección'))) {
     console.error('Los enlaces e ids de sección deben salir de src/lib/data/sections.ts (SECTIONS / SECTION.id / SECTION.href).');
   }
@@ -645,7 +699,7 @@ if (errors.length > 0) {
     console.error('La dirección vive en src/lib/data/contact.ts (OFFICE_*); en la landing estática usa {{OFFICE_*}} en index.template.html.');
   }
   if (errors.some((e) => e.rule.includes('migración'))) {
-    console.error('Si PICKUP_LOCATIONS cambió, actualiza los pares y el DEFAULT de prisma/migrations/20261004210000_normalize_pickup_return_locations/migration.sql.');
+    console.error('Si PICKUP_LOCATIONS cambió, actualiza los pares y el DEFAULT en prisma/migrations/<migración de normalización>/migration.sql.');
   }
   process.exit(1);
 }
@@ -653,8 +707,7 @@ if (errors.length > 0) {
 console.log(`✓ Guardia de contacto OK: ${scanned} archivos revisados, ${phones.length} teléfonos vigilados en ${CONTACT_FILE}.`);
 console.log('  Defaults de ubicación (schema.prisma + API) = PICKUP_LOCATIONS[0].');
 console.log('  Defaults de horario (schema.prisma + API) ∈ TIME_OPTIONS del buscador.');
-console.log('  PICKUP_LOCATIONS íntegra: sin duplicados ni vacíos y sincronizada con el buscador.');
-console.log('  Enlaces e ids de sección → sin literales en src/ fuera de sections.ts.');
+console.log('  PICKUP_LOCATIONS íntegra: sin duplicados ni vacíos y sincronizada con el buscador.');  console.log('  Enlaces e ids de sección → sin literales en src/ fuera de sections.ts (getElementById incluido).');
 console.log('  index.html = index.template.html con secciones de sections.ts y contacto de contact.ts.');
 console.log('  Dirección de oficina → solo en contact.ts (e index.html generado).');
 console.log('  Migración de normalización → canónicos ∈ PICKUP_LOCATIONS y DEFAULT = [0].');
