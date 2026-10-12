@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { booking } from "$lib/stores/bookingStore.svelte";
-  import { PICKUP_LOCATIONS } from "$lib/data/fleet";
-  import { FLEET_SECTION } from "$lib/data/sections";
+  import { booking } from "#lib/stores/bookingStore.svelte.js";
+  import { PICKUP_LOCATIONS } from "#lib/data/fleet.js";
+  import { FLEET_SECTION } from "#lib/data/sections.js";
 
   const TIME_OPTIONS = [
     "06:00",

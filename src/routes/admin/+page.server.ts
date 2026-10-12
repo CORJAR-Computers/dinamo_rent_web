@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { isUserAdmin } from '$lib/server/adminAuth';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
 
 export const load: PageServerLoad = async ({ cookies }) => {
 	if (isUserAdmin(cookies)) {

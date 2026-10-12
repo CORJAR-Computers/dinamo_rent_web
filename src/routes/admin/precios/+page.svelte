@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 
 	interface RateItem {
 		id: string;
@@ -47,7 +47,7 @@
 			});
 
 			if (res.ok) {
-				await invalidateAll();
+				await refreshAll();
 				successMsg = `Precios de ${item.name} actualizados.`;
 				setTimeout(() => (successMsg = ''), 3000);
 			}

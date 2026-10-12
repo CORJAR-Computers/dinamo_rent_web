@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 
 	interface VehicleData {
 		id: string;
@@ -151,7 +151,7 @@
 			});
 
 			if (res.ok) {
-				await invalidateAll();
+				await refreshAll();
 				successMessage = `Vehículo ${v.name} ${newStatus ? 'habilitado' : 'inhabilitado'}.`;
 				setTimeout(() => (successMessage = ''), 3500);
 			}
@@ -208,7 +208,7 @@
 
 			if (res.ok && resData.ok) {
 				modalOpen = false;
-				await invalidateAll();
+				await refreshAll();
 				successMessage = isEditing ? 'Vehículo modificado con éxito.' : 'Vehículo creado con éxito.';
 				setTimeout(() => (successMessage = ''), 3500);
 			} else {

@@ -112,4 +112,4 @@ export function calcBlockingAmount(base: number, extras: number, insurance: numb
 
 // Única fuente de verdad de los lugares de recogida: src/lib/data/fleet.ts.
 // Se reexporta para no duplicar la lista (evita desincronizaciones).
-export { PICKUP_LOCATIONS } from '$lib/data/fleet';
+export { PICKUP_LOCATIONS } from '#lib/data/fleet.js';

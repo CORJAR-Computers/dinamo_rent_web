@@ -1,13 +1,12 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { queryPaymentSession } from '$lib/server/placetopay';
+import { db } from '#lib/server/db.js';
+import { queryPaymentSession } from '#lib/server/placetopay.js';
 
 export const GET: RequestHandler = async ({ url }) => {
   try {
     const reservationId = url.searchParams.get('reservationId');
     if (!reservationId) {
-      return json({ ok: false, error: 'reservationId es requerido' }, { status: 400 });
+      return Response.json({ ok: false, error: 'reservationId es requerido' }, { status: 400 });
     }
 
     const reservation = await db.reservation.findUnique({
@@ -16,12 +15,12 @@ export const GET: RequestHandler = async ({ url }) => {
     });
 
     if (!reservation || !reservation.payment) {
-      return json({ ok: false, error: 'Reserva o pago no encontrado' }, { status: 404 });
+      return Response.json({ ok: false, error: 'Reserva o pago no encontrado' }, { status: 404 });
     }
 
     const { payment } = reservation;
     if (!payment.p2pRequestId) {
-      return json({
+      return Response.json({
         ok: true,
         live: false,
         status: payment.status,
@@ -81,7 +80,7 @@ export const GET: RequestHandler = async ({ url }) => {
       }
     });
 
-    return json({
+    return Response.json({
       ok: true,
       live: true,
       status: newStatus,
@@ -93,6 +92,6 @@ export const GET: RequestHandler = async ({ url }) => {
     });
   } catch (err) {
     console.error('[payment/status error]:', err);
-    return json({ ok: false, error: (err as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { prisma } from '$lib/server/db';
+import { prisma } from '#lib/server/db.js';
 
 export const load: PageServerLoad = async () => {
 	try {

@@ -5,7 +5,7 @@
     OFFICE_ADDRESS_CITY,
     telLink,
     whatsappLink
-  } from '$lib/data/contact';
+  } from '#lib/data/contact.js';
 
   const ultimaActualizacion = '5 de octubre de 2026';
 

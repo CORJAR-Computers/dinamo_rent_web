@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Vehicle } from '$lib/data/fleet';
-  import { booking } from '$lib/stores/bookingStore.svelte';
-  import { formatCurrency } from '$lib/utils/formatters';
+  import type { Vehicle } from '#lib/data/fleet.js';
+  import { booking } from '#lib/stores/bookingStore.svelte.js';
+  import { formatCurrency } from '#lib/utils/formatters.js';
 
   interface Props {
     vehicle: Vehicle;

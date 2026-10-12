@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { booking } from "$lib/stores/bookingStore.svelte";
-    import { formatCurrency, formatDatePretty } from "$lib/utils/formatters";
-    import SignatureCanvas from "$lib/components/SignatureCanvas.svelte";
+    import { booking } from "#lib/stores/bookingStore.svelte.js";
+    import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
+    import SignatureCanvas from "#lib/components/SignatureCanvas.svelte";
 
     let vehicle = $derived(booking.selectedVehicle);
     let termsAccepted = $state(true);

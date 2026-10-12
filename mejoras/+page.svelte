@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { page } from "$app/state";
-    import { formatCurrency, formatDatePretty } from "$lib/utils/formatters";
+    import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
 
     interface ReservationData {
         id: string;

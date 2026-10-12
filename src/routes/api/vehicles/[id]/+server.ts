@@ -1,6 +1,6 @@
-import { json, type RequestHandler } from '@sveltejs/kit';
-import { prisma } from '$lib/server/db';
-import { isUserAdmin } from '$lib/server/adminAuth';
+import { type RequestHandler } from '@sveltejs/kit';
+import { prisma } from '#lib/server/db.js';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
 import type { VehicleCategory, Transmission, FuelType } from '@prisma/client';
 
 function normalizeCategory(cat: string): VehicleCategory {
@@ -36,18 +36,18 @@ function normalizeFuel(f: string): FuelType {
  */
 export const PUT: RequestHandler = async ({ params, request, cookies }) => {
 	if (!isUserAdmin(cookies)) {
-		return json({ ok: false, message: 'No autorizado.' }, { status: 401 });
+		return Response.json({ ok: false, message: 'No autorizado.' }, { status: 401 });
 	}
 
 	const { id } = params;
 	if (!id) {
-		return json({ ok: false, message: 'ID de vehículo requerido.' }, { status: 400 });
+		return Response.json({ ok: false, message: 'ID de vehículo requerido.' }, { status: 400 });
 	}
 
 	try {
 		const existing = await prisma.vehicle.findUnique({ where: { id } });
 		if (!existing) {
-			return json({ ok: false, message: 'Vehículo no encontrado.' }, { status: 404 });
+			return Response.json({ ok: false, message: 'Vehículo no encontrado.' }, { status: 404 });
 		}
 
 		const data = await request.json();
@@ -79,14 +79,14 @@ export const PUT: RequestHandler = async ({ params, request, cookies }) => {
 			data: updateData
 		});
 
-		return json({
+		return Response.json({
 			ok: true,
 			message: 'Vehículo actualizado correctamente.',
 			vehicle: updated
 		});
 	} catch (err) {
 		console.error(`Error en PUT /api/vehicles/${id}:`, err);
-		return json({ ok: false, message: 'Error actualizando vehículo.' }, { status: 500 });
+		return Response.json({ ok: false, message: 'Error actualizando vehículo.' }, { status: 500 });
 	}
 };
 
@@ -96,12 +96,12 @@ export const PUT: RequestHandler = async ({ params, request, cookies }) => {
  */
 export const DELETE: RequestHandler = async ({ params, cookies }) => {
 	if (!isUserAdmin(cookies)) {
-		return json({ ok: false, message: 'No autorizado.' }, { status: 401 });
+		return Response.json({ ok: false, message: 'No autorizado.' }, { status: 401 });
 	}
 
 	const { id } = params;
 	if (!id) {
-		return json({ ok: false, message: 'ID de vehículo requerido.' }, { status: 400 });
+		return Response.json({ ok: false, message: 'ID de vehículo requerido.' }, { status: 400 });
 	}
 
 	try {
@@ -111,13 +111,13 @@ export const DELETE: RequestHandler = async ({ params, cookies }) => {
 			data: { available: false }
 		});
 
-		return json({
+		return Response.json({
 			ok: true,
 			message: 'Vehículo inhabilitado correctamente. Ya no se mostrará a los clientes.',
 			vehicle: updated
 		});
 	} catch (err) {
 		console.error(`Error en DELETE /api/vehicles/${id}:`, err);
-		return json({ ok: false, message: 'Error al inhabilitar vehículo.' }, { status: 500 });
+		return Response.json({ ok: false, message: 'Error al inhabilitar vehículo.' }, { status: 500 });
 	}
 };

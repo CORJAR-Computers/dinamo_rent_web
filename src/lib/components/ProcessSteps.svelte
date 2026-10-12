@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PROCESS_SECTION } from '$lib/data/sections';
+  import { PROCESS_SECTION } from '#lib/data/sections.js';
 </script>
 
 <section id={PROCESS_SECTION.id} class="py-16 md:py-24 bg-slate-950 relative">

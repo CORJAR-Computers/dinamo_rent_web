@@ -1,7 +1,6 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { createPaymentSession } from '$lib/server/placetopay';
+import { db } from '#lib/server/db.js';
+import { createPaymentSession } from '#lib/server/placetopay.js';
 
 export const POST: RequestHandler = async ({ request, url }) => {
   try {
@@ -9,7 +8,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
     const { reservationId } = body || {};
 
     if (!reservationId) {
-      return json({ ok: false, error: 'reservationId es obligatorio' }, { status: 400 });
+      return Response.json({ ok: false, error: 'reservationId es obligatorio' }, { status: 400 });
     }
 
     const reservation = await db.reservation.findUnique({
@@ -18,11 +17,11 @@ export const POST: RequestHandler = async ({ request, url }) => {
     });
 
     if (!reservation) {
-      return json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
+      return Response.json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
     }
 
     if (reservation.status === 'PAGADA') {
-      return json({ ok: false, error: 'La reserva ya fue pagada con anterioridad' }, { status: 400 });
+      return Response.json({ ok: false, error: 'La reserva ya fue pagada con anterioridad' }, { status: 400 });
     }
 
     // Configurar URL de retorno
@@ -46,7 +45,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
     });
 
     if (!session.ok || !session.processUrl) {
-      return json({ ok: false, error: session.error || 'No se pudo iniciar la sesión con Place to Pay' }, { status: 502 });
+      return Response.json({ ok: false, error: session.error || 'No se pudo iniciar la sesión con Place to Pay' }, { status: 502 });
     }
 
     // Upsert registro Payment en base de datos
@@ -72,13 +71,13 @@ export const POST: RequestHandler = async ({ request, url }) => {
       },
     });
 
-    return json({
+    return Response.json({
       ok: true,
       processUrl: session.processUrl,
       requestId: session.requestId,
     });
   } catch (err) {
     console.error('[create-session error]:', err);
-    return json({ ok: false, error: (err as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

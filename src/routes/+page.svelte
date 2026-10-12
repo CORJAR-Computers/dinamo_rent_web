@@ -1,11 +1,11 @@
 <script lang="ts">
-  import HeroSearch from '$lib/components/HeroSearch.svelte';
-  import FleetCatalog from '$lib/components/FleetCatalog.svelte';
-  import ProcessSteps from '$lib/components/ProcessSteps.svelte';
-  import TrustBadges from '$lib/components/TrustBadges.svelte';
-  import ContactSection from '$lib/components/ContactSection.svelte';
-  import { whatsappLink } from '$lib/data/contact';
-  import { FLEET_SECTION } from '$lib/data/sections';
+  import HeroSearch from '#lib/components/HeroSearch.svelte';
+  import FleetCatalog from '#lib/components/FleetCatalog.svelte';
+  import ProcessSteps from '#lib/components/ProcessSteps.svelte';
+  import TrustBadges from '#lib/components/TrustBadges.svelte';
+  import ContactSection from '#lib/components/ContactSection.svelte';
+  import { whatsappLink } from '#lib/data/contact.js';
+  import { FLEET_SECTION } from '#lib/data/sections.js';
 
   let { data } = $props();
 

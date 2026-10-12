@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { booking } from '$lib/stores/bookingStore.svelte';
+  import { booking } from '#lib/stores/bookingStore.svelte.js';
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let ctx: CanvasRenderingContext2D | null = null;

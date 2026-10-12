@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { isUserAdmin } from '$lib/server/adminAuth';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
 
 export const load: LayoutServerLoad = async ({ url, cookies }) => {
 	const authenticated = isUserAdmin(cookies);

@@ -1,5 +1,5 @@
-import type { Vehicle } from '$lib/data/fleet';
-import { FLEET_DATABASE, PICKUP_LOCATIONS } from '$lib/data/fleet';
+import type { Vehicle } from '#lib/data/fleet.js';
+import { FLEET_DATABASE, PICKUP_LOCATIONS } from '#lib/data/fleet.js';
 
 export interface DriverData {
     docType: string;

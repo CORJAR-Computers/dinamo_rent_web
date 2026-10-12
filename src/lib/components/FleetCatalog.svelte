@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { FLEET_DATABASE, type Vehicle } from '$lib/data/fleet';
-  import { whatsappLink } from '$lib/data/contact';
-  import { FLEET_SECTION } from '$lib/data/sections';
+  import { FLEET_DATABASE, type Vehicle } from '#lib/data/fleet.js';
+  import { whatsappLink } from '#lib/data/contact.js';
+  import { FLEET_SECTION } from '#lib/data/sections.js';
   import CarCard from './CarCard.svelte';
 
   interface Props {

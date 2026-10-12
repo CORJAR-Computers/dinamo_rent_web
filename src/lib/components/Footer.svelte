@@ -5,8 +5,8 @@
     telLink,
     whatsappLink,
     whatsappLinkFor
-  } from '$lib/data/contact';
-  import { FLEET_SECTION, GUARANTEES_SECTION, LOCATIONS_SECTION } from '$lib/data/sections';
+  } from '#lib/data/contact.js';
+  import { FLEET_SECTION, GUARANTEES_SECTION, LOCATIONS_SECTION } from '#lib/data/sections.js';
 </script>
 
 <footer id={LOCATIONS_SECTION.id} class="bg-slate-950 border-t border-slate-800/80 text-slate-400 text-xs pt-16 pb-12">

@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
-import { prisma } from '$lib/server/db';
-import { FLEET_DATABASE, type Vehicle } from '$lib/data/fleet';
+import { prisma } from '#lib/server/db.js';
+import { FLEET_DATABASE, type Vehicle } from '#lib/data/fleet.js';
 
 function mapPrismaVehicle(v: {
 	id: string;

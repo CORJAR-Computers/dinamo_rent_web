@@ -1,4 +1,4 @@
-import { OFFICE_NEIGHBORHOOD, OFFICE_STREET } from '$lib/data/contact';
+import { OFFICE_NEIGHBORHOOD, OFFICE_STREET } from '#lib/data/contact.js';
 
 export interface Vehicle {
   id: string;

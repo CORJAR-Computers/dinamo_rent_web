@@ -1,6 +1,5 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
+import { db } from '#lib/server/db.js';
 import {
   genReservationCode,
   genBlockCode,
@@ -9,11 +8,11 @@ import {
   calcExtrasAmount,
   calcBlockingAmount,
   type ExtrasSelection,
-} from '$lib/server/helpers';
+} from '#lib/server/helpers.js';
 import type { InsurancePlan } from '@prisma/client';
 
-import { isUserAdmin } from '$lib/server/adminAuth';
-import { PICKUP_LOCATIONS, normalizePickupLocation } from '$lib/data/fleet';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
+import { PICKUP_LOCATIONS, normalizePickupLocation } from '#lib/data/fleet.js';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   try {
@@ -26,7 +25,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     // Protección anti-scraping / anti-fuga de datos (PII):
     // Si no es un administrador autenticado, se exige obligatoriamente un filtro de búsqueda específico.
     if (!isAdmin && !code && !email && !docNumber) {
-      return json(
+      return Response.json(
         {
           ok: false,
           error: 'Por seguridad, debes indicar tu código de reserva, correo o número de documento para consultar.',
@@ -51,10 +50,10 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       take: isAdmin ? 100 : 10,
     });
 
-    return json({ ok: true, reservations, count: reservations.length });
+    return Response.json({ ok: true, reservations, count: reservations.length });
   } catch (e) {
     console.error('[api/reservations GET] error:', e);
-    return json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };
 
@@ -85,7 +84,7 @@ export const POST: RequestHandler = async ({ request }) => {
     } = b || {};
 
     if (!vehicleId || !pickupDate || !returnDate || !customerName || !customerEmail || !customerPhone || !customerIdNumber) {
-      return json({ ok: false, error: 'Faltan campos obligatorios para la reserva' }, { status: 400 });
+      return Response.json({ ok: false, error: 'Faltan campos obligatorios para la reserva' }, { status: 400 });
     }
 
     // === UBICACIONES: solo valores conocidos (PICKUP_LOCATIONS) ===
@@ -97,7 +96,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const resolvedReturn = rawReturn ? normalizePickupLocation(rawReturn) : PICKUP_LOCATIONS[0];
     if (!resolvedPickup || !resolvedReturn) {
       const invalid = !resolvedPickup ? `pickupLocation="${rawPickup}"` : `returnLocation="${rawReturn}"`;
-      return json(
+      return Response.json(
         {
           ok: false,
           error: `Ubicación desconocida (${invalid}). Valores permitidos: ${PICKUP_LOCATIONS.join(' | ')}`,
@@ -111,17 +110,17 @@ export const POST: RequestHandler = async ({ request }) => {
     if (!vehicle) {
       vehicle = await db.vehicle.findFirst({ where: { id: vehicleId } });
       if (!vehicle) {
-        return json({ ok: false, error: 'Vehículo no encontrado en el sistema' }, { status: 404 });
+        return Response.json({ ok: false, error: 'Vehículo no encontrado en el sistema' }, { status: 404 });
       }
     }
     if (!vehicle.available) {
-      return json({ ok: false, error: 'El vehículo seleccionado no está disponible temporalmente' }, { status: 400 });
+      return Response.json({ ok: false, error: 'El vehículo seleccionado no está disponible temporalmente' }, { status: 400 });
     }
 
     const start = new Date(pickupDate);
     const end = new Date(returnDate);
     if (end <= start) {
-      return json({ ok: false, error: 'La fecha de devolución debe ser posterior a la fecha de entrega' }, { status: 400 });
+      return Response.json({ ok: false, error: 'La fecha de devolución debe ser posterior a la fecha de entrega' }, { status: 400 });
     }
 
     // Verificación de solapamiento de fechas en PostgreSQL
@@ -134,7 +133,7 @@ export const POST: RequestHandler = async ({ request }) => {
       },
     });
     if (conflict) {
-      return json(
+      return Response.json(
         {
           ok: false,
           error: 'El vehículo no está disponible para las fechas seleccionadas. Por favor elige otro vehículo o fechas.',
@@ -267,7 +266,7 @@ export const POST: RequestHandler = async ({ request }) => {
       return reservation;
     });
 
-    return json({
+    return Response.json({
       ok: true,
       reservation: {
         id: result.id,
@@ -296,6 +295,6 @@ export const POST: RequestHandler = async ({ request }) => {
     });
   } catch (e) {
     console.error('[api/reservations POST] error:', e);
-    return json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

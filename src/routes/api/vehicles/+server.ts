@@ -1,6 +1,6 @@
-import { json, type RequestHandler } from '@sveltejs/kit';
-import { prisma } from '$lib/server/db';
-import { isUserAdmin } from '$lib/server/adminAuth';
+import { type RequestHandler } from '@sveltejs/kit';
+import { prisma } from '#lib/server/db.js';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
 import type { VehicleCategory, Transmission, FuelType } from '@prisma/client';
 
 function normalizeCategory(cat: string): VehicleCategory {
@@ -43,14 +43,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			orderBy: [{ available: 'desc' }, { pricePerDay: 'asc' }]
 		});
 
-		return json({
+		return Response.json({
 			ok: true,
 			count: vehicles.length,
 			vehicles
 		});
 	} catch (err) {
 		console.error('Error en GET /api/vehicles:', err);
-		return json({ ok: false, message: 'Error consultando vehículos.' }, { status: 500 });
+		return Response.json({ ok: false, message: 'Error consultando vehículos.' }, { status: 500 });
 	}
 };
 
@@ -60,14 +60,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	if (!isUserAdmin(cookies)) {
-		return json({ ok: false, message: 'No autorizado.' }, { status: 401 });
+		return Response.json({ ok: false, message: 'No autorizado.' }, { status: 401 });
 	}
 
 	try {
 		const data = await request.json();
 
 		if (!data.name || !data.pricePerDay) {
-			return json(
+			return Response.json(
 				{ ok: false, message: 'El nombre y el precio por día son obligatorios.' },
 				{ status: 400 }
 			);
@@ -96,13 +96,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			}
 		});
 
-		return json({
+		return Response.json({
 			ok: true,
 			message: 'Vehículo creado exitosamente.',
 			vehicle
 		});
 	} catch (err) {
 		console.error('Error en POST /api/vehicles:', err);
-		return json({ ok: false, message: 'Error al crear el vehículo.' }, { status: 500 });
+		return Response.json({ ok: false, message: 'Error al crear el vehículo.' }, { status: 500 });
 	}
 };

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GUARANTEES_SECTION } from '$lib/data/sections';
+  import { GUARANTEES_SECTION } from '#lib/data/sections.js';
 </script>
 
 <section id={GUARANTEES_SECTION.id} class="py-16 md:py-24 bg-slate-900/60 border-y border-slate-800/80 relative overflow-hidden">

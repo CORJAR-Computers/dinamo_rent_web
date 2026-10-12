@@ -1,5 +1,5 @@
-import { json, type RequestHandler } from '@sveltejs/kit';
-import { verifyAdminPassword, setAdminSessionCookie } from '$lib/server/adminAuth';
+import { type RequestHandler } from '@sveltejs/kit';
+import { verifyAdminPassword, setAdminSessionCookie, isAuthConfigured } from '#lib/server/adminAuth.js';
 
 interface AttemptRecord {
 	count: number;
@@ -11,6 +11,19 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutos de bloqueo
 
 export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
+	// Fail closed: en producción sin ADMIN_PASSWORD/ADMIN_SECRET no se intenta
+	// verificar ninguna contraseña (evita además contar intentos de un despliegue
+	// mal configurado). Ver adminAuth.isAuthConfigured().
+	if (!isAuthConfigured()) {
+		return Response.json(
+			{
+				ok: false,
+				message: 'Autenticación no configurada en el servidor. Contacta al administrador.'
+			},
+			{ status: 503 }
+		);
+	}
+
 	let clientIp = '127.0.0.1';
 	try {
 		clientIp = getClientAddress();
@@ -24,7 +37,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 	// Verificar si el IP está bloqueado por fuerza bruta
 	if (record && record.lockoutUntil > now) {
 		const remainingSecs = Math.ceil((record.lockoutUntil - now) / 1000);
-		return json(
+		return Response.json(
 			{
 				ok: false,
 				message: `Demasiados intentos fallidos. Acceso bloqueado temporalmente. Intenta nuevamente en ${remainingSecs} segundos.`
@@ -38,7 +51,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 		const { password } = body || {};
 
 		if (!password || typeof password !== 'string') {
-			return json({ ok: false, message: 'La contraseña es requerida.' }, { status: 400 });
+			return Response.json({ ok: false, message: 'La contraseña es requerida.' }, { status: 400 });
 		}
 
 		const isValid = verifyAdminPassword(password);
@@ -50,7 +63,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 			if (current.count >= MAX_ATTEMPTS) {
 				current.lockoutUntil = now + LOCKOUT_MS;
 				loginAttempts.set(clientIp, current);
-				return json(
+				return Response.json(
 					{
 						ok: false,
 						message: 'Demasiados intentos fallidos. Has sido bloqueado por 15 minutos por seguridad.'
@@ -61,7 +74,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 
 			loginAttempts.set(clientIp, current);
 			const remaining = MAX_ATTEMPTS - current.count;
-			return json(
+			return Response.json(
 				{
 					ok: false,
 					message: `Contraseña incorrecta. Te quedan ${remaining} ${remaining === 1 ? 'intento' : 'intentos'}.`
@@ -74,12 +87,12 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 		loginAttempts.delete(clientIp);
 		setAdminSessionCookie(cookies);
 
-		return json({
+		return Response.json({
 			ok: true,
 			message: 'Sesión iniciada correctamente.'
 		});
 	} catch (err) {
 		console.error('Error en /api/admin/login:', err);
-		return json({ ok: false, message: 'Error en el servidor.' }, { status: 500 });
+		return Response.json({ ok: false, message: 'Error en el servidor.' }, { status: 500 });
 	}
 };

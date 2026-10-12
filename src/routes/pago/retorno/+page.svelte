@@ -1,9 +1,9 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { page } from "$app/state";
-    import { formatCurrency, formatDatePretty } from "$lib/utils/formatters";
-    import { whatsappLink } from "$lib/data/contact";
-    import { FLEET_SECTION } from "$lib/data/sections";
+    import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
+    import { whatsappLink } from "#lib/data/contact.js";
+    import { FLEET_SECTION } from "#lib/data/sections.js";
 
     interface ReservationData {
         id: string;

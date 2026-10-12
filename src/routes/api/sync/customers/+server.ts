@@ -1,7 +1,6 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { verifySyncToken, isUserAdmin } from '$lib/server/adminAuth';
+import { db } from '#lib/server/db.js';
+import { verifySyncToken, isUserAdmin } from '#lib/server/adminAuth.js';
 
 /**
  * GET /api/sync/customers
@@ -9,7 +8,7 @@ import { verifySyncToken, isUserAdmin } from '$lib/server/adminAuth';
  */
 export const GET: RequestHandler = async ({ url, request, cookies }) => {
   if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
-    return json(
+    return Response.json(
       { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
       { status: 401 }
     );
@@ -26,9 +25,9 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
       take: 100,
     });
 
-    return json({ ok: true, count: customers.length, customers });
+    return Response.json({ ok: true, count: customers.length, customers });
   } catch (e) {
-    return json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };
 
@@ -39,7 +38,7 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
   if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
-    return json(
+    return Response.json(
       { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
       { status: 401 }
     );
@@ -50,7 +49,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     const { customers = [] } = body;
 
     if (!Array.isArray(customers) || customers.length === 0) {
-      return json({ ok: false, error: 'Se requiere una lista de clientes en el campo "customers"' }, { status: 400 });
+      return Response.json({ ok: false, error: 'Se requiere una lista de clientes en el campo "customers"' }, { status: 400 });
     }
 
     let created = 0;
@@ -107,7 +106,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       }
     }
 
-    return json({
+    return Response.json({
       ok: true,
       message: `Sincronización de clientes completada: ${created} creados, ${updated} actualizados`,
       created,
@@ -116,6 +115,6 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     });
   } catch (e) {
     console.error('[sync/customers error]:', e);
-    return json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

@@ -1,10 +1,10 @@
-import { json, type RequestHandler } from '@sveltejs/kit';
-import { prisma } from '$lib/server/db';
-import { isUserAdmin } from '$lib/server/adminAuth';
+import { type RequestHandler } from '@sveltejs/kit';
+import { prisma } from '#lib/server/db.js';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
 
 export const GET: RequestHandler = async ({ cookies }) => {
 	if (!isUserAdmin(cookies)) {
-		return json({ ok: false, message: 'No autorizado.' }, { status: 401 });
+		return Response.json({ ok: false, message: 'No autorizado.' }, { status: 401 });
 	}
 
 	try {
@@ -45,13 +45,13 @@ export const GET: RequestHandler = async ({ cookies }) => {
 			}
 		});
 
-		return json({
+		return Response.json({
 			ok: true,
 			count: reservations.length,
 			reservations
 		});
 	} catch (err) {
 		console.error('Error en GET /api/admin/reservations:', err);
-		return json({ ok: false, message: 'Error consultando reservas.' }, { status: 500 });
+		return Response.json({ ok: false, message: 'Error consultando reservas.' }, { status: 500 });
 	}
 };

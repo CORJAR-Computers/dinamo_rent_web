@@ -5,8 +5,8 @@
     OFFICE_QUERY,
     telLink,
     whatsappLinkFor
-  } from '$lib/data/contact';
-  import { CONTACT_SECTION } from '$lib/data/sections';
+  } from '#lib/data/contact.js';
+  import { CONTACT_SECTION } from '#lib/data/sections.js';
 
   const WHATSAPP_TEXT = 'Hola%20Dinamo%20Rent%20a%20Car,%20deseo%20información%20para%20un%20alquiler';
 

@@ -1,20 +1,25 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { FLEET_DATABASE } from '$lib/data/fleet';
+import { db } from '#lib/server/db.js';
+import { FLEET_DATABASE } from '#lib/data/fleet.js';
 import type { VehicleCategory, Transmission, FuelType } from '@prisma/client';
-import { isUserAdmin } from '$lib/server/adminAuth';
-import { env } from '$env/dynamic/private';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
+import { NODE_ENV } from '$app/env/private';
 
 export const POST: RequestHandler = async ({ cookies }) => {
   // Proteger con sesión de administrador
   if (!isUserAdmin(cookies)) {
-    return json({ ok: false, error: 'No autorizado. Se requieren permisos de administrador.' }, { status: 401 });
+    return Response.json({ ok: false, error: 'No autorizado. Se requieren permisos de administrador.' }, { status: 401 });
   }
 
   // Prevenir reseteo accidental en producción sin confirmación
-  if (env.NODE_ENV === 'production') {
-    return json({ ok: false, error: 'El sembrado de base de datos está deshabilitado en ambiente de producción.' }, { status: 403 });
+  if (NODE_ENV === 'production') {
+    return Response.json(
+      {
+        ok: false,
+        error: 'El sembrado de base de datos está deshabilitado en ambiente de producción.'
+      },
+      { status: 403 }
+    );
   }
 
   try {
@@ -82,13 +87,13 @@ export const POST: RequestHandler = async ({ cookies }) => {
       }
     }
 
-    return json({
+    return Response.json({
       ok: true,
       message: `Semilla completada: ${created} vehículos creados, ${updated} actualizados en Neon`,
       total: FLEET_DATABASE.length,
     });
   } catch (e) {
     console.error('[seed error]:', e);
-    return json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

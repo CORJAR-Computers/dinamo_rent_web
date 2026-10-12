@@ -1,12 +1,12 @@
-import { json, type RequestEvent } from '@sveltejs/kit';
-import { db } from '$lib/server/db';
-import { isUserAdmin } from '$lib/server/adminAuth';
-import { collectPaymentWithToken } from '$lib/server/placetopay';
+import { type RequestEvent } from '@sveltejs/kit';
+import { db } from '#lib/server/db.js';
+import { isUserAdmin } from '#lib/server/adminAuth.js';
+import { collectPaymentWithToken } from '#lib/server/placetopay.js';
 
 export const POST = async ({ request, cookies, getClientAddress }: RequestEvent) => {
   // 1. Verificación estricta de permisos de administrador (Seguridad RBAC)
   if (!isUserAdmin(cookies)) {
-    return json({ ok: false, error: 'No autorizado. Se requiere sesión de administrador.' }, { status: 401 });
+    return Response.json({ ok: false, error: 'No autorizado. Se requiere sesión de administrador.' }, { status: 401 });
   }
 
   try {
@@ -14,16 +14,16 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     const { reservationId, amount, concept, description } = body || {};
 
     if (!reservationId) {
-      return json({ ok: false, error: 'reservationId es obligatorio' }, { status: 400 });
+      return Response.json({ ok: false, error: 'reservationId es obligatorio' }, { status: 400 });
     }
 
     const numericAmount = Math.round(Number(amount));
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      return json({ ok: false, error: 'El monto a cobrar debe ser un valor mayor a cero (COP)' }, { status: 400 });
+      return Response.json({ ok: false, error: 'El monto a cobrar debe ser un valor mayor a cero (COP)' }, { status: 400 });
     }
 
     if (!concept) {
-      return json({ ok: false, error: 'El concepto del cobro es obligatorio (ej. DEDUCIBLE, GASOLINA, DIAS_EXTRA, MULTA)' }, { status: 400 });
+      return Response.json({ ok: false, error: 'El concepto del cobro es obligatorio (ej. DEDUCIBLE, GASOLINA, DIAS_EXTRA, MULTA)' }, { status: 400 });
     }
 
     // 2. Obtener reserva y verificar disponibilidad del token de garantía
@@ -36,12 +36,12 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     });
 
     if (!reservation) {
-      return json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
+      return Response.json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
     }
 
     const { payment } = reservation;
     if (!payment || !payment.token) {
-      return json(
+      return Response.json(
         {
           ok: false,
           error: 'Esta reserva no cuenta con una tarjeta tokenizada activa para cobros de garantía.',
@@ -51,7 +51,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     }
 
     if (payment.tokenStatus === 'CANCELADO' || payment.tokenStatus === 'EXPIRADO') {
-      return json(
+      return Response.json(
         {
           ok: false,
           error: `El token de la tarjeta no está activo (estado actual: ${payment.tokenStatus}).`,
@@ -127,7 +127,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     });
 
     if (!isApproved) {
-      return json(
+      return Response.json(
         {
           ok: false,
           error: result.message || 'La pasarela no aprobó el cobro con la tarjeta registrada.',
@@ -137,7 +137,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
       );
     }
 
-    return json({
+    return Response.json({
       ok: true,
       message: 'Cobro de garantía procesado exitosamente.',
       charge: {
@@ -150,6 +150,6 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     });
   } catch (err) {
     console.error('[payment/collect error]:', err);
-    return json({ ok: false, error: (err as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

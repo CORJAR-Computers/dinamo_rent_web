@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { afterNavigate } from '$app/navigation';
-  import { booking } from '$lib/stores/bookingStore.svelte';
-  import { PRIMARY_PHONE, whatsappLink } from '$lib/data/contact';
+  import { booking } from '#lib/stores/bookingStore.svelte.js';
+  import { PRIMARY_PHONE, whatsappLink } from '#lib/data/contact.js';
   import {
     SECTIONS,
     FLEET_SECTION,
@@ -11,7 +11,7 @@
     CONTACT_SECTION,
     LOCATIONS_SECTION,
     type Section
-  } from '$lib/data/sections';
+  } from '#lib/data/sections.js';
 
   let isMobileMenuOpen = $state(false);
   let activeSection = $state('');

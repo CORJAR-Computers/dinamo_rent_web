@@ -1,12 +1,11 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { verifySyncToken, isUserAdmin } from '$lib/server/adminAuth';
+import { db } from '#lib/server/db.js';
+import { verifySyncToken, isUserAdmin } from '#lib/server/adminAuth.js';
 
 export const GET: RequestHandler = async ({ url, request, cookies }) => {
   // Verificación estricta de autorización para sincronización o panel administrativo
   if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
-    return json(
+    return Response.json(
       { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
       { status: 401 }
     );
@@ -31,7 +30,7 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
         take: 50,
       });
 
-      return json({
+      return Response.json({
         ok: true,
         count: pendingReservations.length,
         reservations: pendingReservations,
@@ -56,7 +55,7 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
       db.customer.count(),
     ]);
 
-    return json({
+    return Response.json({
       ok: true,
       desktopApp: {
         name: 'Dinamo Rent ERP — Mostrador',
@@ -77,14 +76,14 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
       recent,
     });
   } catch (e) {
-    return json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
   // Verificación estricta de autorización para sincronización o panel administrativo
   if (!verifySyncToken(request) && !isUserAdmin(cookies)) {
-    return json(
+    return Response.json(
       { ok: false, error: 'No autorizado. Se requiere token de sincronización o sesión administrativa.' },
       { status: 401 }
     );
@@ -109,7 +108,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
         });
 
         if (!res) {
-          return json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
+          return Response.json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
         }
 
         await db.reservation.update({
@@ -143,7 +142,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
           },
         });
 
-        return json({
+        return Response.json({
           ok: true,
           message: 'Sincronizado con software de escritorio',
           desktopRef,
@@ -160,13 +159,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
               syncedWithDesktop: true,
             },
           });
-          return json({ ok: true, message: 'Cliente sincronizado con mostrador' });
+          return Response.json({ ok: true, message: 'Cliente sincronizado con mostrador' });
         }
       }
     }
 
-    return json({ ok: false, error: 'Faltan parámetros entity o entityId' }, { status: 400 });
+    return Response.json({ ok: false, error: 'Faltan parámetros entity o entityId' }, { status: 400 });
   } catch (e) {
-    return json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };
