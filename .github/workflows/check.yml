@@ -1,10 +1,12 @@
-# CI — svelte-check + guardia de contacto.
+# CI — lint + tests + svelte-check + guardia de contacto.
 #
 # `npm run check` incluye scripts/check-contact.mjs: falla si un teléfono, un
 # enlace wa.me o un default de ubicación de la empresa aparece hardcodeado
 # fuera de su fuente de verdad (contact.ts / PICKUP_LOCATIONS).
+# `npm run lint` aplica ESLint (TS + Svelte) y `npm test` corre Vitest
+# (fail-closed de adminAuth y rate-limit de login).
 # El objetivo es que este check esté marcado como "required" en GitHub para que
-# bloquee los merges con números hardcodeados.
+# bloquee los merges con errores.
 name: Check
 
 on:
@@ -21,6 +23,8 @@ concurrency:
 
 jobs:
   check:
+    # El nombre debe seguir siendo EXACTAMENTE este: la protección de rama
+    # (required status check) lo exige por ese contexto en GitHub.
     name: svelte-check + guardia de contacto
     runs-on: ubuntu-latest
     env:
@@ -43,6 +47,12 @@ jobs:
 
       - name: Generar cliente de Prisma (tipos para svelte-check)
         run: npx prisma generate
+
+      - name: ESLint (TS + Svelte)
+        run: npm run lint
+
+      - name: Tests (Vitest)
+        run: npm run test
 
       - name: svelte-check + guardia de contacto
         run: npm run check
