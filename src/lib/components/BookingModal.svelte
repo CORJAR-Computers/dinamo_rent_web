@@ -77,9 +77,6 @@
         }
     }
 
-    function handlePrint() {
-        window.print();
-    }
 </script>
 
 {#if booking.isModalOpen && vehicle}

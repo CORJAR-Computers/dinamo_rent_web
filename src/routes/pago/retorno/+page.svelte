@@ -4,6 +4,7 @@
     import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
     import { whatsappLink } from "#lib/data/contact.js";
     import { FLEET_SECTION } from "#lib/data/sections.js";
+    import { resolve } from "$app/paths";
 
     interface ReservationData {
         id: string;
@@ -51,7 +52,6 @@
     let syncedNow = $state<boolean>(false);
 
     // Lee los parámetros que envía la pasarela al regresar
-    let requestId = $derived(page.url.searchParams.get("requestId") || "");
     let reference = $derived(page.url.searchParams.get("reference") || "");
 
     async function loadReservation() {
@@ -182,7 +182,7 @@
                 </h2>
                 <p class="text-sm text-slate-400 max-w-md mx-auto">{error}</p>
                 <a
-                    href={FLEET_SECTION.href}
+                    href={resolve(FLEET_SECTION.href)}
                     class="inline-block px-6 py-3 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-white transition cursor-pointer"
                 >
                     Volver al inicio
@@ -195,7 +195,6 @@
             {@const isRejected =
                 reservation.payment?.status === "RECHAZADO" ||
                 reservation.payment?.p2pSessionStatus === "REJECTED"}
-            {@const isPending = !isPaid && !isRejected}
 
             <!-- Header de estado -->
             <div
@@ -393,7 +392,7 @@
                     <a
                         href={getWhatsAppUrl()}
                         target="_blank"
-                        rel="noopener noreferrer"
+                        rel="noopener noreferrer external"
                         class="w-full py-3.5 px-4 rounded-xl font-heading font-black text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 text-center"
                     >
                         <i class="fa-brands fa-whatsapp text-lg"></i>
@@ -409,7 +408,7 @@
                             <span>Imprimir Comprobante</span>
                         </button>
                         <a
-                            href={FLEET_SECTION.href}
+                            href={resolve(FLEET_SECTION.href)}
                             class="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1.5"
                         >
                             <i class="fa-solid fa-house"></i>
@@ -432,7 +431,7 @@
                     </p>
                 </div>
                 <a
-                    href={FLEET_SECTION.href}
+                    href={resolve(FLEET_SECTION.href)}
                     class="block w-full py-3.5 px-4 rounded-xl font-heading font-black text-sm text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition text-center"
                 >
                     <i class="fa-solid fa-arrow-left mr-2"></i>Volver e intentar

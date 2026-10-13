@@ -7,6 +7,7 @@
     whatsappLinkFor
   } from '#lib/data/contact.js';
   import { FLEET_SECTION, GUARANTEES_SECTION, LOCATIONS_SECTION } from '#lib/data/sections.js';
+  import { resolve } from '$app/paths';
 </script>
 
 <footer id={LOCATIONS_SECTION.id} class="bg-slate-950 border-t border-slate-800/80 text-slate-400 text-xs pt-16 pb-12">
@@ -33,7 +34,7 @@
           <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook Dinamo Rent" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center hover:text-cyan-400 hover:border-cyan-500 transition">
             <i class="fa-brands fa-facebook-f"></i>
           </a>
-          <a href={whatsappLink()} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp Dinamo Rent" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center hover:text-emerald-400 hover:border-emerald-500 transition">
+          <a href={whatsappLink()} target="_blank" rel="noopener noreferrer external" aria-label="WhatsApp Dinamo Rent" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center hover:text-emerald-400 hover:border-emerald-500 transition">
             <i class="fa-brands fa-whatsapp"></i>
           </a>
         </div>
@@ -74,11 +75,11 @@
           Flota de Vehículos
         </h4>
         <ul class="space-y-2 text-xs">
-          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Autos Económicos y Hatchbacks</a></li>
-          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Sedanes Familiares Automáticos</a></li>
-          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Camionetas SUV para Turismo</a></li>
-          <li><a href={FLEET_SECTION.href} class="hover:text-white transition">Toyota Prado 4x4 Diésel VIP</a></li>
-          <li><a href={GUARANTEES_SECTION.href} class="hover:text-cyan-400 transition">Política de Bloqueo de Garantía</a></li>
+          <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Autos Económicos y Hatchbacks</a></li>
+          <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Sedanes Familiares Automáticos</a></li>
+          <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Camionetas SUV para Turismo</a></li>
+          <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Toyota Prado 4x4 Diésel VIP</a></li>
+          <li><a href={resolve(GUARANTEES_SECTION.href)} class="hover:text-cyan-400 transition">Política de Bloqueo de Garantía</a></li>
         </ul>
       </div>
 
@@ -88,14 +89,14 @@
           Central de Reservas
         </h4>
         <div class="space-y-2 text-xs">
-          {#each CONTACT_PHONES as phone}
+          {#each CONTACT_PHONES as phone (phone)}
             <p class="flex items-center gap-2">
               <i class="fa-solid fa-phone text-orange-400"></i>
-              <a href={telLink(phone)} class="text-slate-200 hover:text-white transition">{phone}</a>
+              <a href={telLink(phone)} rel="external" class="text-slate-200 hover:text-white transition">{phone}</a>
               <a
                 href={whatsappLinkFor(phone)}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer external"
                 aria-label={`Escribir por WhatsApp a ${phone}`}
                 title="Escribir por WhatsApp"
                 class="text-emerald-400 hover:text-emerald-300 transition"
@@ -126,9 +127,9 @@
     <div class="mt-12 pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
       <p>© {new Date().getFullYear()} Dinamo Rent a Car Cartagena. Todos los derechos reservados.</p>
       <div class="flex items-center gap-4 text-[11px]">
-        <a href="/terminos" class="hover:text-white transition">Términos y Condiciones</a>
+        <a href={resolve('/terminos')} class="hover:text-white transition">Términos y Condiciones</a>
         <span>•</span>
-        <a href="/privacidad" class="hover:text-white transition">Política de Privacidad</a>
+        <a href={resolve('/privacidad')} class="hover:text-white transition">Política de Privacidad</a>
         <span>•</span>
         <span>Diseño por: CORJAR Computers</span>
       </div>

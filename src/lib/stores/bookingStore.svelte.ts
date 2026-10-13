@@ -1,5 +1,6 @@
 import type { Vehicle } from '#lib/data/fleet.js';
-import { FLEET_DATABASE, PICKUP_LOCATIONS } from '#lib/data/fleet.js';
+import { PICKUP_LOCATIONS } from '#lib/data/fleet.js';
+import { SvelteDate } from 'svelte/reactivity';
 
 export interface DriverData {
     docType: string;
@@ -75,8 +76,8 @@ class BookingStore {
     }
 
     initDates() {
-        const today = new Date();
-        const returnD = new Date();
+        const today = new SvelteDate();
+        const returnD = new SvelteDate();
         returnD.setDate(today.getDate() + 3);
 
         const pad = (n: number) => n.toString().padStart(2, '0');
@@ -275,6 +276,13 @@ class BookingStore {
 
 export const booking = new BookingStore();
 
+declare global {
+    interface Window {
+        /** Depuración en consola: acceso directo al store de reservas. */
+        __booking?: BookingStore;
+    }
+}
+
 if (typeof window !== 'undefined') {
-    (window as any).__booking = booking;
+    window.__booking = booking;
 }

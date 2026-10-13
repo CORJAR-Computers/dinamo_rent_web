@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { afterNavigate } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { booking } from '#lib/stores/bookingStore.svelte.js';
   import { PRIMARY_PHONE, whatsappLink } from '#lib/data/contact.js';
   import {
@@ -146,7 +147,7 @@
         <a 
           href={whatsappLink('Hola%20Dinamo%20Rent%20a%20Car,%20deseo%20asistencia%20con%20un%20alquiler')}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener noreferrer external"
           class="hidden sm:inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition text-xs font-semibold"
         >
           <i class="fa-brands fa-whatsapp"></i> {PRIMARY_PHONE}
@@ -160,7 +161,7 @@
     <div class="flex items-center justify-between h-20">
       
       <!-- Brand Logo -->
-      <a href="/" class="flex items-center gap-3 group focus:outline-none">
+      <a href={resolve('/')} class="flex items-center gap-3 group focus:outline-none">
         <div class="relative w-12 h-14 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
           <img 
             src="/images/logo-dinamo.png" 
@@ -183,7 +184,7 @@
         {#each SECTIONS as s (s.id)}
           {@const st = desktopStyle(s)}
           <a
-            href={s.href}
+            href={resolve(s.href)}
             aria-current={activeSection === s.href ? 'true' : undefined}
             class="text-sm font-semibold transition-colors {activeSection === s.href ? st.active : st.inactive}"
           >
@@ -195,7 +196,7 @@
       <!-- Desktop CTA Button -->
       <div class="hidden md:flex items-center gap-3">
         <a 
-          href={FLEET_SECTION.href}
+          href={resolve(FLEET_SECTION.href)}
           class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/25 active:scale-95"
         >
           <i class="fa-solid fa-car-side"></i>
@@ -224,7 +225,7 @@
       {#each SECTIONS as s (s.id)}
         {@const st = mobileStyle(s)}
         <a 
-          href={s.href} 
+          href={resolve(s.href)} 
           aria-current={activeSection === s.href ? 'true' : undefined}
           class="block py-2 px-3 -mx-3 rounded-lg text-base font-semibold transition-colors {activeSection === s.href ? st.active : st.inactive}"
           onclick={() => (isMobileMenuOpen = false)}
@@ -237,7 +238,7 @@
         <a 
           href={whatsappLink('Hola%20Dinamo%20Rent%20a%20Car,%20deseo%20cotizar%20un%20vehículo')}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener noreferrer external"
           class="w-full text-center py-2.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2"
         >
           <i class="fa-brands fa-whatsapp text-lg"></i> WhatsApp Directo

@@ -41,6 +41,7 @@ export const GET: RequestHandler = async ({ params, cookies }) => {
 
     return Response.json({ ok: true, reservation });
   } catch (e) {
+    console.error('[reservations/:id error]:', e);
     return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };
@@ -74,6 +75,7 @@ export const DELETE: RequestHandler = async ({ params, cookies }) => {
 
     return Response.json({ ok: true, message: 'Reserva cancelada exitosamente' });
   } catch (e) {
+    console.error('[reservations/:id error]:', e);
     return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

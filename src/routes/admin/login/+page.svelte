@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	let password = $state('');
 	let showPassword = $state(false);
@@ -26,7 +27,7 @@
 			const data = await res.json();
 
 			if (res.ok && data.ok) {
-				goto('/admin/flota');
+				goto(resolve('/admin/flota'));
 			} else {
 				errorMsg = data.message || 'Contraseña incorrecta.';
 			}
@@ -103,7 +104,7 @@
 		</form>
 
 		<div class="mt-6 pt-5 border-t border-slate-800 text-center">
-			<a href="/" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">
+			<a href={resolve('/')} class="text-xs text-slate-500 hover:text-slate-400 transition-colors">
 				← Volver al sitio web principal
 			</a>
 		</div>

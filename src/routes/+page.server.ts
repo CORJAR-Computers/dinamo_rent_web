@@ -20,14 +20,14 @@ function mapPrismaVehicle(v: {
 	image: string;
 	features: string[];
 }): Vehicle {
-	let cat: 'economico' | 'sedan' | 'suv' | 'premium' = 'economico';
+	let cat: 'economico' | 'sedan' | 'suv' | 'premium';
 	const c = (v.category || '').toLowerCase();
 	if (c.includes('sedan')) cat = 'sedan';
 	else if (c.includes('suv') || c.includes('camioneta') || c.includes('van')) cat = 'suv';
 	else if (c.includes('prem') || c.includes('lujo')) cat = 'premium';
 	else cat = 'economico';
 
-	let tr: 'Automático' | 'Mecánico' | 'Automático 4x4' = 'Automático';
+	let tr: 'Automático' | 'Mecánico' | 'Automático 4x4';
 	if (v.transmission === 'AUTOMATICA_4X4') tr = 'Automático 4x4';
 	else if (v.transmission === 'MECANICA') tr = 'Mecánico';
 	else tr = 'Automático';

@@ -384,6 +384,9 @@ function openBookingModal(carId) {
   document.getElementById('booking-modal').classList.add('open');
 }
 
+// Se expone en window porque el markup generado lo invoca por onclick inline.
+window.openBookingModal = openBookingModal;
+
 function initBookingModal() {
   const modal = document.getElementById('booking-modal');
   const closeBtn = document.getElementById('close-modal-btn');
@@ -719,7 +722,7 @@ window.releaseGuaranteeAction = function(index) {
   renderErpTable();
 };
 
-window.viewContractAction = function(contractNo) {
+window.viewContractAction = function() {
   const modal = document.getElementById('booking-modal');
   modal.classList.add('open');
   switchModalStep(4);

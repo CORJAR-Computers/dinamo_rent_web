@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	let { data, children } = $props();
 
@@ -10,7 +11,7 @@
 		loggingOut = true;
 		try {
 			await fetch('/api/admin/logout', { method: 'POST' });
-			goto('/admin/login');
+			goto(resolve('/admin/login'));
 		} catch (err) {
 			console.error('Error cerrando sesión:', err);
 		} finally {
@@ -18,11 +19,12 @@
 		}
 	}
 
+	// `as const` mantiene los href como literales tipados (requerido por resolve()).
 	const navItems = [
 		{ href: '/admin/flota', label: 'Gestión de Flota', icon: 'fa-solid fa-car' },
 		{ href: '/admin/precios', label: 'Tarifas y Precios', icon: 'fa-solid fa-tags' },
 		{ href: '/admin/reservas', label: 'Reservas Web', icon: 'fa-solid fa-calendar-check' }
-	];
+	] as const;
 </script>
 
 <svelte:head>
@@ -42,7 +44,7 @@
 		<aside class="w-full md:w-64 bg-slate-900/80 backdrop-blur-xl border-b md:border-b-0 md:border-r border-slate-800 flex flex-col shrink-0">
 			<!-- Header / Brand -->
 			<div class="p-5 border-b border-slate-800 flex items-center justify-between">
-				<a href="/admin/flota" class="flex items-center gap-3">
+				<a href={resolve('/admin/flota')} class="flex items-center gap-3">
 					<div class="w-10 h-10 rounded-xl bg-linear-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-orange-500/20">
 						D
 					</div>
@@ -55,10 +57,10 @@
 
 			<!-- Nav links -->
 			<nav class="p-4 space-y-1.5 flex-1">
-				{#each navItems as item}
+				{#each navItems as item (item.href)}
 					{@const active = page.url.pathname.startsWith(item.href)}
 					<a
-						href={item.href}
+						href={resolve(item.href)}
 						class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all {active
 							? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 font-bold'
 							: 'text-slate-400 hover:text-white hover:bg-slate-800/60'}"
@@ -70,7 +72,7 @@
 
 				<div class="pt-4 mt-4 border-t border-slate-800/80">
 					<a
-						href="/"
+						href={resolve('/')}
 						target="_blank"
 						class="flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-orange-400 hover:bg-slate-800/40 transition-colors"
 					>

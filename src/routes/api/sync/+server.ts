@@ -76,6 +76,7 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
       recent,
     });
   } catch (e) {
+    console.error('[sync error]:', e);
     return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };
@@ -166,6 +167,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 
     return Response.json({ ok: false, error: 'Faltan parámetros entity o entityId' }, { status: 400 });
   } catch (e) {
+    console.error('[sync error]:', e);
     return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

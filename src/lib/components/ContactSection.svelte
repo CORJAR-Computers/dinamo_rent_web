@@ -30,7 +30,7 @@
     </div>
 
     <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
-      {#each CONTACT_PHONES as phone, i}
+      {#each CONTACT_PHONES as phone, i (phone)}
         <div class="rounded-2xl bg-slate-900 border border-slate-800 p-6 text-center space-y-4 hover:border-emerald-500/40 transition shadow-xl shadow-slate-950/40">
           <span class="inline-block px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-bold uppercase tracking-wider text-slate-300">
             {i === 0 ? 'Línea Principal' : 'Línea Alternativa'}
@@ -38,6 +38,7 @@
 
           <a
             href={telLink(phone)}
+            rel="external"
             class="flex items-center justify-center gap-2 font-heading font-black text-xl sm:text-2xl text-white hover:text-orange-400 transition"
           >
             <i class="fa-solid fa-phone text-orange-400 text-base"></i>
@@ -47,6 +48,7 @@
           <div class="flex items-center justify-center gap-3">
             <a
               href={telLink(phone)}
+              rel="external"
               class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition active:scale-95"
             >
               <i class="fa-solid fa-phone mr-1.5"></i> Llamar
@@ -54,7 +56,7 @@
             <a
               href={whatsappLinkFor(phone, WHATSAPP_TEXT)}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener noreferrer external"
               class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition active:scale-95"
             >
               <i class="fa-brands fa-whatsapp mr-1.5"></i> WhatsApp

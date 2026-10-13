@@ -73,7 +73,7 @@
       <div class="space-y-3">
         <h2 class="font-heading font-bold text-lg text-white">2. Datos que recopilamos</h2>
         <ul class="space-y-2 text-slate-400 text-sm leading-relaxed">
-          {#each datos as item}
+          {#each datos as item (item)}
             <li class="flex items-start gap-2">
               <i class="fa-solid fa-database text-cyan-400 mt-1 text-xs"></i>
               <span>{item}</span>
@@ -85,7 +85,7 @@
       <div class="space-y-3">
         <h2 class="font-heading font-bold text-lg text-white">3. Finalidades del tratamiento</h2>
         <ul class="space-y-2 text-slate-400 text-sm leading-relaxed">
-          {#each finalidades as item}
+          {#each finalidades as item (item)}
             <li class="flex items-start gap-2">
               <i class="fa-solid fa-check text-emerald-400 mt-1 text-xs"></i>
               <span>{item}</span>
@@ -110,7 +110,7 @@
       <div class="space-y-3">
         <h2 class="font-heading font-bold text-lg text-white">5. Tus derechos</h2>
         <ul class="space-y-2 text-slate-400 text-sm leading-relaxed">
-          {#each derechos as item}
+          {#each derechos as item (item)}
             <li class="flex items-start gap-2">
               <i class="fa-solid fa-shield-halved text-cyan-400 mt-1 text-xs"></i>
               <span>{item}</span>
@@ -145,10 +145,10 @@
       class="mt-12 rounded-2xl bg-slate-900 border border-slate-800 p-6 text-sm text-slate-400 space-y-2"
     >
       <p class="font-semibold text-white">Contacto para ejercer tus derechos</p>
-      {#each CONTACT_PHONES as phone}
+      {#each CONTACT_PHONES as phone (phone)}
         <p>
           <i class="fa-solid fa-phone text-cyan-400 w-4"></i>
-          <a href={telLink(phone)} class="hover:text-white transition">{phone}</a>
+          <a href={telLink(phone)} rel="external" class="hover:text-white transition">{phone}</a>
         </p>
       {/each}
       <p>
@@ -156,7 +156,7 @@
         <a
           href={whatsappLink('Hola%20Dinamo%20Rent%20a%20Car,%20quiero%20ejercer%20mis%20derechos%20de%20datos%20personales')}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener noreferrer external"
           class="hover:text-white transition">Escribir por WhatsApp</a
         >
       </p>

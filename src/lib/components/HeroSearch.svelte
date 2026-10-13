@@ -104,7 +104,7 @@
                   bind:value={booking.pickupPlace}
                   class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-medium focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition appearance-none cursor-pointer"
                 >
-                  {#each PICKUP_LOCATIONS as loc}
+                  {#each PICKUP_LOCATIONS as loc (loc)}
                     <option value={loc}>{loc}</option>
                   {/each}
                 </select>
@@ -129,7 +129,7 @@
                   bind:value={booking.returnPlace}
                   class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-medium focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition appearance-none cursor-pointer"
                 >
-                  {#each PICKUP_LOCATIONS as loc}
+                  {#each PICKUP_LOCATIONS as loc (loc)}
                     <option value={loc}>{loc}</option>
                   {/each}
                 </select>
@@ -175,7 +175,7 @@
                   bind:value={booking.pickupTime}
                   class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:ring-2 focus:ring-orange-500 outline-none transition appearance-none cursor-pointer"
                 >
-                  {#each TIME_OPTIONS as time}
+                  {#each TIME_OPTIONS as time (time)}
                     <option value={time}>{time}</option>
                   {/each}
                 </select>
@@ -217,7 +217,7 @@
                   bind:value={booking.returnTime}
                   class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:ring-2 focus:ring-cyan-500 outline-none transition appearance-none cursor-pointer"
                 >
-                  {#each TIME_OPTIONS as time}
+                  {#each TIME_OPTIONS as time (time)}
                     <option value={time}>{time}</option>
                   {/each}
                 </select>

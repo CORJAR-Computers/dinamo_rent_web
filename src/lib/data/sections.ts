@@ -12,8 +12,10 @@ export interface Section {
   id: string;
   /** Etiqueta visible en el menú. */
   label: string;
-  /** Ruta absoluta con ancla: funciona desde cualquier ruta, no solo la home. */
-  href: string;
+  /** Ruta absoluta con ancla: funciona desde cualquier ruta, no solo la home.
+   *  Tipada como template literal para que `resolve($app/paths)` la acepte.
+   */
+  href: `/#${string}`;
 }
 
 /** Crea una sección derivando la href del id (renombrar el id basta). */

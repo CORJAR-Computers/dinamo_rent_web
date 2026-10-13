@@ -159,7 +159,7 @@ function escapeRe(value) {
 }
 
 const SECTION_PATTERNS = [
-  // href ancla en markup: href="/​#x" o href="#x" (con llaves o sin ellas)
+  // href ancla en markup: href="/#x" o href="#x" (con llaves o sin ellas)
   { rule: 'enlace de sección hardcodeado', re: /href\s*=\s*\{?\s*["']\/?#[^"']*["']/g },
   // literal '/#x' en JS (hash, history, constantes…)
   { rule: 'enlace de sección hardcodeado', re: /["']\/#[^"']*["']/g },
@@ -527,7 +527,8 @@ try {
   try {
     actual = readFileSync(join(ROOT, 'index.html'), 'utf8');
   } catch (err) {
-    if (err.code === 'ENOENT') throw new Error('index.html no existe → npm run generate:index');
+    if (err.code === 'ENOENT')
+      throw new Error('index.html no existe → npm run generate:index', { cause: err });
     throw err;
   }
   if (actual !== expected) {

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+
 	interface ReservationItem {
 		id: string;
 		code: string;
@@ -326,7 +328,7 @@
 										<a
 											href={buildWhatsAppLink(r)}
 											target="_blank"
-											rel="noopener noreferrer"
+											rel="noopener noreferrer external"
 											class="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors"
 											title="Contactar al cliente por WhatsApp"
 										>
@@ -335,7 +337,7 @@
 									{/if}
 									{#if p?.p2pRequestId}
 										<a
-											href="/pago/retorno?requestId={p.p2pRequestId}"
+											href={resolve(`/pago/retorno?requestId=${p.p2pRequestId}`)}
 											target="_blank"
 											class="p-2 rounded-lg bg-slate-800 hover:bg-orange-500 hover:text-white text-slate-300 transition-colors"
 											title="Ver Voucher Oficial"
@@ -467,7 +469,7 @@
 						<div class="pt-2 border-t border-slate-800">
 							<span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold block mb-1.5">Cargos anteriores aplicados:</span>
 							<div class="space-y-1 max-h-28 overflow-y-auto pr-1">
-								{#each selectedReservation.depositCharges as ch}
+								{#each selectedReservation.depositCharges as ch (ch.id)}
 									<div class="text-[11px] flex justify-between items-center py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
 										<span class="text-slate-300">{ch.concept}: {formatCOP(ch.amount)}</span>
 										<span class="font-mono text-[10px] text-emerald-400 font-semibold">{ch.transactionId || ch.status}</span>

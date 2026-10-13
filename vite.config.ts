@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import adapter from '@sveltejs/adapter-auto';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -9,6 +10,12 @@ export default defineConfig({
 		tailwindcss(),
 		sveltekit({ preprocess: vitePreprocess(), adapter: adapter() })
 	],
+	test: {
+		include: ['tests/**/*.test.ts'],
+		restoreMocks: true,
+		unstubEnvs: true,
+		unstubGlobals: true
+	},
 	server: {
 		port: 5174,
 		host: true,

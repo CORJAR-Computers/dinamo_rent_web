@@ -27,6 +27,7 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
 
     return Response.json({ ok: true, count: customers.length, customers });
   } catch (e) {
+    console.error('[sync/customers error]:', e);
     return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };

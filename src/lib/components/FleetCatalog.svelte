@@ -50,7 +50,7 @@
 
     <!-- Category Filter Tabs -->
     <div class="mt-10 flex items-center justify-center flex-wrap gap-2 sm:gap-3">
-      {#each CATEGORIES as cat}
+      {#each CATEGORIES as cat (cat.id)}
         <button
           type="button"
           class="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer border {selectedCategory === cat.id ? 'bg-orange-500 border-orange-400 text-white shadow-lg shadow-orange-500/25 scale-105' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'}"
@@ -83,7 +83,7 @@
       <a 
         href={whatsappLink('Hola%20Dinamo%20Rent,%20deseo%20cotizar%20un%20alquiler%20de%20largo%20plazo')}
         target="_blank"
-        rel="noopener noreferrer"
+        rel="noopener noreferrer external"
         class="px-6 py-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 transition whitespace-nowrap active:scale-95"
       >
         <i class="fa-brands fa-whatsapp mr-2 text-emerald-400"></i> Cotizar Largo Plazo

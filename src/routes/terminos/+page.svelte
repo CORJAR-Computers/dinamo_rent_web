@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
     CONTACT_PHONES,
-    OFFICE_ADDRESS,
     OFFICE_ADDRESS_CITY,
     telLink,
     whatsappLink
@@ -98,10 +97,10 @@
     </div>
 
     <div class="mt-12 space-y-10">
-      {#each secciones as seccion}
+      {#each secciones as seccion (seccion.titulo)}
         <div class="space-y-3">
           <h2 class="font-heading font-bold text-lg text-white">{seccion.titulo}</h2>
-          {#each seccion.parrafos as parrafo}
+          {#each seccion.parrafos as parrafo (parrafo)}
             <p class="text-slate-400 text-sm leading-relaxed">{parrafo}</p>
           {/each}
         </div>
@@ -116,10 +115,10 @@
         <i class="fa-solid fa-location-dot text-orange-400 w-4"></i>
         {OFFICE_ADDRESS_CITY}
       </p>
-      {#each CONTACT_PHONES as phone}
+      {#each CONTACT_PHONES as phone (phone)}
         <p>
           <i class="fa-solid fa-phone text-orange-400 w-4"></i>
-          <a href={telLink(phone)} class="hover:text-white transition">{phone}</a>
+          <a href={telLink(phone)} rel="external" class="hover:text-white transition">{phone}</a>
         </p>
       {/each}
       <p>
@@ -127,7 +126,7 @@
         <a
           href={whatsappLink('Hola%20Dinamo%20Rent%20a%20Car,%20tengo%20una%20consulta%20sobre%20los%20t%C3%A9rminos%20de%20alquiler')}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener noreferrer external"
           class="hover:text-white transition">Escribir por WhatsApp</a
         >
       </p>

@@ -72,7 +72,7 @@
 
       <!-- Feature Bullets -->
       <div class="mt-3.5 space-y-1">
-        {#each vehicle.features.slice(0, 2) as feat}
+        {#each vehicle.features.slice(0, 2) as feat (feat)}
           <div class="flex items-center gap-1.5 text-xs text-slate-400">
             <i class="fa-solid fa-check text-emerald-400 text-[10px]"></i>
             <span>{feat}</span>
