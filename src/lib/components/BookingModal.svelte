@@ -5,12 +5,18 @@
 
     let vehicle = $derived(booking.selectedVehicle);
     let termsAccepted = $state(true);
+    let privacyAccepted = $state(true);
     let formError = $state<string | null>(null);
 
     function validateStep2(): boolean {
         const d = booking.driver;
+        const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
         if (!d.names.trim() || !d.lastnames.trim()) {
             formError = "Por favor ingresa nombre y apellidos completos.";
+            return false;
+        }
+        if (!nameRegex.test(d.names.trim()) || !nameRegex.test(d.lastnames.trim())) {
+            formError = "Los nombres y apellidos solo deben contener letras, sin números ni símbolos especiales.";
             return false;
         }
         if (!d.docNumber.trim()) {
@@ -18,13 +24,15 @@
                 "Por favor ingresa el número de documento de identidad.";
             return false;
         }
-        if (!d.phone.trim() || d.phone.length < 7) {
+        const cleanPhone = d.phone.replace(/\D/g, "");
+        if (!cleanPhone || cleanPhone.length < 7 || cleanPhone.length > 12) {
             formError =
-                "Por favor ingresa un número de teléfono o WhatsApp válido.";
+                "Por favor ingresa un número de teléfono o celular válido (solo números).";
             return false;
         }
-        if (!d.email.trim() || !d.email.includes("@")) {
-            formError = "Por favor ingresa un correo electrónico válido.";
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!d.email.trim() || !emailRegex.test(d.email.trim())) {
+            formError = "Por favor ingresa un correo electrónico válido (ej: usuario@dominio.com).";
             return false;
         }
         formError = null;
@@ -44,7 +52,12 @@
             }
             if (!termsAccepted) {
                 formError =
-                    "Debes aceptar los términos y condiciones del servicio.";
+                    "Debes aceptar los Términos y Condiciones del servicio.";
+                return;
+            }
+            if (!privacyAccepted) {
+                formError =
+                    "Debes aceptar la Política de Privacidad y Tratamiento de Datos.";
                 return;
             }
             // Crea la reserva en PostgreSQL al avanzar de la firma
@@ -645,31 +658,30 @@
                             </div>
                         </div>
 
-                        <label class="flex items-start gap-2.5 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                bind:checked={termsAccepted}
-                                class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer"
-                            />
-                            <span
-                                class="text-slate-300 text-[11px] leading-relaxed"
-                            >
-                                Declaro que la información suministrada es
-                                verídica, autorizo el tratamiento de datos
-                                personales conforme a la Ley 1581 de 2012 y
-                                entiendo que al retirar el vehículo en mostrador
-                                se requerirá presentar documento original,
-                                licencia vigente y tarjeta de crédito para el
-                                bloqueo de la garantía de <strong
-                                    class="text-cyan-400"
-                                    >{formatCurrency(
-                                        booking.depositAmount,
-                                        booking.currency,
-                                        booking.usdRate,
-                                    )}</strong
-                                >.
-                            </span>
-                        </label>
+                        <!-- Dos Checkboxes independientes según Requerimiento de Certificación Evertec WC -->
+                        <div class="space-y-2 pt-2 border-t border-slate-800">
+                            <label class="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    bind:checked={termsAccepted}
+                                    class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer"
+                                />
+                                <span class="text-slate-300 text-[11px] leading-relaxed">
+                                    Sí, acepto los <a href="/terminos" target="_blank" rel="noopener noreferrer" class="text-orange-400 underline hover:text-orange-300 font-semibold">Términos y Condiciones</a> del servicio de alquiler y entiendo el bloqueo de garantía en mostrador por <strong class="text-cyan-400">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>.
+                                </span>
+                            </label>
+
+                            <label class="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    bind:checked={privacyAccepted}
+                                    class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer"
+                                />
+                                <span class="text-slate-300 text-[11px] leading-relaxed">
+                                    Sí, acepto la <a href="/privacidad" target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300 font-semibold">Política de Privacidad</a> y autorizo el tratamiento de datos personales conforme a la Ley 1581 de 2012.
+                                </span>
+                            </label>
+                        </div>
                     </div>
                 {/if}
 
@@ -683,9 +695,7 @@
                                 Pago Seguro del Alquiler
                             </h4>
                             <p class="text-xs text-slate-400">
-                                Serás redirigido a la página segura de nuestra
-                                pasarela de pagos para completar la transacción
-                                con tu tarjeta de crédito o débito.
+                                Serás redirigido a la pasarela segura de <strong>Evertec PlacetoPay</strong> para completar la transacción.
                             </p>
                         </div>
 
@@ -730,31 +740,38 @@
                             </div>
                         </div>
 
-                        <!-- Info de seguridad -->
+                        <!-- Info de seguridad y Logotipo Oficial PlacetoPay Evertec -->
                         <div
-                            class="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-2.5 text-xs text-slate-300"
+                            class="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-3 text-xs text-slate-300"
                         >
-                            <div class="flex items-start gap-2">
-                                <i
-                                    class="fa-solid fa-shield-halved text-cyan-400 mt-0.5"
-                                ></i>
-                                <span
-                                    ><strong class="text-white"
-                                        >Pago 100% seguro:</strong
-                                    > los datos de tu tarjeta se ingresan directamente
-                                    en la pasarela certificado PCI-DSS, nunca pasan
-                                    por nuestros servidores.</span
+                            <div class="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-cyan-500/20">
+                                <span class="font-semibold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-lock text-cyan-400"></i>
+                                    Pasarela Certificada PCI-DSS
+                                </span>
+                                <a 
+                                    href="https://www.placetopay.com/web/" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    title="Conocer más sobre PlacetoPay Evertec"
+                                    class="flex items-center gap-1.5 opacity-90 hover:opacity-100 transition"
                                 >
+                                    <img 
+                                        src="https://static.placetopay.com/placetopay-logo.svg" 
+                                        alt="PlacetoPay Evertec" 
+                                        class="h-5 object-contain bg-white/90 px-1.5 py-0.5 rounded"
+                                    />
+                                </a>
                             </div>
+
                             <div class="flex items-start gap-2">
                                 <i
                                     class="fa-solid fa-credit-card text-cyan-400 mt-0.5"
                                 ></i>
                                 <span
                                     ><strong class="text-white"
-                                        >Aceptamos:</strong
-                                    > Visa, Mastercard, American Express y PSE (transferencia
-                                    bancaria).</span
+                                        >Medios habilitados:</strong
+                                    > Tarjetas de Crédito y Débito (Visa, Mastercard, Amex) y transferencia en línea PSE.</span
                                 >
                             </div>
                             <div class="flex items-start gap-2">
@@ -763,7 +780,7 @@
                                 <span
                                     ><strong class="text-white"
                                         >Depósito de Garantía:</strong
-                                    > al pagar el canon, tu tarjeta se vincula de forma segura mediante Place to Pay (Evertec) como respaldo del depósito del vehículo (<strong class="text-cyan-300">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>), sin congelar ni debitar saldo anticipadamente de este valor.</span
+                                    > al pagar el canon, tu tarjeta se vincula de forma segura mediante Evertec Place to Pay como respaldo del depósito del vehículo (<strong class="text-cyan-300">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>), sin congelar ni debitar saldo anticipadamente.</span
                                 >
                             </div>
                         </div>
@@ -774,10 +791,7 @@
                         >
                             <i class="fa-solid fa-circle-info mt-0.5"></i>
                             <span
-                                >Al hacer clic en "Pagar ahora" saldrás de
-                                nuestra web y serás redirigido a la pasarela. Al
-                                terminar, volverás automáticamente a tu
-                                comprobante de reserva.</span
+                                >Al hacer clic en "Pagar ahora" serás redirigido a la pasarela segura de PlacetoPay. Al finalizar el proceso, retornarás automáticamente con tu comprobante y estado de transacción.</span
                             >
                         </div>
                     </div>

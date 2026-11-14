@@ -113,10 +113,26 @@
             <i class="fa-solid fa-clock text-emerald-400"></i>
             <span>Atención: Lunes a Domingo 24 Horas</span>
           </p>
-          <div class="pt-2">
+          <div class="pt-2 flex flex-col gap-2">
             <span class="inline-block px-3 py-1 rounded-md bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
               RNT: En trámite ante MinCIT Colombia
             </span>
+            <div class="pt-1">
+              <span class="text-[10px] text-slate-500 block mb-1">Pagos seguros procesados por:</span>
+              <a 
+                href="https://www.placetopay.com/web/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="inline-block opacity-80 hover:opacity-100 transition"
+                title="PlacetoPay Evertec — Pasarela de Pagos Segura"
+              >
+                <img 
+                  src="https://static.placetopay.com/placetopay-logo.svg" 
+                  alt="PlacetoPay Evertec" 
+                  class="h-6 bg-white/90 px-2 py-0.5 rounded shadow-sm"
+                />
+              </a>
+            </div>
           </div>
         </div>
       </div>

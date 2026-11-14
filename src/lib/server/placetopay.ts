@@ -166,32 +166,43 @@ export async function createPaymentSession(
   }
 
   const auth = generateAuth(login, tranKey);
+  // Según guía de certificación Webcheckout Evertec (pág. 3):
+  // El tiempo de expiración debe estar parametrizado entre 10 a 30 minutos.
   const expiration = new Date();
-  expiration.setHours(expiration.getHours() + 1); // 1 hora de vigencia
+  expiration.setMinutes(expiration.getMinutes() + 25); // 25 minutos de vigencia
 
-  // Configurar estructura de suscripción (Tokenización de garantía)
+  // Limpiar campos según requisitos de certificación de Evertec:
+  // - Nombres y apellidos: solo letras, espacios, tildes y Ñ
+  const sanitizeName = (val: string) => val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '').trim();
+  // - Móvil/Teléfono: solo dígitos numéricos (máx 10 dígitos locales de Colombia)
+  const sanitizePhone = (val: string) => val.replace(/\D/g, '').slice(-10);
+  // - Descripción: texto limpio alfanumérico y espacios estándar
+  const sanitizeDescription = (val: string) => val.replace(/[^\w\s\-\.\,\(\)]/gi, '').slice(0, 250);
+
+  const cleanNames = sanitizeName(req.customer.names) || 'Cliente';
+  const cleanLastnames = sanitizeName(req.customer.lastnames) || 'Dinamo';
+  const cleanPhone = sanitizePhone(req.customer.phone) || '3000000000';
+  const cleanDescription = sanitizeDescription(req.description) || 'Alquiler de vehiculo Dinamo Rent';
+
+  // En Evertec PlacetoPay: cuando se procesa un pago con tokenización de tarjeta simultánea,
+  // la directiva oficial es `payment.subscribe: true`. No se debe enviar el bloque raíz `subscription`
+  // al mismo tiempo para evitar el conflicto "No se puede realizar un pago y una subscripción al mismo tiempo".
   const shouldSubscribe = req.enableSubscription !== false;
-  const subscriptionPayload = shouldSubscribe
-    ? {
-        reference: `SUB-${req.reference}`,
-        description: `Garantía y respaldo de vehículo — Dinamo Rent #${req.reference}`,
-      }
-    : undefined;
 
   const payload: Record<string, unknown> = {
     auth,
     locale: 'es_CO',
     buyer: {
-      name: req.customer.names,
-      surname: req.customer.lastnames,
-      email: req.customer.email,
-      mobile: req.customer.phone,
+      name: cleanNames,
+      surname: cleanLastnames,
+      email: req.customer.email.trim(),
+      mobile: cleanPhone,
       documentType: req.customer.docType,
-      document: req.customer.docNumber,
+      document: req.customer.docNumber.trim(),
     },
     payment: {
       reference: req.reference,
-      description: req.description,
+      description: cleanDescription,
       amount: {
         currency: 'COP',
         total: req.amountCOP,
@@ -203,10 +214,6 @@ export async function createPaymentSession(
     ipAddress: req.ipAddress || '127.0.0.1',
     userAgent: req.userAgent || 'Mozilla/5.0 DinamoRent/1.0',
   };
-
-  if (subscriptionPayload) {
-    payload.subscription = subscriptionPayload;
-  }
 
   try {
     const res = await fetch(baseUrl, {

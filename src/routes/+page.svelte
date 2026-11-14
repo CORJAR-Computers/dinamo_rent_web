@@ -26,6 +26,10 @@
       a: 'Sí. El costo de los días de alquiler puedes pagarlo en efectivo (COP o USD), tarjeta de débito, transferencia bancaria (Bancolombia, Nequi, Daviplata) o pasarela digital. La tarjeta de crédito se solicita únicamente para respaldar la garantía temporal.'
     },
     {
+      q: '¿Cómo se procesan los pagos en línea y qué seguridad ofrecen?',
+      a: 'Nuestros pagos electrónicos y la vinculación de garantías se procesan a través de la pasarela Evertec PlacetoPay, certificada bajo los más altos estándares internacionales de seguridad PCI-DSS y autenticación bancaria. Tus datos financieros nunca son almacenados en nuestros servidores y cuentan con cifrado TLS/SSL de extremo a extremo.'
+    },
+    {
       q: '¿Los vehículos cuentan con kilometraje ilimitado?',
       a: 'Sí, todas nuestras tarifas estándar para alquileres de 2 o más días incluyen kilometraje libre dentro del territorio de la Costa Caribe colombiana.'
     },

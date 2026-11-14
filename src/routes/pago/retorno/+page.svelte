@@ -32,6 +32,7 @@
         };
         payment: {
             status: string;
+            transactionId?: string | null;
             p2pRequestId?: string | null;
             p2pOpType: string | null;
             p2pSessionStatus: string | null;
@@ -221,14 +222,24 @@
                 </div>
                 <h1 class="font-heading font-black text-2xl text-white">
                     {#if isPaid}¡Reserva Confirmada y Pagada!{:else if isRejected}Pago
-                        Rechazado{:else}Pago en Proceso{/if}
+                        Rechazado{:else}Pago en Proceso (Pendiente){/if}
                 </h1>
-                <p class="text-sm text-slate-300">
-                    Código de Reserva: <span
-                        class="font-mono font-bold text-orange-400"
-                        >{reservation.code}</span
-                    >
-                </p>
+                <div class="space-y-1 text-sm text-slate-300">
+                    <p>
+                        Referencia de Pago: <span
+                            class="font-mono font-bold text-orange-400"
+                            >{reservation.code}</span
+                        >
+                    </p>
+                    <p class="text-xs text-slate-400">
+                        Fecha y Hora: <span class="text-white font-medium">{formatDatePretty(new Date().toISOString())}</span> • Moneda: <span class="text-white font-semibold">COP (Pesos Colombianos)</span>
+                    </p>
+                    {#if reservation.payment?.transactionId}
+                        <p class="text-xs text-slate-400">
+                            Autorización / CUS: <span class="font-mono text-cyan-300">{reservation.payment.transactionId}</span>
+                        </p>
+                    {/if}
+                </div>
             </div>
 
             {#if isPaid}
@@ -438,14 +449,26 @@
                     de nuevo
                 </a>
             {:else}
-                <!-- Pendiente -->
+                <!-- Pendiente: Mensaje informativo exigido por Certificación Evertec WC (Sección 6.3.3) -->
                 <div
-                    class="p-5 rounded-2xl bg-slate-900 border border-amber-500/30 space-y-3 mb-6"
+                    class="p-5 rounded-2xl bg-slate-900 border border-amber-500/40 space-y-3 mb-6"
                 >
-                    <p class="text-sm text-slate-300">
-                        Tu pago está siendo procesado por la entidad financiera.
-                        Esto puede tardar unos minutos.
-                    </p>
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid fa-clock-rotate-left text-amber-400 text-lg mt-0.5"></i>
+                        <div class="space-y-1">
+                            <h4 class="font-bold text-white text-sm">Transacción en Estado Pendiente</h4>
+                            <p class="text-xs text-slate-300 leading-relaxed">
+                                En este momento tu pedido con referencia <strong class="text-orange-400 font-mono">#{reservation.code}</strong> y valor de <strong class="text-emerald-400">{formatCurrency(reservation.totalAmount, "COP")}</strong> se encuentra en un estado de <strong>PENDIENTE</strong>.
+                            </p>
+                            <p class="text-[11px] text-slate-400 leading-relaxed pt-1">
+                                De no recibir confirmación inmediata por parte de tu entidad financiera, por favor espera unos minutos y vuelve a consultar para verificar si tu pago fue confirmado de forma exitosa.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
+                        <p>Si deseas más información sobre el estado actual de tu operación puedes comunicarte a nuestras líneas de atención al cliente <a href="tel:+573004567890" class="text-cyan-400 font-semibold hover:underline">(+57) 300 456 7890</a> o escribirnos a <a href="mailto:reservas@dinamorentacar.com" class="text-cyan-400 font-semibold hover:underline">reservas@dinamorentacar.com</a> indicando tu código de referencia o autorización.</p>
+                    </div>
                 </div>
                 <button
                     type="button"
