@@ -24,9 +24,9 @@ export const POST: RequestHandler = async ({ request, url }) => {
       return Response.json({ ok: false, error: 'La reserva ya fue pagada con anterioridad' }, { status: 400 });
     }
 
-    // Configurar URL de retorno
+    // Configurar URL de retorno (incluyendo la referencia para que /pago/retorno pueda buscarla de inmediato)
     const origin = url.origin || 'http://localhost:5174';
-    const returnUrl = `${origin}/pago/retorno`;
+    const returnUrl = `${origin}/pago/retorno?reference=${encodeURIComponent(reservation.code)}`;
 
     // Solicitar sesión a Place to Pay
     const session = await createPaymentSession({

@@ -318,10 +318,12 @@ export async function queryPaymentSession(
     }
 
     const cardBrand =
-      tokenFranchise || firstPayment?.franchise || 'TARJETA';
+      tokenFranchise || firstPayment?.paymentMethodName || firstPayment?.franchise || 'TARJETA';
+    const lastDigitsProcessor = extractInstrumentValue(firstPayment?.processorFields, 'lastDigits');
     const cardLast4 =
       extractInstrumentValue(data?.subscription?.instrument, 'last_digits') ||
       firstPayment?.lastDigits ||
+      lastDigitsProcessor ||
       '0000';
 
     return {
