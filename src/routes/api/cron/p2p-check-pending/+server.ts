@@ -9,7 +9,7 @@ import { queryPaymentSession } from '#lib/server/placetopay.js';
  *  que quedaron en estado PENDIENTE en la base de datos."
  * Frecuencia: Cada 15 minutos en fase de certificación / Cada 24 horas en producción.
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async () => {
   try {
     // Buscar pagos con estado PENDIENTE que tengan un p2pRequestId registrado
     const pendingPayments = await db.payment.findMany({

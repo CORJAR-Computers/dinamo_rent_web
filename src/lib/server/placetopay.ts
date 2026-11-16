@@ -177,7 +177,7 @@ export async function createPaymentSession(
   // - Móvil/Teléfono: solo dígitos numéricos (máx 10 dígitos locales de Colombia)
   const sanitizePhone = (val: string) => val.replace(/\D/g, '').slice(-10);
   // - Descripción: texto limpio alfanumérico y espacios estándar
-  const sanitizeDescription = (val: string) => val.replace(/[^\w\s\-\.\,\(\)]/gi, '').slice(0, 250);
+  const sanitizeDescription = (val: string) => val.replace(/[^\w\s\-.,()]/gi, '').slice(0, 250);
 
   const cleanNames = sanitizeName(req.customer.names) || 'Cliente';
   const cleanLastnames = sanitizeName(req.customer.lastnames) || 'Dinamo';

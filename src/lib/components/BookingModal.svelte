@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from "$app/paths";
     import { booking } from "#lib/stores/bookingStore.svelte.js";
     import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
     import SignatureCanvas from "./SignatureCanvas.svelte";
@@ -667,7 +668,7 @@
                                     class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer"
                                 />
                                 <span class="text-slate-300 text-[11px] leading-relaxed">
-                                    Sí, acepto los <a href="/terminos" target="_blank" rel="noopener noreferrer" class="text-orange-400 underline hover:text-orange-300 font-semibold">Términos y Condiciones</a> del servicio de alquiler y entiendo el bloqueo de garantía en mostrador por <strong class="text-cyan-400">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>.
+                                    Sí, acepto los <a href={resolve("/terminos")} target="_blank" rel="noopener noreferrer" class="text-orange-400 underline hover:text-orange-300 font-semibold">Términos y Condiciones</a> del servicio de alquiler y entiendo el bloqueo de garantía en mostrador por <strong class="text-cyan-400">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>.
                                 </span>
                             </label>
 
@@ -678,7 +679,7 @@
                                     class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer"
                                 />
                                 <span class="text-slate-300 text-[11px] leading-relaxed">
-                                    Sí, acepto la <a href="/privacidad" target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300 font-semibold">Política de Privacidad</a> y autorizo el tratamiento de datos personales conforme a la Ley 1581 de 2012.
+                                    Sí, acepto la <a href={resolve("/privacidad")} target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300 font-semibold">Política de Privacidad</a> y autorizo el tratamiento de datos personales conforme a la Ley 1581 de 2012.
                                 </span>
                             </label>
                         </div>
