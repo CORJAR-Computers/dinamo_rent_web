@@ -4,8 +4,8 @@
     import SignatureCanvas from "./SignatureCanvas.svelte";
 
     let vehicle = $derived(booking.selectedVehicle);
-    let termsAccepted = $state(true);
-    let privacyAccepted = $state(true);
+    let termsAccepted = $state(false);
+    let privacyAccepted = $state(false);
     let formError = $state<string | null>(null);
 
     function validateStep2(): boolean {
