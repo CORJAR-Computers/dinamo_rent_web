@@ -13,6 +13,44 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
 
   try {
     const onlyPending = url.searchParams.get('pending') === 'true';
+    const code = url.searchParams.get('code')?.trim();
+
+    // Consulta específica de documentos/fotos de una reserva por código o ID
+    if (code) {
+      const reservation = await db.reservation.findFirst({
+        where: {
+          OR: [{ code }, { id: code }],
+        },
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          docPhotoUrl: true,
+          licensePhotoUrl: true,
+          signatureDataUrl: true,
+          createdAt: true,
+          customer: {
+            select: {
+              fullName: true,
+              docNumber: true,
+              docType: true,
+              license: true,
+              phone: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      if (!reservation) {
+        return Response.json({ ok: false, error: 'Reserva no encontrada.' }, { status: 404 });
+      }
+
+      return Response.json({
+        ok: true,
+        reservation,
+      });
+    }
 
     // Si la aplicación de escritorio solicita las reservas pendientes
     if (onlyPending) {
