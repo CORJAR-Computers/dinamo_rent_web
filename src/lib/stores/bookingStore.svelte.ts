@@ -60,6 +60,10 @@ class BookingStore {
     // Signature data url
     signatureDataUrl = $state<string | null>(null);
 
+    // Digitalización de documentos (fotos del documento y licencia)
+    docPhotoUrl = $state<string | null>(null);
+    licensePhotoUrl = $state<string | null>(null);
+
     // Modal state — ahora 4 pasos (el voucher se muestra en /pago/retorno)
     isModalOpen = $state<boolean>(false);
     modalStep = $state<number>(1); // 1: Seguros, 2: Conductor, 3: Firma, 4: Pago (redirect)
@@ -193,6 +197,8 @@ class BookingStore {
                         fullTank: this.extraFullTank
                     },
                     signatureDataUrl: this.signatureDataUrl,
+                    docPhotoUrl: this.docPhotoUrl,
+                    licensePhotoUrl: this.licensePhotoUrl,
                     notes: ''
                 })
             });

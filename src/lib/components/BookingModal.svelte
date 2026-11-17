@@ -2,12 +2,43 @@
     import { resolve } from "$app/paths";
     import { booking } from "#lib/stores/bookingStore.svelte.js";
     import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
+    import { compressImageFile } from "#lib/utils/imageCompression.js";
     import SignatureCanvas from "./SignatureCanvas.svelte";
 
     let vehicle = $derived(booking.selectedVehicle);
     let termsAccepted = $state(false);
     let privacyAccepted = $state(false);
     let formError = $state<string | null>(null);
+    let processingDocPhoto = $state(false);
+    let processingLicensePhoto = $state(false);
+
+    async function handleDocPhotoUpload(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+        processingDocPhoto = true;
+        try {
+            booking.docPhotoUrl = await compressImageFile(file, 1280, 0.75);
+        } catch {
+            formError = "No se pudo procesar la foto del documento. Intenta con otra imagen.";
+        } finally {
+            processingDocPhoto = false;
+        }
+    }
+
+    async function handleLicensePhotoUpload(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+        processingLicensePhoto = true;
+        try {
+            booking.licensePhotoUrl = await compressImageFile(file, 1280, 0.75);
+        } catch {
+            formError = "No se pudo procesar la foto de la licencia. Intenta con otra imagen.";
+        } finally {
+            processingLicensePhoto = false;
+        }
+    }
 
     function validateStep2(): boolean {
         const d = booking.driver;
@@ -568,6 +599,99 @@
                                     class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none"
                                     placeholder="Nombre del hotel o dirección"
                                 />
+                            </div>
+
+                            <!-- Digitalización de Documentos (Cédula y Licencia) -->
+                            <div class="sm:col-span-2 pt-3 border-t border-slate-800 space-y-3">
+                                <div>
+                                    <h5 class="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <i class="fa-solid fa-camera text-orange-400"></i>
+                                        Digitalización de Documentos (Opcional para agilizar entrega)
+                                    </h5>
+                                    <p class="text-[11px] text-slate-400">
+                                        Sube o toma una foto clara de tu documento y licencia para que el contrato esté listo al llegar al mostrador.
+                                    </p>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <!-- Foto Documento -->
+                                    <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                                        <span class="text-[11px] font-semibold text-slate-300 block">
+                                            Documento (Cédula / Pasaporte)
+                                        </span>
+                                        {#if booking.docPhotoUrl}
+                                            <div class="relative rounded-lg overflow-hidden border border-emerald-500/30 bg-emerald-500/5 p-2 flex items-center justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <img src={booking.docPhotoUrl} alt="Documento cargado" class="w-10 h-7 object-cover rounded border border-slate-700" />
+                                                    <span class="text-[11px] text-emerald-300 font-medium">Foto cargada</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    aria-label="Eliminar foto del documento"
+                                                    title="Eliminar foto del documento"
+                                                    onclick={() => (booking.docPhotoUrl = null)}
+                                                    class="text-xs text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-500/10 cursor-pointer"
+                                                >
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                </button>
+                                            </div>
+                                        {:else}
+                                            <label class="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-slate-700 hover:border-orange-500/50 hover:bg-orange-500/5 transition cursor-pointer text-center">
+                                                <i class="fa-solid fa-id-card text-slate-400 mb-1"></i>
+                                                <span class="text-[10px] text-slate-300 font-medium">
+                                                    {processingDocPhoto ? "Procesando..." : "Tomar foto o subir archivo"}
+                                                </span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    class="hidden"
+                                                    disabled={processingDocPhoto}
+                                                    onchange={handleDocPhotoUpload}
+                                                />
+                                            </label>
+                                        {/if}
+                                    </div>
+
+                                    <!-- Foto Licencia -->
+                                    <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                                        <span class="text-[11px] font-semibold text-slate-300 block">
+                                            Licencia de Conducción
+                                        </span>
+                                        {#if booking.licensePhotoUrl}
+                                            <div class="relative rounded-lg overflow-hidden border border-emerald-500/30 bg-emerald-500/5 p-2 flex items-center justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <img src={booking.licensePhotoUrl} alt="Licencia cargada" class="w-10 h-7 object-cover rounded border border-slate-700" />
+                                                    <span class="text-[11px] text-emerald-300 font-medium">Foto cargada</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    aria-label="Eliminar foto de la licencia"
+                                                    title="Eliminar foto de la licencia"
+                                                    onclick={() => (booking.licensePhotoUrl = null)}
+                                                    class="text-xs text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-500/10 cursor-pointer"
+                                                >
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                </button>
+                                            </div>
+                                        {:else}
+                                            <label class="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-slate-700 hover:border-orange-500/50 hover:bg-orange-500/5 transition cursor-pointer text-center">
+                                                <i class="fa-solid fa-address-card text-slate-400 mb-1"></i>
+                                                <span class="text-[10px] text-slate-300 font-medium">
+                                                    {processingLicensePhoto ? "Procesando..." : "Tomar foto o subir archivo"}
+                                                </span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    class="hidden"
+                                                    disabled={processingLicensePhoto}
+                                                    onchange={handleLicensePhotoUpload}
+                                                />
+                                            </label>
+                                        {/if}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

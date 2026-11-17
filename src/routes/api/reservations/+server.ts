@@ -77,6 +77,8 @@ export const POST: RequestHandler = async ({ request }) => {
       customerLicense,
       customerLicenseExp,
       customerHotel,
+      docPhotoUrl,
+      licensePhotoUrl,
       insurancePlan = 'TOTAL',
       extras = {},
       signatureDataUrl,
@@ -224,6 +226,8 @@ export const POST: RequestHandler = async ({ request }) => {
           insurancePlan: plan,
           extras: extras || {},
           signatureDataUrl: signatureDataUrl || null,
+          docPhotoUrl: docPhotoUrl || null,
+          licensePhotoUrl: licensePhotoUrl || null,
           notes: notes || null,
         },
         include: {

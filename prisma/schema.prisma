@@ -188,6 +188,8 @@ model Reservation {
   insurancePlan    InsurancePlan     @default(TOTAL)
   extras           Json              @default("{}")
   signatureDataUrl String?
+  docPhotoUrl      String?           // Foto digitalizada del Documento de Identidad (Cédula/Pasaporte)
+  licensePhotoUrl  String?           // Foto digitalizada de la Licencia de Conducción
   notes            String?
 
   // Sincronización con Software de Escritorio (Mostrador)
