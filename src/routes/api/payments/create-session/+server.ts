@@ -1,9 +1,38 @@
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db.js';
 import { createPaymentSession } from '#lib/server/placetopay.js';
+import { checkRateLimit } from '#lib/server/rateLimit.js';
 
-export const POST: RequestHandler = async ({ request, url }) => {
+export const POST: RequestHandler = async ({ request, url, getClientAddress }) => {
   try {
+    // Protección anti-abuso / anti-card testing: máximo 8 intentos de creación de sesión cada 10 min por IP
+    let clientIp = '127.0.0.1';
+    try {
+      clientIp = getClientAddress();
+    } catch {
+      clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
+    }
+
+    const rateLimit = checkRateLimit(clientIp, {
+      endpointKey: 'create-payment-session',
+      windowMs: 10 * 60 * 1000,
+      maxRequests: 8,
+    });
+
+    if (!rateLimit.allowed) {
+      return Response.json(
+        {
+          ok: false,
+          error: `Has alcanzado el límite de intentos de pago permitidos temporalmente. Por favor espera ${rateLimit.retryAfterSeconds} segundos antes de continuar.`,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfterSeconds),
+          },
+        }
+      );
+    }
     const body = await request.json();
     const { reservationId } = body || {};
 

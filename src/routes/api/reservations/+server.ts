@@ -13,6 +13,8 @@ import type { InsurancePlan } from '@prisma/client';
 
 import { isUserAdmin } from '#lib/server/adminAuth.js';
 import { PICKUP_LOCATIONS, normalizePickupLocation } from '#lib/data/fleet.js';
+import { validateDocumentNumber, normalizeDocType } from '#lib/utils/documentValidation.js';
+import { checkRateLimit } from '#lib/server/rateLimit.js';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   try {
@@ -57,8 +59,36 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   }
 };
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, getClientAddress }) => {
   try {
+    // Control de tasa anti-spam / anti-bot: máximo 15 solicitudes de reserva cada 10 min por IP
+    let clientIp = '127.0.0.1';
+    try {
+      clientIp = getClientAddress();
+    } catch {
+      clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
+    }
+
+    const rateLimit = checkRateLimit(clientIp, {
+      endpointKey: 'create-reservation',
+      windowMs: 10 * 60 * 1000,
+      maxRequests: 15,
+    });
+
+    if (!rateLimit.allowed) {
+      return Response.json(
+        {
+          ok: false,
+          error: `Has enviado demasiadas solicitudes de reserva en poco tiempo. Por favor espera ${rateLimit.retryAfterSeconds} segundos.`,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfterSeconds),
+          },
+        }
+      );
+    }
     const b = await request.json();
     const {
       vehicleId,
@@ -87,6 +117,13 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (!vehicleId || !pickupDate || !returnDate || !customerName || !customerEmail || !customerPhone || !customerIdNumber) {
       return Response.json({ ok: false, error: 'Faltan campos obligatorios para la reserva' }, { status: 400 });
+    }
+
+    // === VALIDACIÓN ESTRICTA DE DOCUMENTO SEGÚN PLACETOPAY ===
+    const cleanDocType = normalizeDocType(customerIdType);
+    const docValidation = validateDocumentNumber(cleanDocType, String(customerIdNumber));
+    if (!docValidation.valid) {
+      return Response.json({ ok: false, error: docValidation.error }, { status: 400 });
     }
 
     // === UBICACIONES: solo valores conocidos (PICKUP_LOCATIONS) ===
@@ -153,7 +190,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const customer = await db.customer.upsert({
       where: { docNumber: cleanDoc },
       create: {
-        docType: customerIdType || 'CC',
+        docType: cleanDocType,
         docNumber: cleanDoc,
         names: customerName.trim(),
         lastnames: (customerLastname || '').trim(),
@@ -165,7 +202,7 @@ export const POST: RequestHandler = async ({ request }) => {
         hotel: customerHotel?.trim() || null,
       },
       update: {
-        docType: customerIdType || 'CC',
+        docType: cleanDocType,
         names: customerName.trim(),
         lastnames: (customerLastname || '').trim(),
         fullName,

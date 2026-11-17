@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { normalizeDocType } from '#lib/utils/documentValidation.js';
 
 export interface P2PAuth {
   login: string;
@@ -197,7 +198,7 @@ export async function createPaymentSession(
       surname: cleanLastnames,
       email: req.customer.email.trim(),
       mobile: cleanPhone,
-      documentType: req.customer.docType,
+      documentType: normalizeDocType(req.customer.docType),
       document: req.customer.docNumber.trim(),
     },
     payment: {
@@ -403,8 +404,8 @@ export async function collectPaymentWithToken(
       name: req.customer.names,
       surname: req.customer.lastnames,
       email: req.customer.email,
-      documentType: req.customer.docType,
-      document: req.customer.docNumber,
+      documentType: normalizeDocType(req.customer.docType),
+      document: req.customer.docNumber.trim(),
       mobile: req.customer.phone,
     },
     payment: {

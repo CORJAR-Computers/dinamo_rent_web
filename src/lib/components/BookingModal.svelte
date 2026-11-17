@@ -3,6 +3,12 @@
     import { booking } from "#lib/stores/bookingStore.svelte.js";
     import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
     import { compressImageFile } from "#lib/utils/imageCompression.js";
+    import {
+        PLACETOPAY_DOCUMENT_TYPES,
+        validateDocumentNumber,
+        sanitizeDocNumberInput,
+        normalizeDocType,
+    } from "#lib/utils/documentValidation.js";
     import SignatureCanvas from "./SignatureCanvas.svelte";
 
     let vehicle = $derived(booking.selectedVehicle);
@@ -11,6 +17,11 @@
     let formError = $state<string | null>(null);
     let processingDocPhoto = $state(false);
     let processingLicensePhoto = $state(false);
+
+    let currentDocConfig = $derived(
+        PLACETOPAY_DOCUMENT_TYPES[normalizeDocType(booking.driver.docType)] ||
+            PLACETOPAY_DOCUMENT_TYPES.CC,
+    );
 
     async function handleDocPhotoUpload(e: Event) {
         const input = e.target as HTMLInputElement;
@@ -51,9 +62,9 @@
             formError = "Los nombres y apellidos solo deben contener letras, sin números ni símbolos especiales.";
             return false;
         }
-        if (!d.docNumber.trim()) {
-            formError =
-                "Por favor ingresa el número de documento de identidad.";
+        const docCheck = validateDocumentNumber(d.docType, d.docNumber);
+        if (!docCheck.valid) {
+            formError = docCheck.error || "Número de documento no válido para el tipo seleccionado.";
             return false;
         }
         const cleanPhone = d.phone.replace(/\D/g, "");
@@ -505,16 +516,20 @@
                                 <select
                                     id="d-doc-type"
                                     bind:value={booking.driver.docType}
+                                    onchange={() => {
+                                        booking.driver.docNumber =
+                                            sanitizeDocNumberInput(
+                                                booking.driver.docType,
+                                                booking.driver.docNumber,
+                                            );
+                                    }}
                                     class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none"
                                 >
-                                    <option value="CC"
-                                        >Cédula de Ciudadanía (CC)</option
-                                    >
-                                    <option value="CE"
-                                        >Cédula de Extranjería (CE)</option
-                                    >
-                                    <option value="PAS">Pasaporte (PAS)</option>
-                                    <option value="NIT">NIT (empresa)</option>
+                                    {#each Object.values(PLACETOPAY_DOCUMENT_TYPES) as doc}
+                                        <option value={doc.code}
+                                            >{doc.name}</option
+                                        >
+                                    {/each}
                                 </select>
                             </div>
                             <div class="space-y-1.5">
@@ -525,11 +540,26 @@
                                 >
                                 <input
                                     id="d-doc-number"
-                                    type="text"
-                                    bind:value={booking.driver.docNumber}
-                                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none"
-                                    placeholder="Número sin puntos"
+                                    type={currentDocConfig.inputMode === 'numeric'
+                                        ? 'tel'
+                                        : 'text'}
+                                    inputmode={currentDocConfig.inputMode}
+                                    maxlength={currentDocConfig.maxLength}
+                                    value={booking.driver.docNumber}
+                                    oninput={(e) => {
+                                        booking.driver.docNumber =
+                                            sanitizeDocNumberInput(
+                                                booking.driver.docType,
+                                                (e.target as HTMLInputElement)
+                                                    .value,
+                                            );
+                                    }}
+                                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none font-mono"
+                                    placeholder={currentDocConfig.placeholder}
                                 />
+                                <p class="text-[10px] text-slate-400">
+                                    {currentDocConfig.hint}
+                                </p>
                             </div>
                             <div class="space-y-1.5">
                                 <label

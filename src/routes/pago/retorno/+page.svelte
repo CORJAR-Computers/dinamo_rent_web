@@ -75,35 +75,13 @@
                 return;
             }
             reservation = data.reservations[0];
-
-            // Si el pago sigue pendiente, fuerza una consulta en vivo a la pasarela
-            if (
-                reservation &&
-                reservation.payment?.p2pSessionStatus === "PENDING" &&
-                reservation.payment?.p2pRequestId
-            ) {
-                await refreshFromGateway();
-            }
+            // NOTA (Certificación Evertec): La página de retorno NO consume la API de PlacetoPay.
+            // La actualización del estado la realiza exclusivamente la URL de Notificación (Webhook)
+            // o la Sonda/Cronjob de contingencia en el servidor.
         } catch (e) {
             error = (e as Error).message;
         } finally {
             loading = false;
-        }
-    }
-
-    async function refreshFromGateway() {
-        if (!reservation) return;
-        try {
-            const res = await fetch(
-                `/api/payments/status?reservationId=${reservation.id}`,
-            );
-            const data = await res.json();
-            if (data?.ok && data.live) {
-                // Recarga la reserva para reflejar el estado actualizado
-                await loadReservation();
-            }
-        } catch {
-            // silencioso — ya tenemos los datos base
         }
     }
 

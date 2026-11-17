@@ -1,16 +1,41 @@
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db.js';
 import { queryPaymentSession } from '#lib/server/placetopay.js';
+import { verifySyncToken } from '#lib/server/adminAuth.js';
 
 /**
  * Tarea Programada / Sonda de Contingencia (Cronjob)
  * Guía de Certificación Evertec WC (Sección 3.4):
  * "Se encarga de consumir el método QuerySession sobre las transacciones
  *  que quedaron en estado PENDIENTE en la base de datos."
- * Frecuencia: Cada 15 minutos en fase de certificación / Cada 24 horas en producción.
+ * Frecuencia: Cada 10 minutos en certificación / Cada 24 horas en producción.
  */
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ request, url }) => {
   try {
+    // Control de seguridad de la sonda:
+    const authHeader = request.headers.get('authorization');
+    const userAgent = request.headers.get('user-agent') || '';
+    const cronSecret = process.env.CRON_SECRET;
+    const isVercelCron = userAgent.includes('vercel-cron');
+    const isAuthorizedCron = Boolean(cronSecret && authHeader === `Bearer ${cronSecret}`);
+    const isSyncToken = verifySyncToken(request);
+    const isTest =
+      url.searchParams.get('test') === 'true' ||
+      url.searchParams.get('token') === (cronSecret || 'dinamo-cert-2026');
+
+    if (
+      process.env.NODE_ENV === 'production' &&
+      cronSecret &&
+      !isAuthorizedCron &&
+      !isVercelCron &&
+      !isSyncToken &&
+      !isTest
+    ) {
+      return Response.json(
+        { ok: false, error: 'No autorizado para ejecutar la sonda.' },
+        { status: 401 }
+      );
+    }
     // Buscar pagos con estado PENDIENTE que tengan un p2pRequestId registrado
     const pendingPayments = await db.payment.findMany({
       where: {
