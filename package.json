@@ -40,6 +40,11 @@
     "@prisma/client": "^6.19.3",
     "prisma": "^6.19.3"
   },
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "prisma": true
+  },
   "imports": {
     "#lib": "./src/lib/index.js",
     "#lib/*": "./src/lib/*"
