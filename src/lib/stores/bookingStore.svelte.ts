@@ -75,6 +75,11 @@ class BookingStore {
     errorMessage = $state<string>('');
     paymentRedirectUrl = $state<string | null>(null);
 
+    // Estado de disponibilidad preventiva
+    checkingAvailability = $state<boolean>(false);
+    isAvailableForSelectedDates = $state<boolean>(true);
+    availabilityMessage = $state<string>('');
+
     constructor() {
         this.initDates();
     }
@@ -143,8 +148,36 @@ class BookingStore {
         this.persistedReservation = null;
         this.errorMessage = '';
         this.paymentRedirectUrl = null;
+        this.isAvailableForSelectedDates = true;
+        this.availabilityMessage = '';
         if (!this.reservationId) {
             this.generateReservationId();
+        }
+        // Consulta preventiva de disponibilidad
+        this.checkAvailability();
+    }
+
+    async checkAvailability(): Promise<boolean> {
+        if (!this.selectedVehicle || !this.pickupDate || !this.returnDate) return true;
+        this.checkingAvailability = true;
+        try {
+            const params = new URLSearchParams({
+                vehicleId: this.selectedVehicle.id,
+                pickupDate: this.pickupDate,
+                returnDate: this.returnDate
+            });
+            const res = await fetch(`/api/reservations/check-availability?${params.toString()}`);
+            const data = await res.json();
+            if (data?.ok) {
+                this.isAvailableForSelectedDates = !!data.available;
+                this.availabilityMessage = data.reason || '';
+                return this.isAvailableForSelectedDates;
+            }
+            return true;
+        } catch {
+            return true;
+        } finally {
+            this.checkingAvailability = false;
         }
     }
 

@@ -9,6 +9,7 @@
         sanitizeDocNumberInput,
         normalizeDocType,
     } from "#lib/utils/documentValidation.js";
+    import { FLEET_SECTION } from "#lib/data/sections.js";
     import SignatureCanvas from "./SignatureCanvas.svelte";
 
     let vehicle = $derived(booking.selectedVehicle);
@@ -17,6 +18,42 @@
     let formError = $state<string | null>(null);
     let processingDocPhoto = $state(false);
     let processingLicensePhoto = $state(false);
+    let showDateEditor = $state(false);
+
+    let isConflict = $derived(
+        !booking.isAvailableForSelectedDates ||
+            Boolean(
+                formError &&
+                    formError.toLowerCase().includes("no está disponible"),
+            ) ||
+            Boolean(
+                booking.errorMessage &&
+                    booking.errorMessage
+                        .toLowerCase()
+                        .includes("no está disponible"),
+            ),
+    );
+
+    function goToFleetToChangeVehicle() {
+        booking.closeModal();
+        setTimeout(() => {
+            const section = document.getElementById(FLEET_SECTION.id);
+            if (section) {
+                section.scrollIntoView({ behavior: "smooth" });
+            }
+        }, 150);
+    }
+
+    function toggleDateEditor() {
+        showDateEditor = !showDateEditor;
+    }
+
+    async function handleDateChangeApply() {
+        formError = null;
+        booking.errorMessage = "";
+        await booking.checkAvailability();
+        showDateEditor = false;
+    }
 
     let currentDocConfig = $derived(
         PLACETOPAY_DOCUMENT_TYPES[normalizeDocType(booking.driver.docType)] ||
@@ -247,7 +284,44 @@
 
             <!-- Modal Body (Scrollable) -->
             <div class="p-6 overflow-y-auto flex-1 space-y-6">
-                {#if formError}
+                {#if isConflict}
+                    <!-- Bloque de resolución de conflicto de fechas o vehículo -->
+                    <div
+                        class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-3 animate-fade-in"
+                    >
+                        <div class="flex items-start gap-2.5">
+                            <i class="fa-solid fa-calendar-xmark text-amber-400 text-base mt-0.5"></i>
+                            <div>
+                                <h4 class="font-bold text-amber-300 text-sm">Vehículo no disponible para estas fechas</h4>
+                                <p class="text-slate-300 mt-1 leading-relaxed">
+                                    {booking.availabilityMessage || formError || "El vehículo seleccionado ya tiene una reserva confirmada en este rango de fechas."}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="pt-2 border-t border-amber-500/20 flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onclick={toggleDateEditor}
+                                class="px-3.5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
+                            >
+                                <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                                <span>{showDateEditor ? 'Ocultar selector' : 'Cambiar fechas u horas'}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick={goToFleetToChangeVehicle}
+                                class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 font-bold transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                                <i class="fa-solid fa-car text-xs"></i>
+                                <span>Elegir otro vehículo disponible</span>
+                            </button>
+                        </div>
+                    </div>
+                {/if}
+
+                {#if formError && !isConflict}
                     <div
                         class="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2"
                     >
@@ -271,26 +345,79 @@
                 <!-- ================= STEP 1: EXTRAS & COBERTURAS ================= -->
                 {#if booking.modalStep === 1}
                     <div class="space-y-6">
+                        <!-- Selector / Resumen de Fechas -->
                         <div
-                            class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs"
+                            class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 text-xs"
                         >
-                            <div class="flex items-center gap-2">
-                                <i
-                                    class="fa-solid fa-calendar-days text-orange-400"
-                                ></i>
-                                <span class="text-slate-300">
-                                    {formatDatePretty(booking.pickupDate)} ➔ {formatDatePretty(
-                                        booking.returnDate,
-                                    )}
-                                </span>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-2">
+                                    <i
+                                        class="fa-solid fa-calendar-days text-orange-400"
+                                    ></i>
+                                    <span class="text-slate-300">
+                                        {formatDatePretty(booking.pickupDate)} ({booking.pickupTime}) ➔ {formatDatePretty(
+                                            booking.returnDate,
+                                        )} ({booking.returnTime})
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-400 font-bold"
+                                    >
+                                        {booking.rentalDays} día{booking.rentalDays > 1
+                                            ? "s"
+                                            : ""}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onclick={toggleDateEditor}
+                                        class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition font-semibold cursor-pointer border border-slate-700"
+                                    >
+                                        <i class="fa-solid fa-pen-to-square mr-1 text-orange-400"></i>
+                                        {showDateEditor ? 'Cerrar' : 'Modificar fechas'}
+                                    </button>
+                                </div>
                             </div>
-                            <div
-                                class="px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-400 font-bold"
-                            >
-                                {booking.rentalDays} día{booking.rentalDays > 1
-                                    ? "s"
-                                    : ""}
-                            </div>
+
+                            {#if showDateEditor}
+                                <div class="pt-3 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
+                                    <div class="space-y-1">
+                                        <label for="modal-p-date" class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Entrega</label>
+                                        <input
+                                            id="modal-p-date"
+                                            type="date"
+                                            bind:value={booking.pickupDate}
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-1 focus:ring-orange-500 outline-none"
+                                        />
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label for="modal-r-date" class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Devolución</label>
+                                        <input
+                                            id="modal-r-date"
+                                            type="date"
+                                            bind:value={booking.returnDate}
+                                            min={booking.pickupDate}
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-1 focus:ring-cyan-500 outline-none"
+                                        />
+                                    </div>
+                                    <div class="sm:col-span-2 flex justify-end gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onclick={handleDateChangeApply}
+                                            disabled={booking.checkingAvailability}
+                                            class="px-4 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                                        >
+                                            {#if booking.checkingAvailability}
+                                                <i class="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                                                <span>Verificando...</span>
+                                            {:else}
+                                                <i class="fa-solid fa-check text-xs"></i>
+                                                <span>Aplicar y verificar disponibilidad</span>
+                                            {/if}
+                                        </button>
+                                    </div>
+                                </div>
+                            {/if}
                         </div>
 
                         <div class="space-y-3">
@@ -990,12 +1117,15 @@
                     <button
                         type="button"
                         onclick={nextStep}
-                        disabled={booking.submitting}
-                        class="px-6 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-wider text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:active:scale-100"
+                        disabled={booking.submitting || isConflict}
+                        class="px-6 py-2.5 rounded-xl font-heading font-black text-xs uppercase tracking-wider text-white bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
                         {#if booking.submitting}
                             <i class="fa-solid fa-circle-notch fa-spin"></i>
                             <span>Procesando...</span>
+                        {:else if isConflict}
+                            <i class="fa-solid fa-ban text-[10px]"></i>
+                            <span>Fechas Ocupadas</span>
                         {:else if booking.modalStep === 3}
                             <span>Crear Reserva</span>
                             <i class="fa-solid fa-arrow-right text-[10px]"></i>

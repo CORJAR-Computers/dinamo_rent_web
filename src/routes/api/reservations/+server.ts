@@ -162,8 +162,9 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       return Response.json({ ok: false, error: 'La fecha de devolución debe ser posterior a la fecha de entrega' }, { status: 400 });
     }
 
-    // Verificación de solapamiento de fechas en PostgreSQL
-    const conflict = await db.reservation.findFirst({
+    // Verificación de solapamiento de fechas y unidades disponibles en PostgreSQL
+    const unitsAvailable = vehicle.units || 1;
+    const activeReservationsCount = await db.reservation.count({
       where: {
         vehicleId: vehicle.id,
         status: { in: ['CONFIRMADA', 'PAGADA', 'EN_CURSO'] },
@@ -171,7 +172,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
         returnDate: { gte: start },
       },
     });
-    if (conflict) {
+
+    if (activeReservationsCount >= unitsAvailable) {
       return Response.json(
         {
           ok: false,
