@@ -21,12 +21,13 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     const email = url.searchParams.get('email');
     const code = url.searchParams.get('code');
     const docNumber = url.searchParams.get('docNumber');
+    const requestId = url.searchParams.get('requestId');
 
     const isAdmin = isUserAdmin(cookies);
 
     // Protección anti-scraping / anti-fuga de datos (PII):
     // Si no es un administrador autenticado, se exige obligatoriamente un filtro de búsqueda específico.
-    if (!isAdmin && !code && !email && !docNumber) {
+    if (!isAdmin && !code && !email && !docNumber && !requestId) {
       return Response.json(
         {
           ok: false,
@@ -40,6 +41,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     if (email) where.customerEmail = email.trim().toLowerCase();
     if (code) where.code = code.toUpperCase();
     if (docNumber) where.customerIdNumber = docNumber.trim();
+    if (requestId) where.payment = { p2pRequestId: requestId.trim() };
 
     const reservations = await db.reservation.findMany({
       where,

@@ -335,9 +335,9 @@
 											<i class="fa-brands fa-whatsapp text-sm"></i>
 										</a>
 									{/if}
-									{#if p?.p2pRequestId}
+									{#if p?.p2pRequestId || r.code}
 										<a
-											href={resolve(`/pago/retorno?requestId=${p.p2pRequestId}`)}
+											href={resolve(`/pago/retorno?reference=${encodeURIComponent(r.code)}`)}
 											target="_blank"
 											class="p-2 rounded-lg bg-slate-800 hover:bg-orange-500 hover:text-white text-slate-300 transition-colors"
 											title="Ver Voucher Oficial"

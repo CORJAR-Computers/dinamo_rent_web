@@ -52,22 +52,26 @@
     let syncing = $state<boolean>(false);
     let syncedNow = $state<boolean>(false);
 
-    // Lee los parámetros que envía la pasarela al regresar
+    // Lee los parámetros que envía la pasarela al regresar o el panel administrativo
     let reference = $derived(page.url.searchParams.get("reference") || "");
+    let requestId = $derived(page.url.searchParams.get("requestId") || "");
 
     async function loadReservation() {
         loading = true;
         error = null;
         try {
-            // Usa el code (reference) para obtener la reserva completa
-            const code = reference || "";
-            if (!code) {
+            // Busca por reference (código de reserva) o por requestId de PlacetoPay
+            const queryParam = reference
+                ? `code=${encodeURIComponent(reference)}`
+                : requestId
+                  ? `requestId=${encodeURIComponent(requestId)}`
+                  : "";
+
+            if (!queryParam) {
                 error = "No se recibió la referencia de la reserva.";
                 return;
             }
-            const res = await fetch(
-                `/api/reservations?code=${encodeURIComponent(code)}`,
-            );
+            const res = await fetch(`/api/reservations?${queryParam}`);
             const data = await res.json();
             if (!data?.ok || !data.reservations?.length) {
                 error =
