@@ -291,13 +291,8 @@
                     <div
                         class="pt-2 border-t border-slate-800/60 flex justify-between text-[11px] text-slate-400"
                     >
-                        <span>Bloqueo de Garantía en Mostrador:</span>
-                        <span class="font-semibold text-cyan-300"
-                            >{formatCurrency(
-                                reservation.blockingAmount,
-                                "COP",
-                            )}</span
-                        >
+                        <span>Depósito / Garantía:</span>
+                        <span class="font-semibold text-cyan-300">Según contrato de alquiler</span>
                     </div>
                 </div>
 
@@ -321,7 +316,7 @@
                                 <span class="font-semibold text-emerald-400">Tarjeta Vinculada (Suscripción Segura)</span>
                             </div>
                             <p class="text-[11px] text-slate-400 leading-relaxed">
-                                Tu tarjeta ha sido registrada de forma segura mediante Evertec Place to Pay como respaldo del depósito del vehículo ({formatCurrency(reservation.blockingAmount, "COP")}). No se ha descontado ni congelado cupo anticipadamente.
+                                Tu tarjeta ha sido registrada de forma segura mediante Evertec Place to Pay como respaldo del depósito y deducibles del vehículo según lo estipulado en el contrato. No se ha descontado ni congelado cupo anticipadamente.
                             </p>
                         {/if}
                     </div>

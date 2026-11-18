@@ -917,26 +917,20 @@
                             <div
                                 class="flex justify-between pt-2 border-t border-slate-800 text-sm font-black"
                             >
-                                <span class="text-white">Total Alquiler:</span
-                                ><span class="text-orange-400"
-                                    >{formatCurrency(
+                                <span class="text-white">Total Alquiler:</span>
+                                <span class="text-orange-400">
+                                    {formatCurrency(
                                         booking.grandTotal,
                                         booking.currency,
                                         booking.usdRate,
-                                    )}</span
-                                >
+                                    )}
+                                </span>
                             </div>
                             <div
                                 class="flex justify-between text-[11px] text-slate-400"
                             >
-                                <span>Bloqueo de Garantía en Mostrador:</span
-                                ><span class="font-semibold text-cyan-300"
-                                    >{formatCurrency(
-                                        booking.depositAmount,
-                                        booking.currency,
-                                        booking.usdRate,
-                                    )}</span
-                                >
+                                <span>Depósito / Garantía:</span>
+                                <span class="font-semibold text-cyan-300">Según contrato de alquiler</span>
                             </div>
                         </div>
 
@@ -949,7 +943,7 @@
                                     class="mt-0.5 w-4 h-4 rounded text-orange-500 focus:ring-orange-500 bg-slate-800 border-slate-700 cursor-pointer"
                                 />
                                 <span class="text-slate-300 text-[11px] leading-relaxed">
-                                    Sí, acepto los <a href={resolve("/terminos")} target="_blank" rel="noopener noreferrer" class="text-orange-400 underline hover:text-orange-300 font-semibold">Términos y Condiciones</a> del servicio de alquiler y entiendo el bloqueo de garantía en mostrador por <strong class="text-cyan-400">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>.
+                                    Sí, acepto los <a href={resolve("/terminos")} target="_blank" rel="noopener noreferrer" class="text-orange-400 underline hover:text-orange-300 font-semibold">Términos y Condiciones</a> del servicio de alquiler y la política de garantía y deducibles estipulada en el contrato.
                                 </span>
                             </label>
 
@@ -1062,7 +1056,7 @@
                                 <span
                                     ><strong class="text-white"
                                         >Depósito de Garantía:</strong
-                                    > al pagar el canon, tu tarjeta se vincula de forma segura mediante Evertec Place to Pay como respaldo del depósito del vehículo (<strong class="text-cyan-300">{formatCurrency(booking.depositAmount, booking.currency, booking.usdRate)}</strong>), sin congelar ni debitar saldo anticipadamente.</span
+                                    > al pagar el canon, tu tarjeta se vincula de forma segura mediante Evertec Place to Pay como respaldo del depósito y deducibles del vehículo según lo estipulado en el contrato, sin congelar ni debitar saldo anticipadamente.</span
                                 >
                             </div>
                         </div>

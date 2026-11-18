@@ -98,7 +98,7 @@
         </div>
 
         <div class="text-[10px] text-slate-500">
-          Garantía: {formatCurrency(vehicle.depositCOP, booking.currency, booking.usdRate)}
+          Garantía: según contrato
         </div>
       </div>
 
