@@ -2,7 +2,7 @@
 ## Dinamo Rent a Car S.A.S. — Integración Pasarela Evertec PlacetoPay & Aplicación Web/Escritorio
 
 - **Fecha de corte:** Noviembre 23, 2026
-- **Comercio:** DINAMO RENTA CAR S.A.S. (NIT: 901.810.024-5)
+- **Comercio:** DINAMO RENTA CAR S.A.S. (NIT: 900694866-3)
 - **Dominio productivo Web:** `https://dinamo-rent-a-car.vercel.app/`
 - **Repositorio Web:** `D:\Proyectos\Dinamo_Rent_a_Car WEB` (`CORJAR-Computers/dinamo_rent_web`, rama `main`)
 - **Repositorio Escritorio (ERP Mostrador):** `D:\dinamo_rent_tr` (`CORJAR-Computers/dinamo_rent_tr`, rama `main`)
@@ -100,7 +100,7 @@ Se superaron y blindaron las 4 observaciones principales formuladas por el anali
 | Banco recaudador | Bancolombia |
 | Tipo de cuenta | Ahorros |
 | Número de cuenta | 098 000044 44 |
-| Titular | DINAMO RENTA CAR S.A.S. — NIT 901.810.024-5 |
+| Titular | DINAMO RENTA CAR S.A.S. — NIT 900694866-3 |
 | Soporte | Certificación bancaria de la cuenta, disponible para adjuntar al correo |
 
 **Acceso del analista (`/admin`):** se definió una **clave temporal de certificación** para `ADMIN_PASSWORD`, que se comparte en el hilo con Evertec y **se rota al cierre** de la certificación. El valor no se versiona en este repositorio; vive en las variables de entorno de Vercel y en el correo al analista. El login solo pide contraseña (no usuario) y bloquea la IP 15 minutos tras 5 intentos fallidos.
