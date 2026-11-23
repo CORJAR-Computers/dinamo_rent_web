@@ -26,7 +26,7 @@
         <div class="top-bar-info">
           <span><i class="fa-solid fa-location-dot text-orange"></i> Cartagena de Indias, Colombia</span>
           <span class="divider">•</span>
-          <span><i class="fa-solid fa-shield-halved text-cyan"></i> Garantía Bancaria Segura (PayU / Wompi)</span>
+          <span><i class="fa-solid fa-shield-halved text-cyan"></i> Garantía con Tarjeta Tokenizada (Evertec PlacetoPay)</span>
           <span class="divider">•</span>
           <span><i class="fa-solid fa-plane-arrival text-orange"></i> Entrega en Aeropuerto Rafael Núñez</span>
         </div>
@@ -196,8 +196,8 @@
         <div class="perk-card">
           <div class="perk-icon perk-cyan"><i class="fa-solid fa-credit-card"></i></div>
           <div class="perk-info">
-            <h4>Garantía Protegida (Pre-autorización)</h4>
-            <p>Bloqueo seguro con PayU/Wompi que se libera de inmediato al devolver.</p>
+            <h4>Garantía con Tarjeta Tokenizada</h4>
+            <p>Vinculación segura en Evertec PlacetoPay, sin retener cupo ni cobrar por anticipado.</p>
           </div>
         </div>
       </div>
@@ -276,23 +276,23 @@
           <span class="section-badge">SEGURIDAD FINANCIERA</span>
           <h2 class="section-title">¿Cómo Manejamos el Depósito de Garantía?</h2>
           <p class="guarantee-desc">
-            Al igual que las rentadoras y cadenas hoteleras internacionales, en Dinamo Rent a Car utilizamos un sistema de <b>Pre-autorización (Bloqueo Preventivo de Cupo)</b> a través de pasarelas bancarias certificadas (PayU / Wompi).
+            En Dinamo Rent a Car la garantía se respalda con la <b>vinculación (tokenización) de tu tarjeta</b> en la pasarela certificada Evertec PlacetoPay. No hacemos pre-autorización ni retenemos cupo: la tarjeta queda registrada como respaldo del contrato y solo se cobra si existe un concepto justificado y documentado.
           </p>
 
           <div class="guarantee-highlights">
             <div class="highlight-item">
               <div class="highlight-icon"><i class="fa-solid fa-lock text-orange"></i></div>
               <div>
-                <h4>No es un cobro definitivo</h4>
-                <p>El dinero permanece bajo el control de tu banco, únicamente se congela temporalmente como respaldo.</p>
+                <h4>Sin retención de cupo</h4>
+                <p>La vinculación no descuenta ni bloquea saldo en tu tarjeta en el momento de la reserva.</p>
               </div>
             </div>
 
             <div class="highlight-item">
               <div class="highlight-icon"><i class="fa-solid fa-hand-holding-dollar text-cyan"></i></div>
               <div>
-                <h4>Liberación Inmediata al Devolver</h4>
-                <p>Al entregar el vehículo conforme a la inspección, nuestro sistema envía la orden de desbloqueo al instante.</p>
+                <h4>Cobros solo con sustento</h4>
+                <p>Cualquier cobro posterior (daños, combustible, días extra o multas) se documenta con acta y se informa al titular.</p>
               </div>
             </div>
 
@@ -499,7 +499,7 @@
                   <span class="total-amount" id="calc-total-final">$600.000 COP</span>
                 </div>
                 <div class="deposit-note">
-                  <i class="fa-solid fa-shield-halved text-orange"></i> Depósito en Garantía (Pre-autorización temporal): <strong id="calc-deposit-amount">$1.000.000 COP</strong>
+                  <i class="fa-solid fa-shield-halved text-orange"></i> Depósito de garantía (según contrato, sin retención de cupo): <strong id="calc-deposit-amount">$1.000.000 COP</strong>
                 </div>
               </div>
 
@@ -606,7 +606,7 @@
               <div class="legal-clause-box">
                 <h4><i class="fa-solid fa-scale-balanced text-orange"></i> Cláusula Legal de Garantía (Ley 527 de 1999)</h4>
                 <p>
-                  "Yo, <strong id="legal-client-name">Carlos Andrés Gómez</strong>, identificado con el documento <strong id="legal-client-doc">1047458921</strong>, autorizo expresamente a <strong>Dinamo Rent a Car</strong> a solicitar un bloqueo preventivo de cupo (pre-autorización) en mi tarjeta de crédito por valor de <strong id="legal-deposit-val">$1.000.000 COP</strong> como garantía de cumplimiento contractual. Autorizo de manera irrevocable el cobro de daños, faltantes de combustible o fotomultas generadas durante mi uso."
+                  "Yo, <strong id="legal-client-name">Carlos Andrés Gómez</strong>, identificado con el documento <strong id="legal-client-doc">1047458921</strong>, autorizo a <strong>Dinamo Rent a Car</strong> a vincular (tokenizar) mi tarjeta de crédito o débito en Evertec PlacetoPay como respaldo del contrato, por un depósito de garantía de <strong id="legal-deposit-val">$1.000.000 COP</strong>. Entiendo que esta vinculación no retiene cupo ni debita suma alguna en este momento, y que solo se cobrarán conceptos justificados y documentados (daños no cubiertos, faltante de combustible, días adicionales o comparendos) conforme a la Ley 527 de 1999."
                 </p>
               </div>
 
@@ -636,7 +636,7 @@
             <div class="card-security-col">
               <div class="gateway-card-simulator">
                 <div class="gateway-header">
-                  <span class="gateway-badge"><i class="fa-solid fa-shield-halved"></i> Pasarela Segura PayU / Wompi</span>
+                  <span class="gateway-badge"><i class="fa-solid fa-shield-halved"></i> Pago Seguro — Evertec PlacetoPay</span>
                   <div class="card-icons">
                     <i class="fa-brands fa-cc-visa"></i>
                     <i class="fa-brands fa-cc-mastercard"></i>
@@ -645,42 +645,27 @@
                 </div>
 
                 <div class="gateway-body">
-                  <div class="form-group">
-                    <label>Número de Tarjeta de Crédito</label>
-                    <div class="input-with-icon">
-                      <input type="text" id="cc-number" class="form-control" value="•••• •••• •••• 4242" placeholder="4500 0000 0000 0000">
-                      <i class="fa-solid fa-credit-card"></i>
-                    </div>
-                  </div>
-
-                  <div class="grid-2col">
-                    <div class="form-group">
-                      <label>Vencimiento</label>
-                      <input type="text" id="cc-exp" class="form-control" value="12/28" placeholder="MM/AA">
-                    </div>
-                    <div class="form-group">
-                      <label>CVV / CVC</label>
-                      <input type="password" id="cc-cvv" class="form-control" value="888" placeholder="123">
-                    </div>
-                  </div>
-
-                  <div class="form-group">
-                    <label>Titular de la Tarjeta</label>
-                    <input type="text" id="cc-holder" class="form-control" value="CARLOS A GOMEZ" placeholder="NOMBRE COMO EN TARJETA">
+                  <div class="form-instructions-banner">
+                    <i class="fa-solid fa-lock text-green"></i>
+                    <span><strong>Aquí no se digitan datos de tarjeta.</strong> Al confirmar serás dirigido al formulario seguro de Evertec PlacetoPay, donde vinculas tu tarjeta mediante tokenización. Dinamo Rent no recibe ni almacena el número completo ni el CVV.</span>
                   </div>
 
                   <div class="security-status-box">
                     <div class="status-row">
-                      <span>Tipo de Operación:</span>
-                      <strong class="text-orange">AUTHORIZE (Pre-autorización)</strong>
+                      <span>Operación:</span>
+                      <strong class="text-green">Vinculación de tarjeta (token)</strong>
                     </div>
                     <div class="status-row">
-                      <span>Cupo a Congelar:</span>
+                      <span>Depósito de garantía (según contrato):</span>
                       <strong id="card-deposit-amount">$1.000.000 COP</strong>
                     </div>
                     <div class="status-row">
-                      <span>Cobro Inmediato Renta:</span>
+                      <span>Valor del alquiler a pagar:</span>
                       <strong id="card-rent-amount">$600.000 COP</strong>
+                    </div>
+                    <div class="status-row">
+                      <span>Retención de cupo:</span>
+                      <strong>No aplica</strong>
                     </div>
                   </div>
                 </div>
@@ -705,7 +690,7 @@
             <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
             <div class="success-text">
               <h3>¡Reserva Confirmada y Contrato Digital Emitido!</h3>
-              <p>Se ha realizado con éxito el bloqueo de garantía de <strong id="final-deposit-val">$1.000.000 COP</strong> y se generó el contrato legal con tu firma digital.</p>
+              <p>Se registró la reserva con un depósito de garantía de <strong id="final-deposit-val">$1.000.000 COP</strong> respaldado por la vinculación de tu tarjeta, y se generó el contrato con tu firma digital.</p>
             </div>
             <button class="btn-print-contract" id="btn-print-contract">
               <i class="fa-solid fa-print"></i> Imprimir Contrato
@@ -717,8 +702,8 @@
             <div class="contract-doc-header">
               <div class="doc-logo-title">
                 <h2>DINAMO RENT A CAR</h2>
-                <p>NIT: 901.458.772-1 • Cartagena de Indias, Colombia</p>
-                <p>Aeropuerto Rafael Núñez • Contacto: +57 (300) 895-4422</p>
+                <p>DINAMO RENTA CAR S.A.S. • NIT: 900694866-3</p>
+                <p>Cartagena de Indias, Colombia • Contacto: {{PRIMARY_PHONE}}</p>
               </div>
               <div class="doc-contract-id">
                 <span class="contract-badge">CONTRATO DE ARRENDAMIENTO VEHICULAR</span>
@@ -774,8 +759,8 @@
                   <td><strong id="doc-total-paid">$600.000 COP</strong> (Pagado / Confirmado)</td>
                 </tr>
                 <tr>
-                  <td><strong>Depósito de Garantía (Pre-autorizado):</strong></td>
-                  <td><strong id="doc-deposit-blocked">$1.000.000 COP</strong> (Token ID: <span id="doc-token-id">PAYU-TK-89412</span>)</td>
+                  <td><strong>Depósito de garantía (tarjeta vinculada, sin retención de cupo):</strong></td>
+                  <td><strong id="doc-deposit-blocked">$1.000.000 COP</strong> (Token: <span id="doc-token-id">PTP-TK-89412</span>)</td>
                 </tr>
                 <tr>
                   <td><strong>Póliza de Lucro Cesante:</strong></td>
@@ -789,7 +774,7 @@
                 <p><strong>PRIMERA - OBJETO:</strong> DINAMO RENT A CAR entrega en arrendamiento el vehículo antes descrito en perfectas condiciones mecánicas y de aseo.</p>
                 <p><strong>SEGUNDA - COMBUSTIBLE Y KILOMETRAJE:</strong> El vehículo debe ser restituido con el mismo nivel de combustible de salida (Lleno). En caso contrario, se cobrará el valor de tanquillado más cargo administrativo de $30.000 COP.</p>
                 <p><strong>TERCERA - FOTOMULTAS Y COMPARENDOS (SIMIT):</strong> El Arrendatario asume la responsabilidad plena y económica por cualquier infracción cometida durante el periodo de arrendamiento, autorizando su cobro inmediato sobre la garantía.</p>
-                <p><strong>CUARTA - GARANTÍA Y PRE-AUTORIZACIÓN:</strong> El Arrendatario autoriza de forma expresa e irrevocable el bloqueo temporal y la captura de fondos en caso de siniestros, deducibles o días adicionales según la Ley 527 de 1999.</p>
+                <p><strong>CUARTA - GARANTÍA Y TARJETA VINCULADA:</strong> El Arrendatario autoriza la vinculación (tokenización) de su tarjeta como respaldo del contrato y el cobro de conceptos justificados y documentados (siniestros, deducibles, faltante de combustible, días adicionales o comparendos), de conformidad con la Ley 527 de 1999. No se realiza retención de cupo ni cobro anticipado del depósito.</p>
               </div>
 
               <!-- Firmas y Sellos -->

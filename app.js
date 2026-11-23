@@ -701,7 +701,7 @@ function renderErpTable() {
       <td><strong class="text-orange">${rent.deposit}</strong></td>
       <td><span class="erp-status-badge authorized">${rent.statusLabel}</span></td>
       <td>
-        <button class="btn-erp-action btn-release-guarantee" onclick="releaseGuaranteeAction(${idx})" title="Liberar cupo de tarjeta en banco">
+        <button class="btn-erp-action btn-release-guarantee" onclick="releaseGuaranteeAction(${idx})" title="Cerrar la garantía de la reserva">
           <i class="fa-solid fa-unlock"></i> Liberar Garantía
         </button>
         <button class="btn-erp-action" onclick="viewContractAction('${rent.contractNo}')" title="Ver contrato firmado">
@@ -717,8 +717,8 @@ window.releaseGuaranteeAction = function(index) {
   const rent = AppState.activeRentals[index];
   if (!rent) return;
 
-  alert(`✅ Orden de Liberación (VOID) enviada a la pasarela PayU para el contrato ${rent.contractNo}.\n\nEl cupo de ${rent.deposit} será desbloqueado en la tarjeta de ${rent.clientName}.`);
-  rent.statusLabel = 'Garantía Liberada (VOID)';
+  alert(`✅ Garantía cerrada para el contrato ${rent.contractNo}.\n\nNo se realiza ningún cobro sobre la tarjeta vinculada de ${rent.clientName}; el depósito de ${rent.deposit} queda liberado en el historial de la reserva.`);
+  rent.statusLabel = 'Garantía Cerrada';
   renderErpTable();
 };
 
