@@ -44,7 +44,10 @@ Se superaron y blindaron las 4 observaciones principales formuladas por el anali
 - **Ubicación:** `vercel.json`, `src/routes/api/cron/p2p-check-pending/+server.ts`, `src/routes/pago/retorno/+page.svelte`.
 - **Aislamiento en `/pago/retorno`:** Se removió completamente el método `refreshFromGateway()` / `QuerySession` directo desde el cliente. La pantalla de retorno solo lee el estado consolidado de la base de datos local (`/api/reservations?code=...` o `?requestId=...`). Esto evita consumos redundantes o manipulaciones del cliente al recargar la página.
 - **Mecanismos Oficiales de Actualización:**
-  1. **Webhook principal (URL de Notificación):** `POST /api/webhooks/placetopay`, el cual recibe la notificación asíncrona de Evertec, valida firma, consulta sesión de forma segura y actualiza la reserva y el token.
+  1. **Webhook principal (URL de Notificación):** `POST /api/webhooks/placetopay`, recibe la notificación asíncrona de Evertec, valida la firma, consulta la sesión y actualiza la reserva y el token.
+     - **Firma SHA-1 y SHA-256:** se acepta `SHA1(requestId + status.status + status.date + P2P_TRAN_KEY)` en hex sin prefijo (40 caracteres) y el formato nuevo `sha256:<64 hex>`, que usa SHA-256 sobre la misma cadena. El prefijo elige el algoritmo, se exige que la firma sea hexadecimal y la comparación es con `timingSafeEqual`. Firma ausente, mal formada o calculada con otro secreto → 401 sin tocar la base de datos. Evertec puede activar SHA-256 en la cuenta sin ventana de 401.
+     - **Estado:** nunca se toma del cuerpo de la notificación; solo se aplica lo que confirma `QuerySession`. Si la pasarela no puede confirmarlo, se responde 502 para que Evertec reintente.
+     - **Idempotencia:** si el pago ya está `APROBADO`, la notificación repetida responde 200 con `duplicate: true` sin reescribir pago ni reserva. Si la reserva está `CANCELADA`, un `APPROVED` tardío no la revive: se registra un `SyncLog` de auditoría (`ignored: RESERVA_CANCELADA`) y se responde 200 para detener los reintentos.
   2. **Sonda de contingencia:** `GET /api/cron/p2p-check-pending`, configurada en `vercel.json` con periodicidad diaria:
      ```json
      {
@@ -160,6 +163,8 @@ El esquema en `prisma/schema.prisma` (PostgreSQL en Neon) incluye:
 | `DESKTOP_SYNC_TOKEN` | Token para sincronización de escritorio | Configurado |
 
 > **Nota de Seguridad (Fail Closed):** En producción (`NODE_ENV=production`), si `ADMIN_PASSWORD` o `ADMIN_SECRET` no existen, el endpoint de login responde HTTP 503 por diseño, impidiendo el uso de claves por defecto.
+>
+> **Nota de Seguridad (Credenciales PlacetoPay):** con `P2P_ENV=prod`, si falta `P2P_LOGIN` o `P2P_TRAN_KEY`, `src/lib/server/placetopay.ts` devuelve error y **no** llama a la pasarela: en producción no existen credenciales de sandbox por defecto. La creación de sesión falla sin crear `Payment`, la consulta devuelve `ok: false` (el webhook responde 502) y `collect`/`invalidate` devuelven error de configuración.
 
 ---
 
@@ -173,6 +178,7 @@ Una vez aprobada la llamada de certificación técnica con Evertec:
      - Cambiar `P2P_ENV` a `"prod"`.
      - Actualizar `P2P_LOGIN` y `P2P_TRAN_KEY`.
      - Realizar un Redeploy en Vercel.
+   - Solicitar a Evertec la activación de **SHA-256** para las notificaciones: el webhook ya valida ambos formatos (SHA-1 sin prefijo y SHA-256 con prefijo `sha256:`), así que el cambio no requiere despliegue adicional.
 
 2. **Transacciones de Prueba en Producción (Centavo / Valor Mínimo):**
    - Realizar 1 transacción real con tarjeta de crédito propia por valor mínimo permitido o canon de prueba.

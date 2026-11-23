@@ -8,7 +8,7 @@
 
 ---
 
-**Empresa:** Dinamo Rent a Car  
+**Empresa:** Dinamo Rent a Car S.A.S. — NIT 900694866-3  
 **Ubicación:** Cartagena de Indias, Bolívar, Colombia  
 **Proyecto:** Plataforma Web Transaccional y Reservas en Línea (`dinamo_rent_web`)  
 **Proveedor Pasarela:** Place to Pay (Evertec Colombia)  
@@ -16,7 +16,7 @@
 **Nivel de Cumplimiento PCI-DSS:** SAQ A (Servidores de Dinamo Rent 100% exentos de datos de tarjetahabientes)  
 **Fecha de Elaboración:** Septiembre 2026  
 **Última actualización:** 23 de noviembre de 2026 (IVA 19%, solo tarjetas internacionales, cuenta de recaudo)  
-**Versión del Documento:** 1.2.0 (Homologación y Paso a Producción con Suscripción)
+**Versión del Documento:** 1.3.0 (Webhook SHA-256, idempotencia y configuración fail-closed)
 
 ---
 
@@ -100,12 +100,13 @@ sequenceDiagram
     Dinamo->>Neon: 6. Registra Payment 'PENDIENTE' con requestId
     Dinamo-->>Cliente: 7. Retorna processUrl segura
     Cliente->>P2P: 8. Redirección a pasarela Evertec (Validación 3D Secure bancario)
-    P2P-->>Cliente: 9. Redirección a returnUrl (/pago/retorno?requestId=...)
-    Cliente->>Dinamo: 10. Consulta estado en /api/payments/status
-    Dinamo->>P2P: 11. POST /api/session/{requestId} con autenticación Server-to-Server
+    P2P-->>Cliente: 9. Redirección a returnUrl (/pago/retorno?reference=...)
+    P2P->>Dinamo: 10. Notificación POST /api/webhooks/placetopay (firma SHA-1 o SHA-256)
+    Dinamo->>P2P: 11. POST /api/session/{requestId} con autenticación Server-to-Server (QuerySession)
     P2P-->>Dinamo: 12. Retorna estado del pago y estructura subscription.instrument (token, last4, franchise)
     Dinamo->>Neon: 13. Transacción atómica: Payment 'APROBADO', Reserva 'PAGADA', Token guardado
-    Dinamo-->>Cliente: 14. Muestra comprobante con canon pagado y tarjeta vinculada para garantía
+    Cliente->>Dinamo: 14. /pago/retorno lee el estado consolidado en PostgreSQL (sin consultar la pasarela)
+    Dinamo-->>Cliente: 15. Muestra comprobante con canon pagado y tarjeta vinculada para garantía
 ```
 
 ### 4.2 Fase 2: Ejecución de Cobros de Garantía / Incidentes (`/api/collect`)
@@ -263,6 +264,28 @@ Las tarifas publicadas **no incluyen IVA**. El impuesto se calcula en el servido
 * Las reservas anteriores a este cambio (donde `total = subtotal`) no envían el bloque `taxes`: no se declara un impuesto en cero.
 
 **Medios de pago:** solo tarjetas de crédito y débito de bancos internacionales (Visa, Mastercard, American Express). PSE, Nequi y transferencias bancarias **no** están habilitados.
+
+### 5.6 Notificación asíncrona (webhook): firma e idempotencia
+
+**Endpoint:** `POST /api/webhooks/placetopay`. La URL se registra en el panel de Evertec; no se envía dentro del payload de la sesión.
+
+**Validación de firma.** Se aceptan los dos formatos documentados por PlacetoPay:
+
+* **SHA-1 (heredado):** 40 caracteres hex, sin prefijo → `SHA1(requestId + status.status + status.date + tranKey)`.
+* **SHA-256 (recomendado):** 64 caracteres hex con prefijo `sha256:` → `SHA256(misma cadena)`.
+
+La cadena se arma siempre con `P2P_TRAN_KEY`; el prefijo determina el algoritmo. Antes de comparar se valida que el valor sea hexadecimal (evita que `Buffer.from(..., 'hex')` descarte caracteres en silencio) y se comprueba la longitud. La comparación usa `crypto.timingSafeEqual`. Una firma ausente, mal formada o calculada con otro secreto devuelve **401** sin escribir en la base de datos.
+
+**Fuente del estado.** La notificación nunca define el estado final: el servidor ejecuta `QuerySession` (`POST /api/session/{requestId}`) y solo aplica lo confirmado por la pasarela. Si no se puede confirmar, responde **502** para que Evertec reintente.
+
+**Idempotencia.** La firma de una notificación sigue siendo válida de forma indefinida, por lo que el webhook es idempotente:
+
+* Pago ya `APROBADO` → responde 200 con `duplicate: true` y no reescribe pago ni reserva.
+* Reserva `CANCELADA` + notificación `APPROVED` → no se revive la reserva; se registra un `SyncLog` con `ignored: RESERVA_CANCELADA` y se responde 200 para detener los reintentos.
+
+**Configuración fail-closed.** Con `P2P_ENV=prod`, si falta `P2P_LOGIN` o `P2P_TRAN_KEY`, ninguna función de `src/lib/server/placetopay.ts` llama a la pasarela: creación de sesión, consulta, `collect` e invalidación devuelven error explícito. No hay credenciales de sandbox por defecto en producción.
+
+**Cobertura de pruebas:** `tests/webhook.placetopay.test.ts` (firma SHA-1, SHA-256 válida, SHA-256 con otro secreto, firma manipulada, duplicado y reserva cancelada) y `tests/placetopay.production.test.ts` (fail-closed sin credenciales y sin llamadas a `fetch`).
 
 ---
 
