@@ -34,11 +34,18 @@
       </span>
     </div>
 
-    <!-- Plate snippet -->
-    <div class="absolute bottom-3 left-4">
-      <span class="text-[11px] font-mono text-slate-400 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded border border-white/10">
-        Placa Ref: {vehicle.plate}
-      </span>
+    <!-- Plate snippet / stock -->
+    <div class="absolute bottom-3 left-4 flex items-center gap-1.5">
+      {#if vehicle.plate}
+        <span class="text-[11px] font-mono text-slate-400 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded border border-white/10">
+          Placa Ref: {vehicle.plate}
+        </span>
+      {/if}
+      {#if vehicle.units > 1}
+        <span class="text-[11px] font-bold text-white bg-orange-500/90 backdrop-blur-sm px-2 py-0.5 rounded">
+          {vehicle.units} unidades
+        </span>
+      {/if}
     </div>
   </div>
 

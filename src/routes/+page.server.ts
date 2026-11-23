@@ -17,6 +17,7 @@ function mapPrismaVehicle(v: {
 	fuelType: string;
 	ac: boolean;
 	plate: string | null;
+	units: number;
 	image: string;
 	features: string[];
 }): Vehicle {
@@ -44,11 +45,12 @@ function mapPrismaVehicle(v: {
 		priceCOP: v.pricePerDay,
 		depositCOP: v.deposit,
 		passengers: v.seats,
+		units: v.units || 1,
 		transmission: tr,
 		luggage: v.luggage || '2 Maletas Grandes',
 		fuel,
 		ac: v.ac,
-		plate: v.plate || 'Ref',
+		plate: v.plate || '',
 		image: v.image,
 		features: v.features && v.features.length ? v.features : ['Aire Acondicionado', 'Bluetooth']
 	};

@@ -78,7 +78,7 @@
           <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Autos Económicos y Hatchbacks</a></li>
           <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Sedanes Familiares Automáticos</a></li>
           <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Camionetas SUV para Turismo</a></li>
-          <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Toyota Prado 4x4 Diésel VIP</a></li>
+          <li><a href={resolve(FLEET_SECTION.href)} class="hover:text-white transition">Chevrolet Traverse 7 Pasajeros</a></li>
           <li><a href={resolve(GUARANTEES_SECTION.href)} class="hover:text-cyan-400 transition">Política de Garantía y Depósito</a></li>
         </ul>
       </div>
