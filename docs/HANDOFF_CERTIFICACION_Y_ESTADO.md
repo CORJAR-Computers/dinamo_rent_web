@@ -34,10 +34,10 @@ Se superaron y blindaron las 4 observaciones principales formuladas por el anali
 - **Homologación de Pasaporte:** Cualquier referencia previa a `PAS` se normaliza automáticamente a `PPN` antes del envío a PlacetoPay.
 - **Reglas Regex Validadas:**
   - `CC`: `/^[1-9][0-9]{3,9}$/` (no permite empezar en cero; entre 4 y 10 dígitos numéricos).
-  - `CE`: `/^[a-zA-Z0-9]{4,15}$/` (alfanumérico, longitud 4 a 15).
-  - `PPN`: `/^[a-zA-Z0-9]{4,20}$/` (alfanumérico, longitud 4 a 20).
-  - `TI`: `/^[0-9]{8,11}$/`.
-  - `NIT`: `/^[0-9]{8,15}$/`.
+  - `CE`: `/^([a-zA-Z]{1,5})?[1-9][0-9]{3,7}$/` (hasta 5 letras iniciales opcionales + 4 a 8 dígitos; máximo 12 caracteres).
+  - `PPN`: `/^[a-zA-Z0-9_]{4,16}$/` (alfanumérico, longitud 4 a 16).
+  - `TI`: `/^[1-9][0-9]{4,11}$/` (5 a 12 dígitos, no inicia en cero).
+  - `NIT` y `RUT`: `/^[1-9]\d{6,9}$/` (7 a 10 dígitos, sin dígito de verificación).
 - **Sanitización en Tiempo Real:** En el modal de reserva, el campo de documento utiliza `inputmode="numeric"` cuando el tipo es puramente numérico e impide ingresar caracteres no válidos.
 
 ### 2.2 Sonda / Cronjob y Aislamiento de la Pasarela
@@ -80,6 +80,30 @@ Se superaron y blindaron las 4 observaciones principales formuladas por el anali
 - **Almacenamiento (PCI-DSS):** Dinamo Rent a Car **no almacena** PAN, CVV ni fechas de caducidad. Únicamente se persiste el string alfanumérico opaco `token`, franquicia y últimos 4 dígitos enmascarados en la tabla `payments`.
 - **Cobros posteriores:** Endpoint `/api/payments/collect` que consume el servicio `POST /api/collect` de PlacetoPay utilizando el token guardado. Reservado exclusivamente para conceptos contractuales probados (daños con acta de entrega, faltante de gasolina, comparendos de tránsito SIMIT).
 - **Desacoplamiento de cifras rígidas en UI:** Se ajustaron los textos en web ([BookingModal.svelte](file:///d:/Proyectos/Dinamo_Rent_a_Car%20WEB/src/lib/components/BookingModal.svelte), [CarCard.svelte](file:///d:/Proyectos/Dinamo_Rent_a_Car%20WEB/src/lib/components/CarCard.svelte), [retorno/+page.svelte](file:///d:/Proyectos/Dinamo_Rent_a_Car%20WEB/src/routes/pago/retorno/+page.svelte)) para indicar *"Depósito / Garantía: Según contrato de alquiler"*, evitando confusiones con los deducibles reales de póliza (\$2.500.000 COP).
+
+### 2.6 Medios de pago, IVA y datos de recaudo (definiciones del 23-nov-2026)
+
+**Medios habilitados:** únicamente **tarjetas de crédito y débito de bancos internacionales** (Visa, Mastercard, American Express). **PSE, Nequi y transferencias bancarias quedan descartados** para esta certificación: no son tokenizables y no sirven para respaldar la garantía. La FAQ de la home (`src/routes/+page.svelte`, `index.html` e `index.template.html`) ya no anuncia esos medios; el resumen del checkout solo muestra tarjetas.
+
+**IVA 19% (implementado):** las tarifas publicadas **no incluyen IVA**. El impuesto se calcula sobre el subtotal (vehículo + seguro + adicionales) y **se suma**; contabilidad confirmó que todos los ítems van al 19%.
+- `src/lib/utils/taxes.ts`: `IVA_RATE = 0.19` y `calcTaxes()` → `{ subtotal, iva, total }`, con `iva = round(subtotal × 0,19)` y `total = subtotal + iva`.
+- `src/routes/api/reservations/+server.ts`: calcula el IVA al crear la reserva y guarda `totalAmount` con IVA; la API devuelve `subtotalAmount` y `taxAmount`.
+- `src/lib/server/placetopay.ts`: envía `payment.amount.taxes: [{ kind: "valueAddedTax", base, amount }]` cuando la base es válida y menor que el total (una reserva antigua sin IVA no declara un impuesto en cero).
+- `src/routes/api/payments/create-session/+server.ts`: envía `taxBaseCOP` = vehículo + seguro + adicionales, de modo que `base + impuesto = total` cobrado.
+- Desglose visible **Subtotal (sin IVA) / IVA 19% / Total** en el modal (`BookingModal.svelte`), en el comprobante `/pago/retorno` y en el panel `/admin/reservas`.
+- Verificado con `npm run check` (0 errores) y `npm run test` (23/23, incluida `tests/taxes.test.ts`).
+
+**Cuenta de recaudo (enviada a Evertec):**
+
+| Campo | Valor |
+|---|---|
+| Banco recaudador | Bancolombia |
+| Tipo de cuenta | Ahorros |
+| Número de cuenta | 098 000044 44 |
+| Titular | DINAMO RENTA CAR S.A.S. — NIT 901.810.024-5 |
+| Soporte | Certificación bancaria de la cuenta, disponible para adjuntar al correo |
+
+**Acceso del analista (`/admin`):** se definió una **clave temporal de certificación** para `ADMIN_PASSWORD`, que se comparte en el hilo con Evertec y **se rota al cierre** de la certificación. El valor no se versiona en este repositorio; vive en las variables de entorno de Vercel y en el correo al analista. El login solo pide contraseña (no usuario) y bloquea la IP 15 minutos tras 5 intentos fallidos.
 
 ---
 
@@ -128,9 +152,10 @@ El esquema en `prisma/schema.prisma` (PostgreSQL en Neon) incluye:
 | `P2P_ENV` | Entorno PlacetoPay (`test` / `prod`) | `test` (cambiar a `prod` post-certificación) |
 | `P2P_LOGIN` | Identificador de comercio Evertec | Credencial oficial Dinamo Rent |
 | `P2P_TRAN_KEY` | Llave transaccional secreta Evertec | Credencial oficial Dinamo Rent |
+| `P2P_MOCK` | Simulador local de la pasarela (solo desarrollo/test) | `false` / ausente: en producción el simulador está deshabilitado aunque el flag llegue a `true` |
 | `P2P_RETURN_URL` | URL de retorno web | `https://dinamo-rent-a-car.vercel.app/pago/retorno` |
 | `P2P_NOTIFICATION_URL` | URL de Webhook webhook | `https://dinamo-rent-a-car.vercel.app/api/webhooks/placetopay` |
-| `ADMIN_PASSWORD` | Contraseña acceso `/admin` | Configurado |
+| `ADMIN_PASSWORD` | Contraseña acceso `/admin` | Clave **temporal de certificación**, rotada al cierre (valor solo en Vercel y en el correo a Evertec) |
 | `ADMIN_SECRET` | Llave secreta HMAC firma de cookies admin | Configurado |
 | `DESKTOP_SYNC_TOKEN` | Token para sincronización de escritorio | Configurado |
 
@@ -155,7 +180,11 @@ Una vez aprobada la llamada de certificación técnica con Evertec:
    - Comprobar que en la aplicación de escritorio (`D:\dinamo_rent_tr`) se refleje la reserva pagada con sus documentos digitalizados.
    - Efectuar la anulación o reverso de la transacción desde el **Panel Administrativo de PlacetoPay**.
 
-3. **Comandos de Verificación Local:**
+3. **Cierre de la certificación:**
+   - Rotar `ADMIN_PASSWORD` a la clave definitiva de operación y hacer redeploy.
+   - Confirmar que la sonda y el webhook sigan en `P2P_ENV=prod` con las credenciales productivas.
+
+4. **Comandos de Verificación Local:**
    - Chequeo de sintaxis, tipos y guardia de contacto:
      ```bash
      npm run check

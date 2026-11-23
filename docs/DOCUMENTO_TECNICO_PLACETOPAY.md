@@ -15,7 +15,8 @@
 **Tipo de Integración:** Checkout Redirección Seguro (Hosted Payment Page) con Tokenización de Tarjetas (`subscription`) y Cobros Posteriores Server-to-Server (`/api/collect`)  
 **Nivel de Cumplimiento PCI-DSS:** SAQ A (Servidores de Dinamo Rent 100% exentos de datos de tarjetahabientes)  
 **Fecha de Elaboración:** Septiembre 2026  
-**Versión del Documento:** 1.1.0 (Homologación y Paso a Producción con Suscripción)
+**Última actualización:** 23 de noviembre de 2026 (IVA 19%, solo tarjetas internacionales, cuenta de recaudo)  
+**Versión del Documento:** 1.2.0 (Homologación y Paso a Producción con Suscripción)
 
 ---
 
@@ -27,7 +28,7 @@ En el modelo de negocio de alquiler de vehículos en Colombia, el servicio de **
 
 ### Este modelo resuelve dos necesidades operativas críticas
 
-1. **Cobro del Canon de Alquiler:** El cliente paga el valor correspondiente a los días de alquiler, seguros y accesorios seleccionados mediante la pasarela segura.
+1. **Cobro del Canon de Alquiler:** El cliente paga el valor correspondiente a los días de alquiler, seguros y accesorios seleccionados **más el IVA del 19%** mediante la pasarela segura. Las tarifas publicadas no incluyen IVA: el impuesto se calcula y se suma en el servidor al crear la reserva.
 2. **Depósito de Garantía sin Fricción:** En la misma sesión de checkout, el cliente autoriza la suscripción (tokenización) de su tarjeta de crédito/débito. Esto permite a Dinamo Rent respaldar la garantía del vehículo sin congelar cupo bancario anticipadamente al usuario, manteniendo la capacidad de procesar cobros justificados posteriores (deducibles de siniestros, combustible faltante, días adicionales de retraso o multas de tránsito) mediante llamadas seguras Server-to-Server.
 
 ---
@@ -169,13 +170,12 @@ Cada llamada saliente a las API de Place to Pay genera una cabecera criptográfi
     "description": "Alquiler Dinamo Rent — Renault Duster Iconic (4 días)",
     "amount": {
       "currency": "COP",
-      "total": 680000
+      "total": 809200,
+      "taxes": [
+        { "kind": "valueAddedTax", "base": 680000, "amount": 129200 }
+      ]
     },
     "subscribe": true
-  },
-  "subscription": {
-    "reference": "SUB-DIN-189201-4412",
-    "description": "Garantía y respaldo de vehículo — Dinamo Rent #DIN-189201-4412"
   },
   "expiration": "2026-09-21T19:00:00.000Z",
   "returnUrl": "https://dinamorent.com/pago/retorno",
@@ -183,6 +183,8 @@ Cada llamada saliente a las API de Place to Pay genera una cabecera criptográfi
   "userAgent": "Mozilla/5.0 DinamoRent/1.0"
 }
 ```
+
+> La sesión se crea con `payment.subscribe: true` y **sin** el bloque raíz `subscription`: PlacetoPay rechaza la combinación de pago y suscripción en la misma petición ("No se puede realizar un pago y una subscripción al mismo tiempo"). El bloque `subscription` de la respuesta sí se consume para extraer el token.
 
 ### 5.3 Extracción del Token en la Consulta de Sesión (`POST /api/session/{requestId}`)
 
@@ -200,7 +202,7 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
     {
       "status": { "status": "APPROVED" },
       "reference": "DIN-189201-4412",
-      "amount": { "currency": "COP", "total": 680000 },
+      "amount": { "currency": "COP", "total": 809200 },
       "authorization": "AUTH-789412",
       "franchise": "VISA",
       "lastDigits": "4242"
@@ -248,6 +250,19 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
   "userAgent": "DinamoRentAdmin/1.0 Server-Collect"
 }
 ```
+
+### 5.5 Impuestos (IVA 19%) y consistencia del monto
+
+Las tarifas publicadas **no incluyen IVA**. El impuesto se calcula en el servidor al crear la reserva:
+
+* `subtotal` = vehículo + seguro + adicionales.
+* `iva` = `Math.round(subtotal × 0,19)`.
+* `total` = `subtotal + iva`; es lo que se guarda en `Reservation.totalAmount` y lo que se cobra.
+* En la sesión se envía `payment.amount.total` con IVA y `payment.amount.taxes: [{ kind: "valueAddedTax", base: subtotal, amount: iva }]`. El `kind` debe ser exactamente `valueAddedTax`: otro valor hace que PlacetoPay ignore el impuesto.
+* El desglose visible (modal de reserva, comprobante `/pago/retorno` y panel `/admin/reservas`) se calcula desde los importes guardados, de modo que el valor que ve el cliente, el persistido y el enviado a la pasarela son el mismo.
+* Las reservas anteriores a este cambio (donde `total = subtotal`) no envían el bloque `taxes`: no se declara un impuesto en cero.
+
+**Medios de pago:** solo tarjetas de crédito y débito de bancos internacionales (Visa, Mastercard, American Express). PSE, Nequi y transferencias bancarias **no** están habilitados.
 
 ---
 
