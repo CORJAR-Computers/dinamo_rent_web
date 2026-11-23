@@ -718,7 +718,7 @@
                                     }}
                                     class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none"
                                 >
-                                    {#each Object.values(PLACETOPAY_DOCUMENT_TYPES) as doc}
+                                    {#each Object.values(PLACETOPAY_DOCUMENT_TYPES) as doc (doc.code)}
                                         <option value={doc.code}
                                             >{doc.name}</option
                                         >

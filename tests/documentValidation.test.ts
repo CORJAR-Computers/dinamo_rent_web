@@ -3,7 +3,6 @@ import {
   validateDocumentNumber,
   sanitizeDocNumberInput,
   normalizeDocType,
-  PLACETOPAY_DOCUMENT_TYPES,
 } from '../src/lib/utils/documentValidation.js';
 
 describe('Document Validation according to PlacetoPay rules', () => {
