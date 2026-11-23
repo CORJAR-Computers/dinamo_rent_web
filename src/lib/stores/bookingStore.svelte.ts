@@ -1,5 +1,6 @@
 import type { Vehicle } from '#lib/data/fleet.js';
 import { PICKUP_LOCATIONS } from '#lib/data/fleet.js';
+import { calcTaxes } from '#lib/utils/taxes.js';
 import { SvelteDate } from 'svelte/reactivity';
 
 export interface DriverData {
@@ -18,6 +19,10 @@ export interface ReservationResult {
     id: string;
     code: string;
     status: string;
+    /** Subtotal sin IVA (vehículo + seguro + adicionales), tal como lo guarda el servidor. */
+    subtotalAmount: number;
+    /** IVA 19% calculado por el servidor. */
+    taxAmount: number;
     totalAmount: number;
     blockingAmount: number;
     synced: boolean;
@@ -74,6 +79,13 @@ class BookingStore {
     submitting = $state<boolean>(false);
     errorMessage = $state<string>('');
     paymentRedirectUrl = $state<string | null>(null);
+    // Control de doble pago: transacción PENDIENTE que bloquea un nuevo intento
+    pendingTransaction = $state<{
+        reference: string;
+        requestId: string;
+        amount: number;
+        date: string;
+    } | null>(null);
 
     // Estado de disponibilidad preventiva
     checkingAvailability = $state<boolean>(false);
@@ -126,8 +138,18 @@ class BookingStore {
         return total;
     }
 
-    get grandTotal(): number {
+    /** Suma de vehículo, seguro y adicionales, sin IVA. */
+    get subtotalAmount(): number {
         return this.baseVehicleTotal + this.insuranceTotal + this.extrasTotal;
+    }
+
+    get ivaAmount(): number {
+        return calcTaxes(this.subtotalAmount).iva;
+    }
+
+    /** Total a pagar, con IVA incluido. */
+    get grandTotal(): number {
+        return calcTaxes(this.subtotalAmount).total;
     }
 
     get depositAmount(): number {
@@ -138,7 +160,7 @@ class BookingStore {
     }
 
     get blockingAmount(): number {
-        return Math.round(this.grandTotal * 0.25);
+        return Math.round(this.subtotalAmount * 0.25);
     }
 
     openBooking(vehicle: Vehicle) {
@@ -148,6 +170,7 @@ class BookingStore {
         this.persistedReservation = null;
         this.errorMessage = '';
         this.paymentRedirectUrl = null;
+        this.pendingTransaction = null;
         this.isAvailableForSelectedDates = true;
         this.availabilityMessage = '';
         if (!this.reservationId) {
@@ -241,6 +264,8 @@ class BookingStore {
                 id: data.reservation.id,
                 code: data.reservation.code,
                 status: data.reservation.status,
+                subtotalAmount: data.reservation.subtotalAmount,
+                taxAmount: data.reservation.taxAmount,
                 totalAmount: data.reservation.totalAmount,
                 blockingAmount: data.reservation.blockingAmount,
                 synced: data.reservation.synced,
@@ -261,6 +286,7 @@ class BookingStore {
         if (!this.persistedReservation) return false;
         this.submitting = true;
         this.errorMessage = '';
+        this.pendingTransaction = null;
         try {
             const res = await fetch('/api/payments/create-session', {
                 method: 'POST',
@@ -275,6 +301,14 @@ class BookingStore {
                 // Redirige al checkout seguro de la pasarela
                 window.location.href = data.processUrl;
                 return true;
+            }
+            if (data?.code === 'PENDING_TRANSACTION' && data.pending) {
+                this.pendingTransaction = {
+                    reference: data.pending.reference,
+                    requestId: data.pending.requestId,
+                    amount: Number(data.pending.amount) || 0,
+                    date: data.pending.date
+                };
             }
             this.errorMessage = data?.error || 'No se pudo iniciar el pago';
             return false;

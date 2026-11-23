@@ -15,6 +15,21 @@ export function formatCurrency(amount: number, currency: 'COP' | 'USD' = 'COP', 
   }).format(amount);
 }
 
+/**
+ * Formatea un instante ISO (fecha y hora) para mostrarlo al usuario,
+ * en hora de Colombia y sin el formato ISO que devuelve la pasarela.
+ */
+export function formatDateTimePretty(dateString: string): string {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return dateString;
+  return new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'America/Bogota'
+  }).format(d);
+}
+
 export function formatDatePretty(dateString: string): string {
   if (!dateString) return '';
   const parts = dateString.split('-');

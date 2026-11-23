@@ -1,7 +1,12 @@
 <script lang="ts">
     import { resolve } from "$app/paths";
     import { booking } from "#lib/stores/bookingStore.svelte.js";
-    import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
+    import {
+        formatCurrency,
+        formatDatePretty,
+        formatDateTimePretty,
+    } from "#lib/utils/formatters.js";
+    import { CONTACT_PHONES, telLink, whatsappLink } from "#lib/data/contact.js";
     import { compressImageFile } from "#lib/utils/imageCompression.js";
     import {
         PLACETOPAY_DOCUMENT_TYPES,
@@ -152,7 +157,9 @@
         if (booking.modalStep === 4) {
             // Paso de pago: redirige al checkout seguro de la pasarela
             const ok = await booking.redirectToPayment();
-            if (!ok) {
+            if (!ok && !booking.pendingTransaction) {
+                // Si hay una transacción pendiente, se muestra el panel informativo
+                // dedicado (con referencia y contacto) en lugar del error genérico.
                 formError =
                     booking.errorMessage || "No se pudo iniciar el pago.";
             }
@@ -328,6 +335,65 @@
                         <i class="fa-solid fa-circle-exclamation text-red-400"
                         ></i>
                         <span>{formError}</span>
+                    </div>
+                {/if}
+
+                {#if booking.pendingTransaction}
+                    <!-- Control de doble pago (Guía Suscripción §6.3.3) -->
+                    <div
+                        class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-3 animate-fade-in"
+                    >
+                        <div class="flex items-start gap-2.5">
+                            <i class="fa-solid fa-clock text-amber-400 text-base mt-0.5"></i>
+                            <div>
+                                <h4 class="font-bold text-amber-300 text-sm">
+                                    Tienes una transacción pendiente
+                                </h4>
+                                <p class="text-slate-300 mt-1 leading-relaxed">
+                                    Registramos un pago en proceso para la referencia
+                                    <span class="font-mono font-bold text-white"
+                                        >{booking.pendingTransaction.reference}</span
+                                    >, por
+                                    <span class="font-semibold text-white"
+                                        >{formatCurrency(
+                                            booking.pendingTransaction.amount,
+                                            "COP",
+                                        )}</span
+                                    >, iniciado el
+                                    <span class="font-semibold text-white"
+                                        >{formatDateTimePretty(
+                                            booking.pendingTransaction.date,
+                                        )}</span
+                                    >. Para evitar un doble cobro no generamos una nueva
+                                    sesión de pago. Si ya pagaste, espera unos minutos a que
+                                    la pasarela confirme la transacción; si tienes dudas,
+                                    contáctanos con esta referencia.
+                                </p>
+                            </div>
+                        </div>
+                        <div
+                            class="pt-2 border-t border-amber-500/20 flex flex-wrap items-center gap-2"
+                        >
+                            <a
+                                href={telLink(CONTACT_PHONES[0])}
+                                rel="external"
+                                class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition flex items-center gap-1.5"
+                            >
+                                <i class="fa-solid fa-phone text-xs text-orange-400"></i>
+                                <span>{CONTACT_PHONES[0]}</span>
+                            </a>
+                            <a
+                                href={whatsappLink(
+                                    `Hola%20Dinamo%20Rent%20a%20Car%2C%20tengo%20una%20transacci%C3%B3n%20pendiente%20con%20la%20referencia%20${booking.pendingTransaction.reference}`,
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer external"
+                                class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition flex items-center gap-1.5"
+                            >
+                                <i class="fa-brands fa-whatsapp text-sm"></i>
+                                <span>Escribir por WhatsApp</span>
+                            </a>
+                        </div>
                     </div>
                 {/if}
 
@@ -914,10 +980,30 @@
                                         : "Básica Legal"}</span
                                 >
                             </div>
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Subtotal (sin IVA):</span>
+                                <span class="font-semibold text-white">
+                                    {formatCurrency(
+                                        booking.subtotalAmount,
+                                        booking.currency,
+                                        booking.usdRate,
+                                    )}
+                                </span>
+                            </div>
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>IVA 19%:</span>
+                                <span class="font-semibold text-white">
+                                    {formatCurrency(
+                                        booking.ivaAmount,
+                                        booking.currency,
+                                        booking.usdRate,
+                                    )}
+                                </span>
+                            </div>
                             <div
                                 class="flex justify-between pt-2 border-t border-slate-800 text-sm font-black"
                             >
-                                <span class="text-white">Total Alquiler:</span>
+                                <span class="text-white">Total Alquiler (IVA incl.):</span>
                                 <span class="text-orange-400">
                                     {formatCurrency(
                                         booking.grandTotal,
@@ -989,11 +1075,34 @@
                                     >{booking.reservationId}</span
                                 >
                             </div>
+                            <div class="flex items-center justify-between text-xs text-slate-400">
+                                <span>Subtotal (sin IVA)</span>
+                                <span class="font-semibold text-slate-200">
+                                    {formatCurrency(
+                                        booking.persistedReservation
+                                            ?.subtotalAmount ??
+                                            booking.subtotalAmount,
+                                        booking.currency,
+                                        booking.usdRate,
+                                    )}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs text-slate-400">
+                                <span>IVA 19%</span>
+                                <span class="font-semibold text-slate-200">
+                                    {formatCurrency(
+                                        booking.persistedReservation
+                                            ?.taxAmount ?? booking.ivaAmount,
+                                        booking.currency,
+                                        booking.usdRate,
+                                    )}
+                                </span>
+                            </div>
                             <div
                                 class="flex items-center justify-between pt-3 border-t border-slate-800"
                             >
                                 <span class="text-sm text-slate-300"
-                                    >Total a Pagar</span
+                                    >Total a Pagar (IVA incluido)</span
                                 >
                                 <span
                                     class="font-heading font-black text-3xl text-orange-400"
@@ -1010,7 +1119,7 @@
                                 class="flex items-center justify-between text-[11px] text-slate-500"
                             >
                                 <span
-                                    >Incluye vehículo, seguro y adicionales</span
+                                    >Incluye vehículo, seguro, adicionales e IVA 19%</span
                                 >
                                 <span>{booking.rentalDays} día(s)</span>
                             </div>
@@ -1047,7 +1156,7 @@
                                 <span
                                     ><strong class="text-white"
                                         >Medios habilitados:</strong
-                                    > Tarjetas de Crédito y Débito (Visa, Mastercard, Amex) y transferencia en línea PSE.</span
+                                    > Tarjetas de Crédito y Débito (Visa, Mastercard, Amex).</span
                                 >
                             </div>
                             <div class="flex items-start gap-2">
@@ -1095,13 +1204,18 @@
 
                     <div class="text-right">
                         <span class="text-[10px] text-slate-400 block"
-                            >Total Estimado</span
+                            >{booking.modalStep === 4 && booking.persistedReservation
+                                ? "Total a Pagar (IVA incl.)"
+                                : "Total Estimado (IVA incl.)"}</span
                         >
                         <span
                             class="font-heading font-black text-lg text-orange-400"
                         >
                             {formatCurrency(
-                                booking.grandTotal,
+                                booking.modalStep === 4 &&
+                                booking.persistedReservation
+                                    ? booking.persistedReservation.totalAmount
+                                    : booking.grandTotal,
                                 booking.currency,
                                 booking.usdRate,
                             )}

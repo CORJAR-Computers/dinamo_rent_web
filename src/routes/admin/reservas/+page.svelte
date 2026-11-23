@@ -6,6 +6,9 @@
 		code: string;
 		status: string;
 		totalAmount: number;
+		baseAmount: number;
+		insuranceAmount: number;
+		extrasAmount: number;
 		blockingAmount: number;
 		days: number;
 		pickupDate: string;
@@ -276,6 +279,12 @@
 							<!-- Monto Pagado + Garantía Tokenizada -->
 							<td class="py-3.5 px-4">
 								<p class="font-black text-white tabular-nums text-sm">{formatCOP(r.totalAmount)}</p>
+								<p class="text-[10px] text-slate-400 tabular-nums mt-0.5">
+									Subtotal: {formatCOP(r.baseAmount + r.insuranceAmount + r.extrasAmount)}
+								</p>
+								<p class="text-[10px] text-slate-400 tabular-nums">
+									IVA 19%: {formatCOP(r.totalAmount - (r.baseAmount + r.insuranceAmount + r.extrasAmount))}
+								</p>
 								<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
 									<i class="fa-solid fa-circle-check text-[9px]"></i> Pagado Place to Pay
 								</span>

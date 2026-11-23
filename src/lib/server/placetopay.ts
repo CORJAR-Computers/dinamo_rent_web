@@ -11,7 +11,10 @@ export interface P2PAuth {
 export interface P2PSessionRequest {
   reference: string;
   description: string;
+  /** Total a cobrar, con IVA incluido. */
   amountCOP: number;
+  /** Base gravable (valor sin IVA). Si se envía, se declara el IVA 19% en `payment.amount.taxes`. */
+  taxBaseCOP?: number;
   customer: {
     names: string;
     lastnames: string;
@@ -68,6 +71,11 @@ export interface P2PCollectRequest {
   userAgent?: string;
 }
 
+export interface P2PInvalidateResult {
+  ok: boolean;
+  message: string;
+}
+
 export interface P2PCollectResult {
   ok: boolean;
   status: 'APPROVED' | 'REJECTED' | 'PENDING';
@@ -94,8 +102,25 @@ function getEnvConfig() {
     env === 'prod'
       ? 'https://checkout.placetopay.com/api/collect'
       : 'https://checkout-test.placetopay.com/api/collect';
+  const invalidateUrl =
+    env === 'prod'
+      ? 'https://checkout.placetopay.com/api/instrument/invalidate'
+      : 'https://checkout-test.placetopay.com/api/instrument/invalidate';
 
-  return { env, login, tranKey, baseUrl, collectUrl };
+  return { env, login, tranKey, baseUrl, collectUrl, invalidateUrl };
+}
+
+/**
+ * Simulador local de la pasarela.
+ *
+ * Se habilita únicamente en desarrollo o test y con el flag explícito
+ * `P2P_MOCK=true`. En producción jamás se activa, ni siquiera si el flag
+ * viaja por error: un fallo de Evertec no puede convertirse en un pago
+ * aprobado ficticio. Un `NODE_ENV` ausente se trata como producción.
+ */
+export function isMockEnabled(): boolean {
+  const env = process.env.NODE_ENV || 'production';
+  return (env === 'development' || env === 'test') && process.env.P2P_MOCK === 'true';
 }
 
 /**
@@ -147,12 +172,8 @@ export async function createPaymentSession(
 ): Promise<P2PSessionResult> {
   const { login, tranKey, baseUrl } = getEnvConfig();
 
-  // Si son credenciales sandbox locales no registradas aún en Evertec, usar simulador transparente
-  if (
-    login === 'dinamo_rent_sandbox' ||
-    !process.env.P2P_TRAN_KEY ||
-    process.env.P2P_TRAN_KEY === 'dinamo_secret_test_key'
-  ) {
+  // Simulador local: solo en desarrollo/test con P2P_MOCK=true (ver isMockEnabled).
+  if (isMockEnabled()) {
     const mockRequestId = `P2P-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const returnUrlWithParams = new URL(req.returnUrl);
     returnUrlWithParams.searchParams.set('requestId', mockRequestId);
@@ -185,6 +206,15 @@ export async function createPaymentSession(
   const cleanPhone = sanitizePhone(req.customer.phone) || '3000000000';
   const cleanDescription = sanitizeDescription(req.description) || 'Alquiler de vehiculo Dinamo Rent';
 
+  // IVA 19%: se declara solo si la base es válida y menor que el total. Así una reserva
+  // antigua (creada antes de sumar IVA, donde base = total) no envía un impuesto en cero.
+  const taxBase =
+    typeof req.taxBaseCOP === 'number' &&
+    req.taxBaseCOP > 0 &&
+    req.taxBaseCOP < req.amountCOP
+      ? req.taxBaseCOP
+      : undefined;
+
   // En Evertec PlacetoPay: cuando se procesa un pago con tokenización de tarjeta simultánea,
   // la directiva oficial es `payment.subscribe: true`. No se debe enviar el bloque raíz `subscription`
   // al mismo tiempo para evitar el conflicto "No se puede realizar un pago y una subscripción al mismo tiempo".
@@ -207,6 +237,18 @@ export async function createPaymentSession(
       amount: {
         currency: 'COP',
         total: req.amountCOP,
+        // Desglose de impuestos exigido por Evertec: IVA 19% sobre la base gravable.
+        ...(taxBase !== undefined
+          ? {
+              taxes: [
+                {
+                  kind: 'valueAddedTax',
+                  base: taxBase,
+                  amount: req.amountCOP - taxBase,
+                },
+              ],
+            }
+          : {}),
       },
       subscribe: shouldSubscribe,
     },
@@ -233,17 +275,12 @@ export async function createPaymentSession(
       };
     }
 
-    console.warn('[PlaceToPay] Respuesta no exitosa de pasarela:', data?.status?.message);
-    const mockRequestId = `P2P-FALLBACK-${Date.now()}`;
-    const returnUrlWithParams = new URL(req.returnUrl);
-    returnUrlWithParams.searchParams.set('requestId', mockRequestId);
-    returnUrlWithParams.searchParams.set('reference', req.reference);
-
+    console.error('[PlaceToPay] Respuesta no exitosa de pasarela:', data?.status?.message);
+    // Sin simulador de contingencia: un fallo de la pasarela se informa como fallo.
     return {
-      ok: true,
-      requestId: mockRequestId,
-      processUrl: returnUrlWithParams.toString(),
-      statusMessage: 'Sandbox de contingencia Dinamo Rent',
+      ok: false,
+      statusMessage: data?.status?.message,
+      error: data?.status?.message || 'La pasarela no pudo crear la sesión de pago',
     };
   } catch (err) {
     console.error('[PlaceToPay] Error conectando a pasarela:', err);
@@ -264,8 +301,16 @@ export async function queryPaymentSession(
 ): Promise<P2PStatusResult> {
   const { login, tranKey, baseUrl } = getEnvConfig();
 
-  // Si es una sesión simulada de sandbox
+  // Un requestId inventado por el simulador no existe en Evertec: fuera de desarrollo es un error.
   if (requestId.startsWith('P2P-')) {
+    if (!isMockEnabled()) {
+      return {
+        ok: false,
+        requestId,
+        status: 'PENDING',
+        message: 'Sesión de pago simulada no válida en este entorno',
+      };
+    }
     const mockToken = `tok_dnm_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
     return {
       ok: true,
@@ -374,13 +419,20 @@ export async function collectPaymentWithToken(
     };
   }
 
-  // Si es un token simulado en ambiente sandbox
-  if (
-    req.token.startsWith('tok_dnm_') ||
-    login === 'dinamo_rent_sandbox' ||
-    !process.env.P2P_TRAN_KEY ||
-    process.env.P2P_TRAN_KEY === 'dinamo_secret_test_key'
-  ) {
+  // Un token del simulador no existe en Evertec: fuera de desarrollo se rechaza sin llamar a la pasarela.
+  if (req.token.startsWith('tok_dnm_') && !isMockEnabled()) {
+    return {
+      ok: false,
+      status: 'REJECTED',
+      message: 'Token de tarjeta simulado no válido en este entorno',
+      reference: req.reference,
+      amountCOP: req.amountCOP,
+      error: 'Token simulado',
+    };
+  }
+
+  // Simulador local: solo en desarrollo/test con P2P_MOCK=true.
+  if (isMockEnabled()) {
     const mockAuth = `AUTH-COL-${Math.floor(100000 + Math.random() * 900000)}`;
     return {
       ok: true,
@@ -463,5 +515,98 @@ export async function collectPaymentWithToken(
       amountCOP: req.amountCOP,
       error: (err as Error).message,
     };
+  }
+}
+
+/**
+ * Motivos de rechazo que obligan a invalidar el token de inmediato
+ * (Guía de Certificación de Suscripción con WebCheckout, sección 8).
+ * Se comparan sobre el mensaje normalizado (sin tildes ni mayúsculas).
+ */
+const IMMEDIATE_INVALIDATION_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
+  { label: 'Tarjeta robada', pattern: /\brobad[ao]\b/ },
+  { label: 'Tarjeta perdida', pattern: /\bperdid[ao]\b/ },
+  { label: 'Tarjeta bloqueada o cancelada', pattern: /bloquead[ao]|cancelad[ao]/ },
+  { label: 'Tarjeta vencida', pattern: /vencid[ao]|expirad[ao]/ },
+  { label: 'Tarjeta inválida', pattern: /invalid[ao]/ },
+  { label: 'Tarjeta de uso restringido', pattern: /uso\s+restringido/ },
+  { label: 'Tipo de tarjeta inválida', pattern: /tipo\s+de\s+tarjeta/ },
+  { label: 'Orden de retención', pattern: /orden\s+de\s+retencion|con\s+orden\s+de\s+retencion/ },
+];
+
+/**
+ * Clasifica el mensaje de un rechazo de cobro con token.
+ * - `immediate: true` → tarjeta robada, perdida, bloqueada, vencida, inválida o de uso restringido.
+ * - `immediate: false` → rechazos transitorios (fondos insuficientes, límites, etc.),
+ *   sujetos a la regla de máximo 3 intentos antes de invalidar.
+ */
+export function classifyTokenRejection(message?: string): { immediate: boolean; reason?: string } {
+  if (!message) return { immediate: false };
+
+  const normalized = message
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  // Los rechazos por fondos, cupo o límites NO invalidan el token: solo cuentan intentos.
+  if (/fondos|insuficiente|cupo|limite|excede/.test(normalized)) {
+    return { immediate: false };
+  }
+
+  const hit = IMMEDIATE_INVALIDATION_PATTERNS.find(({ pattern }) => pattern.test(normalized));
+  return hit ? { immediate: true, reason: hit.label } : { immediate: false };
+}
+
+/**
+ * Invalida un token almacenado para que no pueda volver a usarse
+ * (POST /api/instrument/invalidate).
+ */
+export async function invalidateToken(
+  token: string,
+  reason?: string
+): Promise<P2PInvalidateResult> {
+  if (!token) return { ok: false, message: 'Token no proporcionado' };
+
+  const { login, tranKey, invalidateUrl } = getEnvConfig();
+
+  // Tokens simulados del sandbox local: no existen en Evertec.
+  if (token.startsWith('tok_dnm_') && !isMockEnabled()) {
+    return { ok: false, message: 'Token de tarjeta simulado no válido en este entorno' };
+  }
+
+  // Simulador local: solo en desarrollo/test con P2P_MOCK=true.
+  if (isMockEnabled()) {
+    return {
+      ok: true,
+      message: `Token invalidado en modo Sandbox Dinamo Rent${reason ? ` (${reason})` : ''}`,
+    };
+  }
+
+  const auth = generateAuth(login, tranKey);
+
+  try {
+    const res = await fetch(invalidateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        locale: 'es_CO',
+        auth,
+        instrument: { token: { token } },
+      }),
+    });
+
+    const data = await res.json();
+    const status = data?.status?.status;
+    const ok = status === 'APPROVED' || status === 'OK';
+
+    return {
+      ok,
+      message:
+        data?.status?.message ||
+        (ok ? 'Token invalidado correctamente' : 'La pasarela no confirmó la invalidación del token'),
+    };
+  } catch (err) {
+    console.error('[PlaceToPay Invalidate] Error invalidando token:', err);
+    return { ok: false, message: (err as Error).message || 'Error de comunicación con pasarela' };
   }
 }

@@ -1,7 +1,14 @@
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db.js';
-import { createPaymentSession } from '#lib/server/placetopay.js';
+import { createPaymentSession, queryPaymentSession } from '#lib/server/placetopay.js';
 import { checkRateLimit } from '#lib/server/rateLimit.js';
+import { CONTACT_PHONES, WHATSAPP_NUMBER } from '#lib/data/contact.js';
+
+/**
+ * Ventana durante la cual una transacción PENDIENTE bloquea un nuevo intento de pago.
+ * Coincide con la expiración de la sesión en la pasarela (25 min) más un margen de red.
+ */
+const PENDING_WINDOW_MS = 26 * 60 * 1000;
 
 export const POST: RequestHandler = async ({ request, url, getClientAddress }) => {
   try {
@@ -42,7 +49,7 @@ export const POST: RequestHandler = async ({ request, url, getClientAddress }) =
 
     const reservation = await db.reservation.findUnique({
       where: { id: reservationId },
-      include: { vehicle: true },
+      include: { vehicle: true, payment: true },
     });
 
     if (!reservation) {
@@ -53,15 +60,97 @@ export const POST: RequestHandler = async ({ request, url, getClientAddress }) =
       return Response.json({ ok: false, error: 'La reserva ya fue pagada con anterioridad' }, { status: 400 });
     }
 
+    // Control de doble pago (Guía de Suscripción §6.3.3): si ya existe una operación
+    // en estado PENDIENTE, se bloquea un nuevo intento y se informa la referencia,
+    // la fecha y los datos de contacto del establecimiento.
+    const pendingPayment = reservation.payment;
+    if (
+      pendingPayment &&
+      pendingPayment.status === 'PENDIENTE' &&
+      pendingPayment.p2pRequestId &&
+      Date.now() - new Date(pendingPayment.updatedAt).getTime() < PENDING_WINDOW_MS
+    ) {
+      // Antes de bloquear, se confirma el estado real con QuerySession: si la pasarela
+      // ya lo resolvió, se actualiza localmente y no se le impide pagar al cliente.
+      const live = await queryPaymentSession(pendingPayment.p2pRequestId);
+
+      if (live.status === 'APPROVED') {
+        await db.$transaction(async (txn) => {
+          await txn.payment.update({
+            where: { id: pendingPayment.id },
+            data: {
+              status: 'APROBADO',
+              p2pSessionStatus: 'APPROVED',
+              p2pStatusMessage: live.message,
+              transactionId: live.authorization || pendingPayment.transactionId,
+            },
+          });
+          await txn.reservation.update({
+            where: { id: reservation.id },
+            data: { status: 'PAGADA' },
+          });
+        });
+
+        return Response.json(
+          {
+            ok: false,
+            code: 'ALREADY_PAID',
+            error: 'La transacción asociada a esta reserva ya fue aprobada por la pasarela. No se genera un nuevo cobro.',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (live.status === 'REJECTED') {
+        await db.payment.update({
+          where: { id: pendingPayment.id },
+          data: {
+            status: 'RECHAZADO',
+            p2pSessionStatus: 'REJECTED',
+            p2pStatusMessage: live.message,
+          },
+        });
+      } else {
+        return Response.json(
+          {
+            ok: false,
+            code: 'PENDING_TRANSACTION',
+            error: `Ya tienes una transacción PENDIENTE para la reserva ${reservation.code}. No se generó un nuevo cobro para evitar un doble pago.`,
+            pending: {
+              reference: reservation.code,
+              requestId: pendingPayment.p2pRequestId,
+              amount: pendingPayment.amount,
+              date: pendingPayment.updatedAt,
+            },
+            contact: {
+              phones: CONTACT_PHONES,
+              whatsapp: `https://wa.me/${WHATSAPP_NUMBER}`,
+            },
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // Configurar URL de retorno (incluyendo la referencia para que /pago/retorno pueda buscarla de inmediato)
     const origin = url.origin || 'http://localhost:5174';
     const returnUrl = `${origin}/pago/retorno?reference=${encodeURIComponent(reservation.code)}`;
 
     // Solicitar sesión a Place to Pay
+    // Guía de Suscripción §10.2: se envía la IP y el agente de navegación reales del comprador.
+    const userAgent =
+      request.headers.get('user-agent') || 'Mozilla/5.0 DinamoRent/1.0 WebCheckout';
+
+    // Base gravable sin IVA: vehículo + seguro + adicionales. `totalAmount` ya incluye el IVA,
+    // así que la pasarela recibe base + impuesto = total.
+    const taxBaseCOP =
+      reservation.baseAmount + reservation.insuranceAmount + reservation.extrasAmount;
+
     const session = await createPaymentSession({
       reference: reservation.code,
       description: `Alquiler Dinamo Rent — ${reservation.vehicle.name} (${reservation.days} días)`,
       amountCOP: reservation.totalAmount,
+      taxBaseCOP,
       customer: {
         names: reservation.customerName,
         lastnames: reservation.customerLastname,
@@ -71,6 +160,8 @@ export const POST: RequestHandler = async ({ request, url, getClientAddress }) =
         docNumber: reservation.customerIdNumber,
       },
       returnUrl,
+      ipAddress: clientIp,
+      userAgent,
     });
 
     if (!session.ok || !session.processUrl) {

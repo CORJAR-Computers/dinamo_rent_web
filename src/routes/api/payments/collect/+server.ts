@@ -1,7 +1,11 @@
 import { type RequestEvent } from '@sveltejs/kit';
 import { db } from '#lib/server/db.js';
 import { isUserAdmin } from '#lib/server/adminAuth.js';
-import { collectPaymentWithToken } from '#lib/server/placetopay.js';
+import {
+  collectPaymentWithToken,
+  classifyTokenRejection,
+  invalidateToken,
+} from '#lib/server/placetopay.js';
 
 export const POST = async ({ request, cookies, getClientAddress }: RequestEvent) => {
   // 1. Verificación estricta de permisos de administrador (Seguridad RBAC)
@@ -69,8 +73,12 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     try {
       clientIp = getClientAddress();
     } catch {
-      // Ignorar si no está disponible en entorno local
+      clientIp =
+        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
     }
+    // Guía de Suscripción §10.2: IP y agente de navegación reales del usuario que origina el cobro.
+    const userAgent =
+      request.headers.get('user-agent') || 'DinamoRentAdmin/1.0 Server-Collect';
 
     // 4. Ejecutar cobro Server-to-Server directo vía Place to Pay
     const result = await collectPaymentWithToken({
@@ -87,7 +95,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
         docNumber: reservation.customerIdNumber,
       },
       ipAddress: clientIp,
-      userAgent: 'DinamoRentAdmin/1.0 Server-Collect',
+      userAgent,
     });
 
     const isApproved = result.ok && result.status === 'APPROVED';
@@ -126,12 +134,85 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
       },
     });
 
+    // 7. Control de rechazos e invalidación del token (Guía de Suscripción §8)
+    // - Rechazos definitivos (robada, perdida, bloqueada, vencida, inválida, uso restringido) → invalidación inmediata.
+    // - Cualquier otro rechazo (ej. fondos insuficientes) → máximo 3 intentos consecutivos antes de invalidar.
+    let attempts = 1;
+    let tokenInvalidation: { applied: boolean; reason: string; message: string } | null = null;
+
+    if (!isApproved && result.status === 'REJECTED') {
+      const recentCharges = await db.depositCharge.findMany({
+        where: { reservationId: reservation.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { status: true },
+      });
+
+      attempts = 0;
+      for (const charge of recentCharges) {
+        if (charge.status === 'RECHAZADO') attempts += 1;
+        else break;
+      }
+
+      const classification = classifyTokenRejection(result.message);
+      const mustInvalidate = classification.immediate || attempts >= 3;
+
+      if (mustInvalidate) {
+        const reason =
+          classification.reason ??
+          `${attempts} intentos de cobro rechazados consecutivamente`;
+        const invalidated = await invalidateToken(payment.token, reason);
+
+        if (invalidated.ok) {
+          await db.payment.update({
+            where: { id: payment.id },
+            data: {
+              tokenStatus: 'CANCELADO',
+              p2pStatusMessage: `Token invalidado: ${reason}`,
+            },
+          });
+        }
+
+        await db.syncLog.create({
+          data: {
+            entity: 'PAYMENT',
+            entityId: payment.id,
+            action: 'UPDATE',
+            status: 'PENDING',
+            message: `[Token] ${invalidated.ok ? 'Token invalidado' : 'Falló la invalidación del token'} para reserva ${reservation.code}: ${reason}`,
+            payload: {
+              reservationCode: reservation.code,
+              reason,
+              attempts,
+              immediate: classification.immediate,
+              invalidated: invalidated.ok,
+              gatewayMessage: result.message,
+            },
+          },
+        });
+
+        tokenInvalidation = {
+          applied: invalidated.ok,
+          reason,
+          message: invalidated.message,
+        };
+      }
+    }
+
     if (!isApproved) {
+      const invalidationSuffix = tokenInvalidation?.applied
+        ? ` La tarjeta fue desvinculada (${tokenInvalidation.reason}); se requiere registrar una nueva tarjeta para cobrar la garantía.`
+        : tokenInvalidation
+          ? ` No fue posible invalidar el token en la pasarela: ${tokenInvalidation.message}`
+          : '';
+
       return Response.json(
         {
           ok: false,
-          error: result.message || 'La pasarela no aprobó el cobro con la tarjeta registrada.',
+          error: `${result.message || 'La pasarela no aprobó el cobro con la tarjeta registrada.'}${invalidationSuffix}`,
           status: result.status,
+          attempts,
+          tokenInvalidation,
         },
         { status: 402 }
       );
@@ -147,6 +228,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
         authorization: chargeRecord.transactionId,
         createdAt: chargeRecord.createdAt,
       },
+      attempts: 0,
     });
   } catch (err) {
     console.error('[payment/collect error]:', err);

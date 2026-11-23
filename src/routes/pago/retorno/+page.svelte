@@ -1,7 +1,11 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { page } from "$app/state";
-    import { formatCurrency, formatDatePretty } from "#lib/utils/formatters.js";
+    import {
+        formatCurrency,
+        formatDatePretty,
+        formatDateTimePretty,
+    } from "#lib/utils/formatters.js";
     import { whatsappLink } from "#lib/data/contact.js";
     import { FLEET_SECTION } from "#lib/data/sections.js";
     import { resolve } from "$app/paths";
@@ -25,6 +29,8 @@
         customerPhone: string;
         synced: boolean;
         desktopRef: string | null;
+        createdAt?: string;
+        updatedAt?: string;
         vehicle: {
             name: string;
             plate: string | null;
@@ -43,6 +49,8 @@
             token?: string | null;
             tokenStatus?: string | null;
             tokenFranchise?: string | null;
+            createdAt?: string;
+            updatedAt?: string;
         } | null;
     }
 
@@ -55,6 +63,15 @@
     // Lee los parámetros que envía la pasarela al regresar o el panel administrativo
     let reference = $derived(page.url.searchParams.get("reference") || "");
     let requestId = $derived(page.url.searchParams.get("requestId") || "");
+
+    // Fecha y hora reales de la transacción: instante en que la pasarela resolvió el pago
+    // (webhook / sonda) y no el momento en que el usuario abre esta pantalla.
+    let transactionDate = $derived(
+        reservation?.payment?.updatedAt ||
+            reservation?.updatedAt ||
+            reservation?.createdAt ||
+            "",
+    );
 
     async function loadReservation() {
         loading = true;
@@ -214,7 +231,7 @@
                         >
                     </p>
                     <p class="text-xs text-slate-400">
-                        Fecha y Hora: <span class="text-white font-medium">{formatDatePretty(new Date().toISOString())}</span> • Moneda: <span class="text-white font-semibold">COP (Pesos Colombianos)</span>
+                        Fecha y hora de la transacción: <span class="text-white font-medium">{formatDateTimePretty(transactionDate)}</span> • Moneda: <span class="text-white font-semibold">COP (Pesos Colombianos)</span>
                     </p>
                     {#if reservation.payment?.transactionId}
                         <p class="text-xs text-slate-400">
@@ -277,10 +294,33 @@
                             >
                         </div>
                     {/if}
+                    <div class="flex justify-between text-[11px] text-slate-400">
+                        <span>Subtotal (sin IVA)</span>
+                        <span class="font-semibold text-slate-200"
+                            >{formatCurrency(
+                                reservation.baseAmount +
+                                    reservation.insuranceAmount +
+                                    reservation.extrasAmount,
+                                "COP",
+                            )}</span
+                        >
+                    </div>
+                    <div class="flex justify-between text-[11px] text-slate-400">
+                        <span>IVA 19%</span>
+                        <span class="font-semibold text-slate-200"
+                            >{formatCurrency(
+                                reservation.totalAmount -
+                                    (reservation.baseAmount +
+                                        reservation.insuranceAmount +
+                                        reservation.extrasAmount),
+                                "COP",
+                            )}</span
+                        >
+                    </div>
                     <div
                         class="pt-2 border-t border-slate-800 flex justify-between text-sm font-black"
                     >
-                        <span class="text-white">Total Pagado:</span>
+                        <span class="text-white">Total Pagado (IVA incluido):</span>
                         <span class="text-emerald-400 text-base"
                             >{formatCurrency(
                                 reservation.totalAmount,
@@ -317,6 +357,10 @@
                             </div>
                             <p class="text-[11px] text-slate-400 leading-relaxed">
                                 Tu tarjeta ha sido registrada de forma segura mediante Evertec Place to Pay como respaldo del depósito y deducibles del vehículo según lo estipulado en el contrato. No se ha descontado ni congelado cupo anticipadamente.
+                            </p>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                <i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>
+                                La tarjeta <strong class="text-slate-200">queda almacenada</strong> como token de pago (franquicia y últimos 4 dígitos) para los cobros justificados del contrato. No guardamos el número completo, el código de seguridad ni la fecha de vencimiento.
                             </p>
                         {/if}
                     </div>

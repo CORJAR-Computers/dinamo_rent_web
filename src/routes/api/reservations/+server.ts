@@ -15,6 +15,7 @@ import { isUserAdmin } from '#lib/server/adminAuth.js';
 import { PICKUP_LOCATIONS, normalizePickupLocation } from '#lib/data/fleet.js';
 import { validateDocumentNumber, normalizeDocType } from '#lib/utils/documentValidation.js';
 import { checkRateLimit } from '#lib/server/rateLimit.js';
+import { calcTaxes } from '#lib/utils/taxes.js';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   try {
@@ -224,7 +225,10 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
     const insCfg = INSURANCE_CONFIG[plan];
     const insuranceAmount = insCfg.perDay * days;
     const extrasAmount = calcExtrasAmount(extras as ExtrasSelection, days);
-    const totalAmount = baseAmount + insuranceAmount + extrasAmount;
+    // Las tarifas publicadas no incluyen IVA: se calcula el 19% y se suma al total.
+    const subtotalAmount = baseAmount + insuranceAmount + extrasAmount;
+    const taxes = calcTaxes(subtotalAmount);
+    const totalAmount = taxes.total;
     const blockingAmount = calcBlockingAmount(baseAmount, extrasAmount, insuranceAmount);
 
     let code = genReservationCode();
@@ -317,6 +321,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
         id: result.id,
         code: result.code,
         status: result.status,
+        subtotalAmount,
+        taxAmount: taxes.iva,
         totalAmount: result.totalAmount,
         blockingAmount: result.blockingAmount,
         days: result.days,
