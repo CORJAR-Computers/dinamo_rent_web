@@ -11,9 +11,4 @@ dist
 .DS_Store
 Thumbs.db
 
-# Guías de Evertec con datos del proceso y credenciales de sandbox (USO CONFIDENCIAL)
-docs/GUIA DE CERTIFICACIÓN DE SUSCRIPCIÓN CON WC - ES.md
-docs/Guia de certificación WC - ES.md
-docs/Proceso de implementación Evertec Placetopay – DINAMO RENTA CAR S.A.S (WC).md
-
 .env*
