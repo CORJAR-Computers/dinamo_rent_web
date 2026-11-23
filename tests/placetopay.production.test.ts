@@ -36,9 +36,8 @@ vi.mock('#lib/server/db.js', () => ({
 	}
 }));
 
-const { createPaymentSession, queryPaymentSession, isMockEnabled } = await import(
-	'../src/lib/server/placetopay.js'
-);
+const { createPaymentSession, queryPaymentSession, collectPaymentWithToken, isMockEnabled } =
+	await import('../src/lib/server/placetopay.js');
 const { POST } = await import('../src/routes/api/payments/create-session/+server.js');
 
 function pendingReservation() {
@@ -170,6 +169,43 @@ describe('PlaceToPay en producción: nunca simula', () => {
 		vi.stubEnv('NODE_ENV', '');
 		vi.stubEnv('P2P_MOCK', 'true');
 		expect(isMockEnabled()).toBe(false);
+	});
+
+	it('falla cerrado con P2P_ENV=prod sin credenciales y no llama a la pasarela', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('P2P_ENV', 'prod');
+		vi.stubEnv('P2P_LOGIN', '');
+		vi.stubEnv('P2P_TRAN_KEY', '');
+		const fetchSpy = vi.fn();
+		vi.stubGlobal('fetch', fetchSpy);
+
+		const session = await createPaymentSession(sessionRequest());
+		expect(session.ok).toBe(false);
+		expect(session.processUrl).toBeUndefined();
+		expect(session.error).toMatch(/P2P_LOGIN y P2P_TRAN_KEY/);
+
+		const status = await queryPaymentSession('123456');
+		expect(status.ok).toBe(false);
+		expect(status.message).toMatch(/P2P_LOGIN y P2P_TRAN_KEY/);
+
+		const collected = await collectPaymentWithToken({
+			token: 'tok_real_123',
+			reference: 'DIN-2026-9001',
+			description: 'Cobro de garantía',
+			amountCOP: 50000,
+			customer: {
+				names: 'Juan',
+				lastnames: 'Pérez',
+				email: 'juan@example.com',
+				phone: '3001234567',
+				docType: 'CC',
+				docNumber: '1047412345'
+			}
+		});
+		expect(collected.status).toBe('REJECTED');
+		expect(collected.message).toMatch(/P2P_LOGIN y P2P_TRAN_KEY/);
+
+		expect(fetchSpy).not.toHaveBeenCalled();
 	});
 });
 

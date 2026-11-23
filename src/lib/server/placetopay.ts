@@ -90,24 +90,50 @@ export interface P2PCollectResult {
   error?: string;
 }
 
-function getEnvConfig() {
-  const env = process.env.P2P_ENV || 'test';
-  const login = process.env.P2P_LOGIN || 'dinamo_rent_sandbox';
-  const tranKey = process.env.P2P_TRAN_KEY || 'dinamo_secret_test_key';
-  const baseUrl =
-    env === 'prod'
-      ? 'https://checkout.placetopay.com/api/session'
-      : 'https://checkout-test.placetopay.com/api/session';
-  const collectUrl =
-    env === 'prod'
-      ? 'https://checkout.placetopay.com/api/collect'
-      : 'https://checkout-test.placetopay.com/api/collect';
-  const invalidateUrl =
-    env === 'prod'
-      ? 'https://checkout.placetopay.com/api/instrument/invalidate'
-      : 'https://checkout-test.placetopay.com/api/instrument/invalidate';
+interface P2PEnvConfig {
+  login: string;
+  tranKey: string;
+  baseUrl: string;
+  collectUrl: string;
+  invalidateUrl: string;
+}
 
-  return { env, login, tranKey, baseUrl, collectUrl, invalidateUrl };
+/**
+ * Configuración de la pasarela.
+ *
+ * En producción (`P2P_ENV=prod`) no hay credenciales por defecto: si falta
+ * `P2P_LOGIN` o `P2P_TRAN_KEY` se devuelve `{ error }` para que cada llamador
+ * falle cerrado, en lugar de enviar peticiones con credenciales de sandbox.
+ */
+function getEnvConfig(): P2PEnvConfig | { error: string } {
+  const isProd = (process.env.P2P_ENV || 'test') === 'prod';
+
+  let login = process.env.P2P_LOGIN;
+  let tranKey = process.env.P2P_TRAN_KEY;
+
+  if (isProd) {
+    if (!login || !tranKey) {
+      return {
+        error:
+          'Configuración de pasarela incompleta: P2P_LOGIN y P2P_TRAN_KEY son obligatorias cuando P2P_ENV=prod',
+      };
+    }
+  } else {
+    login = login || 'dinamo_rent_sandbox';
+    tranKey = tranKey || 'dinamo_secret_test_key';
+  }
+
+  const host = isProd
+    ? 'https://checkout.placetopay.com'
+    : 'https://checkout-test.placetopay.com';
+
+  return {
+    login,
+    tranKey,
+    baseUrl: `${host}/api/session`,
+    collectUrl: `${host}/api/collect`,
+    invalidateUrl: `${host}/api/instrument/invalidate`,
+  };
 }
 
 /**
@@ -163,15 +189,13 @@ function extractInstrumentValue(
 }
 
 /**
- * Crea una sesión de pago y/o suscripción en Place to Pay (Evertec).
- * Por defecto incluye la estructura `subscription` para tokenizar la tarjeta
- * y usarla como garantía del depósito del vehículo sin cobro inicial.
+ * Crea una sesión de pago con tokenización en Place to Pay (Evertec).
+ * La suscripción se pide con `payment.subscribe: true` (no con el bloque raíz
+ * `subscription`, que la pasarela rechaza cuando hay cobro y suscripción a la vez).
  */
 export async function createPaymentSession(
   req: P2PSessionRequest
 ): Promise<P2PSessionResult> {
-  const { login, tranKey, baseUrl } = getEnvConfig();
-
   // Simulador local: solo en desarrollo/test con P2P_MOCK=true (ver isMockEnabled).
   if (isMockEnabled()) {
     const mockRequestId = `P2P-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -186,6 +210,12 @@ export async function createPaymentSession(
       statusMessage: 'Sesión generada en modo Sandbox Dinamo Rent (Pago + Suscripción Tokenizada)',
     };
   }
+
+  const config = getEnvConfig();
+  if ('error' in config) {
+    return { ok: false, error: config.error };
+  }
+  const { login, tranKey, baseUrl } = config;
 
   const auth = generateAuth(login, tranKey);
   // Según guía de certificación Webcheckout Evertec (pág. 3):
@@ -299,8 +329,6 @@ export async function createPaymentSession(
 export async function queryPaymentSession(
   requestId: string
 ): Promise<P2PStatusResult> {
-  const { login, tranKey, baseUrl } = getEnvConfig();
-
   // Un requestId inventado por el simulador no existe en Evertec: fuera de desarrollo es un error.
   if (requestId.startsWith('P2P-')) {
     if (!isMockEnabled()) {
@@ -326,6 +354,12 @@ export async function queryPaymentSession(
       tokenFranchise: 'VISA',
     };
   }
+
+  const config = getEnvConfig();
+  if ('error' in config) {
+    return { ok: false, requestId, status: 'PENDING', message: config.error };
+  }
+  const { login, tranKey, baseUrl } = config;
 
   const auth = generateAuth(login, tranKey);
   try {
@@ -405,8 +439,6 @@ export async function queryPaymentSession(
 export async function collectPaymentWithToken(
   req: P2PCollectRequest
 ): Promise<P2PCollectResult> {
-  const { login, tranKey, collectUrl } = getEnvConfig();
-
   // Validación de seguridad previa
   if (!req.token) {
     return {
@@ -447,6 +479,19 @@ export async function collectPaymentWithToken(
       requestId: `P2P-COL-${Date.now()}`,
     };
   }
+
+  const config = getEnvConfig();
+  if ('error' in config) {
+    return {
+      ok: false,
+      status: 'REJECTED',
+      message: config.error,
+      reference: req.reference,
+      amountCOP: req.amountCOP,
+      error: 'Configuración de pasarela incompleta',
+    };
+  }
+  const { login, tranKey, collectUrl } = config;
 
   const auth = generateAuth(login, tranKey);
 
@@ -567,8 +612,6 @@ export async function invalidateToken(
 ): Promise<P2PInvalidateResult> {
   if (!token) return { ok: false, message: 'Token no proporcionado' };
 
-  const { login, tranKey, invalidateUrl } = getEnvConfig();
-
   // Tokens simulados del sandbox local: no existen en Evertec.
   if (token.startsWith('tok_dnm_') && !isMockEnabled()) {
     return { ok: false, message: 'Token de tarjeta simulado no válido en este entorno' };
@@ -581,6 +624,12 @@ export async function invalidateToken(
       message: `Token invalidado en modo Sandbox Dinamo Rent${reason ? ` (${reason})` : ''}`,
     };
   }
+
+  const config = getEnvConfig();
+  if ('error' in config) {
+    return { ok: false, message: config.error };
+  }
+  const { login, tranKey, invalidateUrl } = config;
 
   const auth = generateAuth(login, tranKey);
 
