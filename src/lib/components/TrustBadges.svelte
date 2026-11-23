@@ -23,17 +23,17 @@
     <!-- 3 Pillars Grid -->
     <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
       
-      <!-- Card 1: Bloqueo de Garantía -->
+      <!-- Card 1: Garantía tokenizada -->
       <div class="rounded-3xl bg-slate-950 p-7 border border-slate-800/80 hover:border-cyan-500/40 transition-all space-y-4">
         <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-xl">
           <i class="fa-solid fa-credit-card"></i>
         </div>
-        <h3 class="font-heading font-black text-xl text-white">Bloqueo, No es un Cobro</h3>
+        <h3 class="font-heading font-black text-xl text-white">Tarjeta Vinculada, Sin Cobro</h3>
         <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-          Al entregarte el auto en el mostrador o aeropuerto, solo se realiza una <strong class="text-slate-200">pre-autorización (retención temporal de cupo)</strong> en tu tarjeta de crédito. El dinero no sale de tu cuenta.
+          Al pagar el alquiler vinculamos tu tarjeta mediante <strong class="text-slate-200">tokenización segura en Evertec PlacetoPay</strong> como respaldo del depósito y de los deducibles del contrato. No se congela cupo ni se debita suma alguna en ese momento.
         </p>
         <div class="pt-2 border-t border-slate-900 text-cyan-400 text-xs font-semibold flex items-center gap-1.5">
-          <i class="fa-solid fa-circle-check"></i> Liberación inmediata al recibir el auto
+          <i class="fa-solid fa-circle-check"></i> Sin retención de cupo ni cobro anticipado
         </div>
       </div>
 

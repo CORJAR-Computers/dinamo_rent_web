@@ -18,12 +18,12 @@
       a: 'Nuestro asesor te esperará en la sala de llegadas nacionales o internacionales con un cartel a tu nombre. Realizamos la inspección digital con fotos en tu presencia y te entregamos las llaves inmediatamente, sin filas ni traslados a oficinas externas.'
     },
     {
-      q: '¿Qué es el bloqueo de garantía y qué tarjetas aceptan?',
-      a: 'Para la entrega de cualquier vehículo se requiere una tarjeta de crédito física (Visa, MasterCard o American Express) a nombre del titular. Se realiza una pre-autorización temporal de cupo que oscila entre $900.000 y $3.500.000 COP según la categoría del auto. No es un cobro y se libera al devolver el auto en el mismo estado.'
+      q: '¿Cómo funciona la garantía del alquiler y qué tarjetas aceptan?',
+      a: 'Al pagar el alquiler vinculas tu tarjeta de crédito o débito de banco internacional (Visa, MasterCard o American Express) a nombre del titular, mediante tokenización segura en Evertec PlacetoPay, como respaldo del depósito y de los deducibles del contrato. No hacemos pre-autorización ni retención de cupo y no se debita suma alguna en ese momento; cualquier cobro justificado se sustenta en el contrato y se informa al titular.'
     },
     {
-      q: '¿Puedo pagar el valor del alquiler en efectivo, débito o transferencia bancaria?',
-      a: 'Sí. El costo de los días de alquiler puedes pagarlo en efectivo (COP o USD), tarjeta de débito, transferencia bancaria (Bancolombia, Nequi, Daviplata) o pasarela digital. La tarjeta de crédito se solicita únicamente para respaldar la garantía temporal.'
+      q: '¿Con qué medios puedo pagar el valor del alquiler?',
+      a: 'El valor del alquiler se paga en línea a través de la pasarela Evertec PlacetoPay con tarjeta de crédito o débito de bancos internacionales (Visa, Mastercard o American Express). No habilitamos PSE, Nequi ni transferencias bancarias para el pago del alquiler.'
     },
     {
       q: '¿Cómo se procesan los pagos en línea y qué seguridad ofrecen?',

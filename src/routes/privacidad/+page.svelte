@@ -6,13 +6,14 @@
     whatsappLink
   } from '#lib/data/contact.js';
 
-  const ultimaActualizacion = '5 de octubre de 2026';
+  const ultimaActualizacion = '23 de noviembre de 2026';
 
   const datos = [
     'Datos de identificación y contacto (nombre, documento, correo, teléfono).',
     'Datos de la reserva: fechas, lugares de recogida y devolución, y preferencias de vehículo.',
     'Datos de conducción: número y categoría de la licencia.',
     'Datos de pago y transacciones (la tarjeta completa no se almacena: el procesamiento lo hace la pasarela Placetopay).',
+    'Datos de la tarjeta vinculada como garantía: token emitido por PlacetoPay, franquicia y últimos 4 dígitos. El número completo, el código de seguridad y la fecha de vencimiento no se almacenan en nuestros servidores.',
     'Datos de uso del servicio: contrato, kilometraje, incidentes y comunicaciones de soporte.',
     'Datos técnicos de navegación en el sitio (dirección IP, tipo de navegador y páginas visitadas).'
   ];

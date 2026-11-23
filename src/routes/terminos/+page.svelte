@@ -6,7 +6,7 @@
     whatsappLink
   } from '#lib/data/contact.js';
 
-  const ultimaActualizacion = '5 de octubre de 2026';
+  const ultimaActualizacion = '23 de noviembre de 2026';
 
   const secciones = [
     {
@@ -29,8 +29,11 @@
       parrafos: [
         'Una reserva se considera confirmada cuando la Rentadora emite la confirmación por escrito (correo electrónico o WhatsApp) y se ha completado el pago del anticipo o la totalidad acordada, según el plan tarifario.',
         'Los precios se expresan en pesos colombianos (COP) e incluyen los impuestos aplicables. Las tarifas pueden variar por temporada, anticipación y disponibilidad; la tarifa válida es la vigente al momento de la confirmación de la reserva.',
-        'El pago en línea se procesa a través de la pasarela Placetopay. La Rentadora no almacena datos completos de tarjetas de crédito o débito.',
-        'Al recoger el vehículo se constituye una garantía (depósito) que se bloquea como hold en la tarjeta del titular. El monto y la duración del bloqueo se informan antes de confirmar la reserva.'
+        'El pago en línea se procesa a través de la pasarela Placetopay. La Rentadora no almacena el número completo de la tarjeta, el código de seguridad ni la fecha de vencimiento: esos datos se capturan exclusivamente en la pasarela, certificada bajo PCI-DSS.',
+        'La garantía del alquiler se constituye mediante la tokenización de la tarjeta del titular en Placetopay. Al pagar, el cliente autoriza la vinculación de su tarjeta como respaldo del depósito y de los deducibles del vehículo. Esto no es un bloqueo (hold) ni un cargo anticipado: no se congela cupo ni se debita suma alguna en el momento de la vinculación.',
+        'Como resultado de esa vinculación, Placetopay entrega a la Rentadora un token de pago (identificador seguro que no contiene los datos de la tarjeta) y la tarjeta queda almacenada bajo ese token para efectuar cobros posteriores. La Rentadora conserva únicamente el token, la franquicia y los últimos cuatro dígitos enmascarados, nunca el número completo ni el código de seguridad.',
+        'Los cobros posteriores sobre la tarjeta almacenada se limitan a hechos contractuales comprobados: deducibles o daños no cubiertos por la póliza con acta de entrega y devolución, faltante de combustible, días u horas adicionales de alquiler y comparendos o multas de tránsito (SIMIT) imputables al cliente. Cada cobro se informa al cliente con su concepto, valor y soporte, y queda registrado en el historial de la reserva.',
+        'La autorización de almacenamiento se mantiene mientras subsista la relación contractual y hasta la liquidación final de la reserva. El token se invalida cuando el cliente lo solicite, cuando la tarjeta expire, o cuando la pasarela rechace un cobro por tarjeta reportada como robada, perdida, bloqueada o inválida. En caso de rechazo por fondos insuficientes se realizan como máximo tres (3) intentos antes de invalidarlo.'
       ]
     },
     {
