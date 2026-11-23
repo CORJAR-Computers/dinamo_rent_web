@@ -14,7 +14,8 @@ vi.mock('#lib/server/placetopay.js', () => ({
 const dbState = vi.hoisted(() => ({
 	payment: null as Record<string, unknown> | null,
 	paymentUpdates: [] as Array<Record<string, unknown>>,
-	reservationUpdates: [] as Array<Record<string, unknown>>
+	reservationUpdates: [] as Array<Record<string, unknown>>,
+	syncLogs: [] as Array<Record<string, unknown>>
 }));
 
 vi.mock('#lib/server/db.js', () => ({
@@ -23,6 +24,12 @@ vi.mock('#lib/server/db.js', () => ({
 			findFirst: async () => dbState.payment,
 			update: async (args: Record<string, unknown>) => {
 				dbState.paymentUpdates.push(args);
+				return args;
+			}
+		},
+		syncLog: {
+			create: async (args: Record<string, unknown>) => {
+				dbState.syncLogs.push(args);
 				return args;
 			}
 		},
@@ -55,6 +62,11 @@ function sign(requestId: string, status: string, date: string, secret = SECRET):
 	return createHash('sha1').update(`${requestId}${status}${date}${secret}`).digest('hex');
 }
 
+/** Firma SHA-256 con el prefijo que exige Evertec tras la migración. */
+function signSha256(requestId: string, status: string, date: string, secret = SECRET): string {
+	return `sha256:${createHash('sha256').update(`${requestId}${status}${date}${secret}`).digest('hex')}`;
+}
+
 async function webhook(body: unknown): Promise<Response> {
 	return await POST({
 		request: new Request('http://localhost/api/webhooks/placetopay', {
@@ -78,7 +90,7 @@ function paymentFixture() {
 		tokenStatus: null,
 		tokenValidUntil: null,
 		tokenFranchise: null,
-		reservation: { code: 'DIN-2026-9001' }
+		reservation: { code: 'DIN-2026-9001', status: 'PENDIENTE' }
 	};
 }
 
@@ -92,6 +104,7 @@ beforeEach(() => {
 	dbState.payment = paymentFixture();
 	dbState.paymentUpdates.length = 0;
 	dbState.reservationUpdates.length = 0;
+	dbState.syncLogs.length = 0;
 });
 
 describe('webhook PlacetoPay: firma obligatoria', () => {
@@ -128,6 +141,125 @@ describe('webhook PlacetoPay: firma obligatoria', () => {
 
 		expect(response.status).toBe(500);
 		expect(dbState.paymentUpdates).toHaveLength(0);
+	});
+});
+
+describe('webhook PlacetoPay: firma SHA-256 con prefijo', () => {
+	it('acepta una firma SHA-256 válida y procesa la notificación', async () => {
+		queryState.result = {
+			ok: true,
+			status: 'APPROVED',
+			message: 'Aprobada',
+			authorization: 'AUTH-456'
+		};
+
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: signSha256(REQUEST_ID, 'APPROVED', STATUS_DATE)
+		});
+
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as { ok: boolean; status: string };
+		expect(body.ok).toBe(true);
+		expect(body.status).toBe('APROBADO');
+		expect(dbState.reservationUpdates).toHaveLength(1);
+	});
+
+	it('rechaza con 401 una firma SHA-256 calculada con otro secreto', async () => {
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: signSha256(REQUEST_ID, 'APPROVED', STATUS_DATE, 'secreto-de-pruebas')
+		});
+
+		expect(response.status).toBe(401);
+		expect(dbState.paymentUpdates).toHaveLength(0);
+		expect(dbState.reservationUpdates).toHaveLength(0);
+	});
+
+	it('rechaza con 401 una firma SHA-256 manipulada', async () => {
+		const valid = signSha256(REQUEST_ID, 'APPROVED', STATUS_DATE);
+		const last = valid.slice(-1);
+		const tampered = valid.slice(0, -1) + (last === '0' ? '1' : '0');
+
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: tampered
+		});
+
+		expect(response.status).toBe(401);
+		expect(dbState.paymentUpdates).toHaveLength(0);
+		expect(dbState.reservationUpdates).toHaveLength(0);
+	});
+
+	it('rechaza con 401 un SHA-1 al que se le puso el prefijo sha256:', async () => {
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: `sha256:${sign(REQUEST_ID, 'APPROVED', STATUS_DATE)}`
+		});
+
+		expect(response.status).toBe(401);
+		expect(dbState.paymentUpdates).toHaveLength(0);
+	});
+});
+
+describe('webhook PlacetoPay: idempotencia', () => {
+	it('una notificación APPROVED repetida no reescribe un pago ya APROBADO', async () => {
+		dbState.payment = {
+			...paymentFixture(),
+			status: 'APROBADO',
+			reservation: { code: 'DIN-2026-9001', status: 'PAGADA' }
+		};
+		queryState.result = {
+			ok: true,
+			status: 'APPROVED',
+			message: 'Aprobada',
+			authorization: 'AUTH-123'
+		};
+
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: sign(REQUEST_ID, 'APPROVED', STATUS_DATE)
+		});
+
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as { ok: boolean; duplicate?: boolean };
+		expect(body.ok).toBe(true);
+		expect(body.duplicate).toBe(true);
+		expect(dbState.paymentUpdates).toHaveLength(0);
+		expect(dbState.reservationUpdates).toHaveLength(0);
+		expect(dbState.syncLogs).toHaveLength(0);
+	});
+
+	it('un APPROVED no revive una reserva CANCELADA', async () => {
+		dbState.payment = {
+			...paymentFixture(),
+			reservation: { code: 'DIN-2026-9001', status: 'CANCELADA' }
+		};
+		queryState.result = {
+			ok: true,
+			status: 'APPROVED',
+			message: 'Aprobada',
+			authorization: 'AUTH-123'
+		};
+
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: sign(REQUEST_ID, 'APPROVED', STATUS_DATE)
+		});
+
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as { ok: boolean; ignored?: string };
+		expect(body.ok).toBe(true);
+		expect(body.ignored).toBe('RESERVA_CANCELADA');
+		expect(dbState.paymentUpdates).toHaveLength(0);
+		expect(dbState.reservationUpdates).toHaveLength(0);
+		expect(dbState.syncLogs).toHaveLength(1);
 	});
 });
 

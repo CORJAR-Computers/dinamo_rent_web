@@ -8,7 +8,9 @@ import { queryPaymentSession } from '#lib/server/placetopay.js';
  *
  * Reglas de seguridad (Guía WC §4):
  * - La petición debe traer firma válida calculada con `P2P_TRAN_KEY`; sin firma
- *   válida se rechaza con 401 y no se toca la base de datos.
+ *   válida se rechaza con 401 y no se toca la base de datos. Se aceptan los dos
+ *   formatos documentados por Evertec: SHA-1 (40 hex, sin prefijo) y SHA-256
+ *   (prefijo `sha256:`, 64 hex), para poder migrar sin ventana de 401.
  * - El estado NUNCA se toma del cuerpo de la notificación: solo vale lo que
  *   responde `QuerySession`. Un cuerpo con "APPROVED" sobre una sesión PENDING
  *   no marca la reserva como pagada.
@@ -16,8 +18,16 @@ import { queryPaymentSession } from '#lib/server/placetopay.js';
  *   reintente más tarde; la sonda de contingencia también lo recupera.
  */
 
+const PAYMENT_STATUS: Record<'APPROVED' | 'REJECTED' | 'PENDING', 'APROBADO' | 'RECHAZADO' | 'PENDIENTE'> = {
+  APPROVED: 'APROBADO',
+  REJECTED: 'RECHAZADO',
+  PENDING: 'PENDIENTE',
+};
+
 /**
- * Firma oficial de la notificación: SHA1(requestId + status + date + tranKey).
+ * Firma oficial de la notificación: HASH(requestId + status + date + tranKey).
+ * - SHA-1 (heredada): sin prefijo, 40 caracteres hex.
+ * - SHA-256 (recomendada): prefijo `sha256:`, 64 caracteres hex.
  * Se compara en tiempo constante para no filtrar información por tiempos.
  */
 function isValidSignature(params: {
@@ -30,11 +40,17 @@ function isValidSignature(params: {
   const { requestId, status, date, signature, secretKey } = params;
   if (!signature || !status || !date) return false;
 
+  const raw = signature.trim().toLowerCase();
+  const isSha256 = raw.startsWith('sha256:');
+  const provided = isSha256 ? raw.slice('sha256:'.length) : raw;
+
+  // Solo hex: Buffer.from(..., 'hex') descarta caracteres inválidos en silencio.
+  if (!/^[0-9a-f]+$/.test(provided)) return false;
+
   const expected = crypto
-    .createHash('sha1')
+    .createHash(isSha256 ? 'sha256' : 'sha1')
     .update(`${requestId}${status}${date}${secretKey}`)
     .digest('hex');
-  const provided = signature.trim().toLowerCase();
 
   if (provided.length !== expected.length) return false;
 
@@ -69,9 +85,11 @@ export const POST: RequestHandler = async ({ request }) => {
       return Response.json({ ok: false, error: 'requestId faltante' }, { status: 400 });
     }
 
+    const requestIdStr = String(requestId);
+
     if (
       !isValidSignature({
-        requestId: String(requestId),
+        requestId: requestIdStr,
         status: status?.status,
         date: status?.date,
         signature,
@@ -83,7 +101,7 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     // Única fuente de verdad del estado: la consulta a la pasarela.
-    const query = await queryPaymentSession(String(requestId));
+    const query = await queryPaymentSession(requestIdStr);
     if (!query.ok) {
       console.error(
         `[Evertec Webhook] No se pudo confirmar la sesión ${requestId} con la pasarela: ${query.message}`
@@ -94,19 +112,14 @@ export const POST: RequestHandler = async ({ request }) => {
       );
     }
 
-    const finalPaymentStatus: 'APROBADO' | 'RECHAZADO' | 'PENDIENTE' =
-      query.status === 'APPROVED'
-        ? 'APROBADO'
-        : query.status === 'REJECTED'
-          ? 'RECHAZADO'
-          : 'PENDIENTE';
+    const finalPaymentStatus = PAYMENT_STATUS[query.status];
 
     // Buscamos el pago por p2pRequestId o por la referencia notificada.
     const payment = await db.payment.findFirst({
       where: {
         OR: [
-          { p2pRequestId: String(requestId) },
-          { reservation: { code: query.reference || '' } },
+          { p2pRequestId: requestIdStr },
+          ...(query.reference ? [{ reservation: { code: query.reference } }] : []),
         ],
       },
       include: { reservation: true },
@@ -120,7 +133,42 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (finalPaymentStatus === 'PENDIENTE') {
       // La pasarela aún no resolvió: no se escribe nada. La sonda reintentará.
-      return Response.json({ ok: true, status: finalPaymentStatus, requestId });
+      return Response.json({ ok: true, status: finalPaymentStatus, requestId: requestIdStr });
+    }
+
+    // Idempotencia: la firma sigue siendo válida para siempre, así que una
+    // notificación repetida no debe reescribir un pago ya aplicado.
+    if (payment.status === 'APROBADO') {
+      return Response.json({
+        ok: true,
+        status: 'APROBADO',
+        requestId: requestIdStr,
+        duplicate: true,
+      });
+    }
+
+    // Un APPROVED tardío no puede revivir una reserva ya cancelada.
+    if (finalPaymentStatus === 'APROBADO' && payment.reservation.status === 'CANCELADA') {
+      await db.syncLog.create({
+        data: {
+          entity: 'PAYMENT',
+          entityId: payment.id,
+          action: 'UPDATE',
+          status: 'PENDING',
+          message: `[Webhook Evertec] Pago aprobado ignorado: la reserva ${payment.reservation.code} está cancelada`,
+          payload: {
+            requestId: query.requestId,
+            status: query.status,
+            ignored: 'RESERVA_CANCELADA',
+          },
+        },
+      });
+      return Response.json({
+        ok: true,
+        status: finalPaymentStatus,
+        requestId: requestIdStr,
+        ignored: 'RESERVA_CANCELADA',
+      });
     }
 
     await db.$transaction(async (txn) => {
@@ -170,7 +218,7 @@ export const POST: RequestHandler = async ({ request }) => {
     console.log(
       `[Evertec Webhook] Reserva ${payment.reservation.code} actualizada a ${finalPaymentStatus}`
     );
-    return Response.json({ ok: true, status: finalPaymentStatus, requestId });
+    return Response.json({ ok: true, status: finalPaymentStatus, requestId: requestIdStr });
   } catch (err) {
     console.error('[Evertec Webhook Error]:', err);
     return Response.json(
