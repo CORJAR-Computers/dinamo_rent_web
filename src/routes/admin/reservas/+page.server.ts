@@ -34,6 +34,7 @@ export const load: PageServerLoad = async () => {
 						cardBrand: true,
 						cardLast4: true,
 						p2pRequestId: true,
+						p2pStatusMessage: true,
 						createdAt: true,
 						token: true,
 						tokenStatus: true,
@@ -49,6 +50,8 @@ export const load: PageServerLoad = async () => {
 						description: true,
 						status: true,
 						transactionId: true,
+						p2pStatusMessage: true,
+						executedBy: true,
 						createdAt: true,
 					},
 					orderBy: { createdAt: 'desc' }

@@ -65,6 +65,50 @@
             PLACETOPAY_DOCUMENT_TYPES.CC,
     );
 
+    /**
+     * Validación del documento en el propio campo (certificación Evertec WC):
+     * - El carácter que no corresponde al tipo se descarta al instante, sin quedar
+     *   visible en el campo (CC, TI, NIT y RUT son solo dígitos).
+     * - Si el número no cumple el formato, se avisa ahí mismo antes de continuar,
+     *   en lugar de limpiarlo en silencio antes de redirigir a la pasarela.
+     */
+    let docNumberTouched = $state(false);
+
+    let docNumberError = $derived.by(() => {
+        if (!docNumberTouched) return null;
+        const check = validateDocumentNumber(
+            booking.driver.docType,
+            booking.driver.docNumber,
+        );
+        return check.valid ? null : (check.error ?? null);
+    });
+
+    function handleDocNumberInput(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const clean = sanitizeDocNumberInput(
+            booking.driver.docType,
+            input.value,
+        );
+        // Se reescribe el valor limpio en el DOM: si no, la letra queda a la vista
+        // cuando el estado no cambia (el usuario cree que el valor es válido).
+        if (input.value !== clean) {
+            const caret = input.selectionStart ?? clean.length;
+            input.value = clean;
+            input.setSelectionRange(caret, caret);
+        }
+        booking.driver.docNumber = clean;
+        formError = null;
+    }
+
+    function handleDocTypeChange() {
+        booking.driver.docNumber = sanitizeDocNumberInput(
+            booking.driver.docType,
+            booking.driver.docNumber,
+        );
+        docNumberTouched = false;
+        formError = null;
+    }
+
     async function handleDocPhotoUpload(e: Event) {
         const input = e.target as HTMLInputElement;
         const file = input.files?.[0];
@@ -106,6 +150,7 @@
         }
         const docCheck = validateDocumentNumber(d.docType, d.docNumber);
         if (!docCheck.valid) {
+            docNumberTouched = true;
             formError = docCheck.error || "Número de documento no válido para el tipo seleccionado.";
             return false;
         }
@@ -709,13 +754,7 @@
                                 <select
                                     id="d-doc-type"
                                     bind:value={booking.driver.docType}
-                                    onchange={() => {
-                                        booking.driver.docNumber =
-                                            sanitizeDocNumberInput(
-                                                booking.driver.docType,
-                                                booking.driver.docNumber,
-                                            );
-                                    }}
+                                    onchange={handleDocTypeChange}
                                     class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none"
                                 >
                                     {#each Object.values(PLACETOPAY_DOCUMENT_TYPES) as doc (doc.code)}
@@ -738,21 +777,36 @@
                                         : 'text'}
                                     inputmode={currentDocConfig.inputMode}
                                     maxlength={currentDocConfig.maxLength}
+                                    autocomplete="off"
+                                    spellcheck="false"
                                     value={booking.driver.docNumber}
-                                    oninput={(e) => {
-                                        booking.driver.docNumber =
-                                            sanitizeDocNumberInput(
-                                                booking.driver.docType,
-                                                (e.target as HTMLInputElement)
-                                                    .value,
-                                            );
-                                    }}
-                                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none font-mono"
+                                    oninput={handleDocNumberInput}
+                                    onblur={() => (docNumberTouched = true)}
+                                    aria-invalid={docNumberError ? 'true' : undefined}
+                                    aria-describedby={docNumberError
+                                        ? 'd-doc-number-error'
+                                        : 'd-doc-number-hint'}
+                                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border text-white text-sm focus:ring-2 outline-none font-mono {docNumberError
+                                        ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/30'
+                                        : 'border-slate-700 focus:border-orange-500 focus:ring-orange-500/30'}"
                                     placeholder={currentDocConfig.placeholder}
                                 />
-                                <p class="text-[10px] text-slate-400">
-                                    {currentDocConfig.hint}
-                                </p>
+                                {#if docNumberError}
+                                    <p
+                                        id="d-doc-number-error"
+                                        class="text-[10px] text-red-300 flex items-start gap-1.5"
+                                    >
+                                        <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                                        <span>{docNumberError}</span>
+                                    </p>
+                                {:else}
+                                    <p
+                                        id="d-doc-number-hint"
+                                        class="text-[10px] text-slate-400"
+                                    >
+                                        {currentDocConfig.hint}
+                                    </p>
+                                {/if}
                             </div>
                             <div class="space-y-1.5">
                                 <label

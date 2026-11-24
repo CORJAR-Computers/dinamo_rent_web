@@ -49,6 +49,7 @@
 			cardBrand: string | null;
 			cardLast4: string | null;
 			p2pRequestId: string | null;
+			p2pStatusMessage?: string | null;
 			createdAt: string;
 			token?: string | null;
 			tokenStatus?: string | null;
@@ -62,6 +63,8 @@
 			description: string | null;
 			status: string;
 			transactionId: string | null;
+			p2pStatusMessage?: string | null;
+			executedBy?: string | null;
 			createdAt: string;
 		}>;
 	}
@@ -106,6 +109,17 @@
 		return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 	}
 
+	function formatDateTime(iso: string): string {
+		if (!iso) return '—';
+		return new Date(iso).toLocaleString('es-CO', {
+			day: '2-digit',
+			month: 'short',
+			year: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
 	function buildWhatsAppLink(r: ReservationItem): string {
 		const cleanPhone = (r.customerPhone || '').replace(/\D/g, '');
 		const intlPhone = cleanPhone.startsWith('57') ? cleanPhone : `57${cleanPhone}`;
@@ -115,68 +129,152 @@
 		return `https://wa.me/${intlPhone}?text=${text}`;
 	}
 
-	// Estados del modal de cobro de garantía
-	let collectModalOpen = $state(false);
-	let selectedReservation = $state<ReservationItem | null>(null);
+	// Modal único de tarjeta de garantía: cobro con token y administración de la suscripción
+	const CANCEL_REASONS = [
+		'Fin del contrato de alquiler / devolución de garantía',
+		'Solicitud expresa del cliente',
+		'Reserva cancelada por el establecimiento',
+		'Tarjeta reemplazada por un nuevo instrumento tokenizado',
+		'Rechazo definitivo de la tarjeta (bloqueada, vencida, robada o de uso restringido)'
+	];
+	const COLLECT_CONCEPTS = [
+		{ value: 'DEDUCIBLE', label: 'Deducible por Siniestro o Daños Menores' },
+		{ value: 'GASOLINA', label: 'Combustible / Gasolina Faltante' },
+		{ value: 'DIAS_EXTRA', label: 'Día(s) u Horas Adicionales de Retraso' },
+		{ value: 'MULTA', label: 'Infracción o Fotomulta de Tránsito' },
+		{ value: 'OTRO', label: 'Otro Cargo Justificado en Contrato' }
+	];
+
+	let cardModalOpen = $state(false);
+	let cardReservation = $state<ReservationItem | null>(null);
+	let cardMode = $state<'collect' | 'manage'>('manage');
+	let actionMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
+	let submitting = $state(false);
+
 	let collectAmount = $state<number>(150000);
 	let collectConcept = $state<string>('DEDUCIBLE');
 	let collectDescription = $state('');
-	let collectSubmitting = $state(false);
-	let collectMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
+	let cancelReason = $state<string>(CANCEL_REASONS[0]);
 
-	function openCollectModal(r: ReservationItem) {
-		selectedReservation = r;
+	let cardPayment = $derived(cardReservation?.payment ?? null);
+	let tokenActive = $derived(
+		Boolean(cardPayment?.token) &&
+			cardPayment?.tokenStatus !== 'CANCELADO' &&
+			cardPayment?.tokenStatus !== 'EXPIRADO'
+	);
+	let tokenStatusLabel = $derived(
+		cardPayment?.tokenStatus === 'CANCELADO'
+			? 'CANCELADA'
+			: cardPayment?.tokenStatus === 'EXPIRADO'
+				? 'EXPIRADA'
+				: 'ACTIVA'
+	);
+
+	function openCardModal(r: ReservationItem, mode: 'collect' | 'manage') {
+		cardReservation = r;
+		cardMode = mode;
+		actionMessage = null;
 		collectAmount = r.blockingAmount > 0 ? r.blockingAmount : 150000;
 		collectConcept = 'DEDUCIBLE';
 		collectDescription = '';
-		collectMessage = null;
-		collectModalOpen = true;
+		cancelReason = CANCEL_REASONS[0];
+		cardModalOpen = true;
 	}
 
-	function closeCollectModal() {
-		collectModalOpen = false;
-		selectedReservation = null;
-		collectMessage = null;
+	function closeCardModal() {
+		cardModalOpen = false;
+		cardReservation = null;
+		actionMessage = null;
+	}
+
+	/** POST JSON tolerante a respuestas no JSON de la pasarela o del proxy. */
+	async function postJson(url: string, payload: unknown) {
+		const res = await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+		const data = await res.json().catch(() => null);
+		return { ok: res.ok && data?.ok === true, status: res.status, data };
 	}
 
 	async function submitCollect() {
-		if (!selectedReservation) return;
-		collectSubmitting = true;
-		collectMessage = null;
+		if (!cardReservation) return;
+		submitting = true;
+		actionMessage = null;
 		try {
-			const res = await fetch('/api/payments/collect', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					reservationId: selectedReservation.id,
-					amount: collectAmount,
-					concept: collectConcept,
-					description: collectDescription
-				})
+			const { ok, status, data } = await postJson('/api/payments/collect', {
+				reservationId: cardReservation.id,
+				amount: collectAmount,
+				concept: collectConcept,
+				description: collectDescription
 			});
-			const data = await res.json();
-			if (data.ok) {
-				collectMessage = {
+			if (ok) {
+				cardReservation.depositCharges = [
+					{
+						id: data.charge?.id ?? `local-${Date.now()}`,
+						amount: data.charge?.amount ?? collectAmount,
+						concept: data.charge?.concept ?? collectConcept,
+						description: collectDescription || null,
+						status: 'APROBADO',
+						transactionId: data.charge?.authorization ?? null,
+						p2pStatusMessage: null,
+						executedBy: 'ADMIN',
+						createdAt: data.charge?.createdAt ?? new Date().toISOString()
+					},
+					...(cardReservation.depositCharges ?? [])
+				];
+				actionMessage = {
 					type: 'success',
-					text: `¡Cobro aprobado por pasarela! Código de autorización: ${data.charge?.authorization || 'AUTH-OK'}`
+					text: `Cobro aprobado por la pasarela. Autorización: ${data.charge?.authorization || '—'}.`
 				};
-				if (selectedReservation) {
-					if (!selectedReservation.depositCharges) selectedReservation.depositCharges = [];
-					selectedReservation.depositCharges.unshift(data.charge);
-				}
 			} else {
-				collectMessage = {
+				actionMessage = {
 					type: 'error',
-					text: data.error || 'La pasarela rechazó el cobro con la tarjeta registrada.'
+					text: data?.error || `La pasarela rechazó el cobro (HTTP ${status}).`
 				};
 			}
 		} catch (err) {
-			collectMessage = {
+			actionMessage = {
 				type: 'error',
 				text: (err as Error).message || 'Error de conexión con el servidor.'
 			};
 		} finally {
-			collectSubmitting = false;
+			submitting = false;
+		}
+	}
+
+	async function submitCancellation() {
+		if (!cardReservation) return;
+		submitting = true;
+		actionMessage = null;
+		try {
+			const { ok, status, data } = await postJson('/api/payments/token/invalidate', {
+				reservationId: cardReservation.id,
+				reason: cancelReason
+			});
+			if (ok) {
+				if (cardReservation.payment) {
+					cardReservation.payment.tokenStatus = 'CANCELADO';
+					cardReservation.payment.p2pStatusMessage = `Token invalidado: ${cancelReason}`;
+				}
+				actionMessage = {
+					type: 'success',
+					text: data.message || 'Suscripción cancelada y token invalidado correctamente.'
+				};
+			} else {
+				actionMessage = {
+					type: 'error',
+					text: data?.error || `La pasarela no confirmó la cancelación (HTTP ${status}).`
+				};
+			}
+		} catch (err) {
+			actionMessage = {
+				type: 'error',
+				text: (err as Error).message || 'Error de conexión con el servidor.'
+			};
+		} finally {
+			submitting = false;
 		}
 	}
 </script>
@@ -247,6 +345,8 @@
 				<tbody class="divide-y divide-slate-800/60">
 					{#each filteredReservations as r (r.id)}
 						{@const p = r.payment}
+						{@const rowTokenActive =
+							Boolean(p?.token) && p?.tokenStatus !== 'CANCELADO' && p?.tokenStatus !== 'EXPIRADO'}
 						<tr class="hover:bg-slate-800/30 transition-colors">
 							<!-- Código + Fecha Registro -->
 							<td class="py-3.5 px-4">
@@ -288,10 +388,15 @@
 								<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
 									<i class="fa-solid fa-circle-check text-[9px]"></i> Pagado Place to Pay
 								</span>
-								{#if p?.token || p?.tokenStatus === 'ACTIVO'}
+								{#if p?.token}
 									<div class="mt-1 pt-1 border-t border-slate-800 flex flex-col gap-0.5">
-										<span class="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-400">
+										<span
+																								class="inline-flex items-center gap-1 text-[10px] font-bold {rowTokenActive
+												? 'text-cyan-400'
+												: 'text-rose-400'}"
+										>
 											<i class="fa-solid fa-shield-halved text-[9px]"></i> Tarjeta Garantía
+																								{rowTokenActive ? '(activa)' : '(cancelada)'}
 										</span>
 										<span class="text-[10px] text-slate-400 font-mono">
 											{p.cardBrand || 'Tarjeta'} •••• {p.cardLast4 || '****'}
@@ -323,10 +428,20 @@
 							<!-- Acciones: Cobro Garantía, WhatsApp y Voucher -->
 							<td class="py-3.5 px-4 text-right">
 								<div class="flex items-center justify-end gap-1.5">
-									{#if p?.token || p?.tokenStatus === 'ACTIVO'}
+									{#if p?.token}
 										<button
 											type="button"
-											onclick={() => openCollectModal(r)}
+																								onclick={() => openCardModal(r, 'manage')}
+											class="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white transition-colors cursor-pointer"
+											title="Administrar Tarjeta de Garantía: estado del token, cargos y cancelación de la suscripción"
+										>
+											<i class="fa-solid fa-shield-halved text-sm"></i>
+										</button>
+									{/if}
+																			{#if rowTokenActive}
+											<button
+												type="button"
+												onclick={() => openCardModal(r, 'collect')}
 											class="p-2 rounded-lg bg-orange-500/10 hover:bg-orange-500 text-orange-400 hover:text-white transition-colors cursor-pointer"
 											title="Aplicar Cobro a Garantía con Token Place to Pay"
 										>
@@ -369,29 +484,36 @@
 		</div>
 	</div>
 
-	<!-- Modal de Cobro de Garantía (Place to Pay Collect) -->
-	{#if collectModalOpen && selectedReservation}
-		{@const resPayment = selectedReservation.payment}
+	<!-- Modal de Tarjeta de Garantía: cobro con token y administración de la suscripción -->
+	{#if cardModalOpen && cardReservation}
 		<div
 			class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
 			role="dialog"
 			aria-modal="true"
 		>
-			<div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
-				<!-- Header Modal -->
+			<div
+				class="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+			>
 				<div class="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
 					<div class="flex items-center gap-2.5">
-						<div class="w-8 h-8 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center text-sm">
-							<i class="fa-solid fa-credit-card"></i>
+						<div
+							class="w-8 h-8 rounded-xl flex items-center justify-center text-sm {cardMode ===
+							'collect'
+								? 'bg-orange-500/20 text-orange-400'
+								: 'bg-cyan-500/20 text-cyan-400'}"
+						>
+							<i class="fa-solid {cardMode === 'collect' ? 'fa-credit-card' : 'fa-shield-halved'}"></i>
 						</div>
 						<div>
-							<h3 class="font-heading font-black text-white text-sm">Cobro a Tarjeta de Garantía</h3>
-							<p class="text-[11px] text-slate-400 font-mono">Reserva #{selectedReservation.code}</p>
+							<h3 class="font-heading font-black text-white text-sm">
+								{cardMode === 'collect' ? 'Cobro a Tarjeta de Garantía' : 'Tarjeta de Garantía / Suscripción'}
+							</h3>
+							<p class="text-[11px] text-slate-400 font-mono">Reserva #{cardReservation.code}</p>
 						</div>
 					</div>
 					<button
 						type="button"
-						onclick={closeCollectModal}
+						onclick={closeCardModal}
 						aria-label="Cerrar modal"
 						class="text-slate-400 hover:text-white p-1 rounded-lg text-sm cursor-pointer"
 					>
@@ -399,119 +521,230 @@
 					</button>
 				</div>
 
-				<!-- Contenido del Modal -->
 				<div class="p-6 space-y-4">
-					<!-- Info de Tarjeta Tokenizada -->
-					<div class="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-center justify-between text-xs">
+					<!-- Instrumento y estado del token -->
+					<div
+						class="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs"
+					>
 						<div>
-							<span class="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Instrumento Suscrito</span>
-							<span class="font-bold text-white text-sm">{resPayment?.cardBrand || 'Tarjeta'} •••• {resPayment?.cardLast4 || '****'}</span>
+							<span class="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">
+								Instrumento tokenizado
+							</span>
+							<span class="font-bold text-white text-sm">
+								{cardPayment?.tokenFranchise || cardPayment?.cardBrand || 'Tarjeta'} •••• {cardPayment?.cardLast4 ||
+									'****'}
+							</span>
+							<span class="text-slate-500 text-[10px] block mt-0.5 font-mono">
+								{cardPayment?.token ? `Token ${cardPayment.token.slice(0, 12)}…` : 'Sin token'} · Sesión {cardPayment?.p2pRequestId ||
+									'—'}
+							</span>
 						</div>
 						<div class="text-right">
-							<span class="text-emerald-400 font-bold text-[11px] block">
-								<i class="fa-solid fa-shield-check text-[10px]"></i> Token Activo
+							<span
+								class="inline-flex items-center gap-1.5 font-bold text-[11px] px-2 py-0.5 rounded-full border {tokenActive
+									? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+									: 'bg-rose-500/10 text-rose-400 border-rose-500/30'}"
+							>
+								<i class="fa-solid fa-circle text-[6px]"></i> {tokenStatusLabel}
 							</span>
-							<span class="text-slate-500 text-[10px]">Place to Pay PCI-DSS</span>
+							{#if cardPayment?.tokenValidUntil}
+								<span class="text-slate-500 text-[10px] block mt-1">Vigencia: {cardPayment.tokenValidUntil}</span>
+							{/if}
 						</div>
 					</div>
 
-					{#if collectMessage}
-						<div class="p-3 rounded-xl text-xs flex items-start gap-2 {collectMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}">
-							<i class="fa-solid {collectMessage.type === 'success' ? 'fa-check' : 'fa-circle-exclamation'} mt-0.5"></i>
-							<span>{collectMessage.text}</span>
+					{#if cardPayment?.p2pStatusMessage}
+						<p class="text-[11px] text-slate-400 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2">
+							<i class="fa-solid fa-info-circle mr-1 text-slate-500"></i>{cardPayment.p2pStatusMessage}
+						</p>
+					{/if}
+
+					{#if actionMessage}
+						<div
+							class="p-3 rounded-xl text-xs flex items-start gap-2 {actionMessage.type === 'success'
+								? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+								: 'bg-red-500/10 text-red-400 border border-red-500/20'}"
+						>
+							<i
+								class="fa-solid {actionMessage.type === 'success' ? 'fa-check' : 'fa-circle-exclamation'} mt-0.5"
+							></i>
+							<span>{actionMessage.text}</span>
 						</div>
 					{/if}
 
-					<!-- Formulario de Cobro -->
-					<div class="space-y-3">
-						<div>
-							<label for="collect-concept-select" class="block text-xs font-semibold text-slate-300 mb-1">Concepto del Cargo</label>
-							<select
-								id="collect-concept-select"
-								bind:value={collectConcept}
-								class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
-							>
-								<option value="DEDUCIBLE">Deducible por Siniestro o Daños Menores</option>
-								<option value="GASOLINA">Combustible / Gasolina Faltante</option>
-								<option value="DIAS_EXTRA">Día(s) u Horas Adicionales de Retraso</option>
-								<option value="MULTA">Infracción o Fotomulta de Tránsito</option>
-								<option value="OTRO">Otro Cargo Justificado en Contrato</option>
-							</select>
-						</div>
+					{#if cardMode === 'collect'}
+						<!-- Cobro con el token activo -->
+						<div class="space-y-3">
+							<div>
+								<label for="collect-concept-select" class="block text-xs font-semibold text-slate-300 mb-1">
+									Concepto del Cargo
+								</label>
+								<select
+									id="collect-concept-select"
+									bind:value={collectConcept}
+									class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+								>
+									{#each COLLECT_CONCEPTS as option (option.value)}
+										<option value={option.value}>{option.label}</option>
+									{/each}
+								</select>
+							</div>
 
-						<div>
-							<label for="collect-amount-input" class="block text-xs font-semibold text-slate-300 mb-1">Monto a Cobrar (COP)</label>
-							<div class="relative">
-								<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">$</span>
+							<div>
+								<label for="collect-amount-input" class="block text-xs font-semibold text-slate-300 mb-1">
+									Monto a Cobrar (COP)
+								</label>
+								<div class="relative">
+									<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">$</span>
+									<input
+										id="collect-amount-input"
+										type="number"
+										step="1000"
+										bind:value={collectAmount}
+										class="w-full pl-7 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono font-bold text-sm focus:outline-none focus:border-orange-500"
+										placeholder="150000"
+									/>
+								</div>
+								<span class="text-[10px] text-slate-500 mt-1 block">Equivalente a {formatCOP(collectAmount || 0)}</span>
+							</div>
+
+							<div>
+								<label for="collect-desc-input" class="block text-xs font-semibold text-slate-300 mb-1">
+									Detalle / Justificación
+								</label>
 								<input
-									id="collect-amount-input"
-									type="number"
-									step="1000"
-									bind:value={collectAmount}
-									class="w-full pl-7 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono font-bold text-sm focus:outline-none focus:border-orange-500"
-									placeholder="150000"
+									id="collect-desc-input"
+									type="text"
+									bind:value={collectDescription}
+									placeholder="Ej. Daño en espejo retrovisor derecho reportado en acta de entrega"
+									class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-orange-500"
 								/>
 							</div>
-							<span class="text-[10px] text-slate-500 mt-1 block">Equivalente a {formatCOP(collectAmount || 0)}</span>
 						</div>
 
-						<div>
-							<label for="collect-desc-input" class="block text-xs font-semibold text-slate-300 mb-1">Detalle / Justificación</label>
-							<input
-								id="collect-desc-input"
-								type="text"
-								bind:value={collectDescription}
-								placeholder="Ej. Daño en espejo retrovisor derecho reportado en acta de entrega"
-								class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-orange-500"
-							/>
+						<div class="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-300/90 flex items-start gap-2">
+							<i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+							<span>
+								Esta operación ejecutará un cargo Server-to-Server real e irreversible contra la tarjeta bancaria
+								del cliente mediante Place to Pay Collect. Asegúrate de contar con el soporte en el acta de entrega.
+							</span>
 						</div>
-					</div>
+					{:else if !tokenActive}
+						<div class="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20 text-[11px] text-rose-300/90 flex items-start gap-2">
+							<i class="fa-solid fa-ban mt-0.5"></i>
+							<span>
+								La suscripción de esta reserva está cancelada o vencida y el token fue invalidado en Place to Pay:
+								no admite nuevos cobros.
+							</span>
+						</div>
+					{:else}
+						<!-- Cancelación de la suscripción -->
+						<div class="space-y-2">
+							<label for="token-reason-select" class="block text-xs font-semibold text-slate-300">
+								Motivo de la cancelación de la suscripción
+							</label>
+							<select
+								id="token-reason-select"
+								bind:value={cancelReason}
+								class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-cyan-500 cursor-pointer"
+							>
+								{#each CANCEL_REASONS as reason (reason)}
+									<option value={reason}>{reason}</option>
+								{/each}
+							</select>
+							<div class="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-300/90 flex items-start gap-2">
+								<i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+								<span>
+									Se ejecutará la invalidación real del instrumento en Place to Pay. El token dejará de aceptar
+									cobros y la operación queda registrada en la bitácora de auditoría.
+								</span>
+							</div>
+						</div>
+					{/if}
 
-					<!-- Advertencia de seguridad -->
-					<div class="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-300/90 flex items-start gap-2">
-						<i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
-						<span>Esta operación ejecutará un cargo Server-to-Server real e irreversible contra la tarjeta bancaria del cliente mediante Place to Pay Collect. Asegúrate de contar con el soporte en el acta de entrega.</span>
-					</div>
-
-					<!-- Historial de cobros previos en esta reserva -->
-					{#if selectedReservation.depositCharges && selectedReservation.depositCharges.length > 0}
-						<div class="pt-2 border-t border-slate-800">
-							<span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold block mb-1.5">Cargos anteriores aplicados:</span>
-							<div class="space-y-1 max-h-28 overflow-y-auto pr-1">
-								{#each selectedReservation.depositCharges as ch (ch.id)}
-									<div class="text-[11px] flex justify-between items-center py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
-										<span class="text-slate-300">{ch.concept}: {formatCOP(ch.amount)}</span>
-										<span class="font-mono text-[10px] text-emerald-400 font-semibold">{ch.transactionId || ch.status}</span>
+					<!-- Historial de cargos: evidencia de rechazos recuperables y no recuperables -->
+					<div class="pt-2 border-t border-slate-800">
+						<span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold block mb-1.5">
+							Cargos aplicados al token
+						</span>
+						{#if cardReservation.depositCharges && cardReservation.depositCharges.length > 0}
+							<div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+								{#each cardReservation.depositCharges as ch (ch.id)}
+									<div class="text-[11px] px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-slate-200 font-semibold">{ch.concept} · {formatCOP(ch.amount)}</span>
+											<span
+												class="font-bold text-[9px] px-1.5 py-0.5 rounded border whitespace-nowrap {ch.status ===
+												'APROBADO'
+													? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+													: ch.status === 'RECHAZADO'
+														? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+														: 'bg-amber-500/10 text-amber-400 border-amber-500/30'}"
+											>
+												{ch.status}
+											</span>
+										</div>
+										<p class="text-[10px] text-slate-500 mt-0.5">
+											{formatDateTime(ch.createdAt)} · {ch.executedBy || 'ADMIN'}
+											{ch.transactionId ? ` · Autorización ${ch.transactionId}` : ''}
+										</p>
+										{#if ch.p2pStatusMessage}
+											<p class="text-[10px] text-slate-400 mt-0.5">{ch.p2pStatusMessage}</p>
+										{/if}
 									</div>
 								{/each}
 							</div>
-						</div>
-					{/if}
+						{:else}
+							<p class="text-[11px] text-slate-500 italic">Aún no se han ejecutado cobros sobre esta tarjeta.</p>
+						{/if}
+					</div>
+
+					<p class="text-[10px] text-slate-500 leading-relaxed">
+						Invalidación automática por rechazos: los rechazos definitivos (tarjeta robada, perdida, bloqueada,
+						vencida, inválida o de uso restringido) invalidan el token de inmediato; los rechazos recuperables
+						(fondos insuficientes, cupo o límites) permiten hasta 3 intentos consecutivos antes de invalidarlo.
+					</p>
 				</div>
 
-				<!-- Footer Modal -->
-				<div class="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
+				<div class="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
 					<button
 						type="button"
-						onclick={closeCollectModal}
+						onclick={closeCardModal}
 						class="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition cursor-pointer"
 					>
-						Cancelar
+						Cerrar
 					</button>
-					<button
-						type="button"
-						onclick={submitCollect}
-						disabled={collectSubmitting || !collectAmount || collectAmount <= 0}
-						class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-400 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-					>
-						{#if collectSubmitting}
-							<i class="fa-solid fa-circle-notch fa-spin"></i>
-							<span>Procesando cargo...</span>
-						{:else}
-							<i class="fa-solid fa-bolt"></i>
-							<span>Confirmar y Cobrar {formatCOP(collectAmount || 0)}</span>
-						{/if}
-					</button>
+					{#if cardMode === 'collect'}
+						<button
+							type="button"
+							onclick={submitCollect}
+							disabled={submitting || !collectAmount || collectAmount <= 0}
+							class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-400 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+						>
+							{#if submitting}
+								<i class="fa-solid fa-circle-notch fa-spin"></i>
+								<span>Procesando cargo...</span>
+							{:else}
+								<i class="fa-solid fa-bolt"></i>
+								<span>Confirmar y Cobrar {formatCOP(collectAmount || 0)}</span>
+							{/if}
+						</button>
+					{:else if tokenActive}
+						<button
+							type="button"
+							onclick={submitCancellation}
+							disabled={submitting}
+							class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+						>
+							{#if submitting}
+								<i class="fa-solid fa-circle-notch fa-spin"></i>
+								<span>Cancelando suscripción...</span>
+							{:else}
+								<i class="fa-solid fa-link-slash"></i>
+								<span>Cancelar suscripción e invalidar token</span>
+							{/if}
+						</button>
+					{/if}
 				</div>
 			</div>
 		</div>
