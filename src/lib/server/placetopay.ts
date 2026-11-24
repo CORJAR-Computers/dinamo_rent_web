@@ -78,6 +78,11 @@ export interface P2PInvalidateResult {
 
 export interface P2PCollectResult {
   ok: boolean;
+  /**
+   * `PENDING` = la pasarela no emitió veredicto (timeout, error de red o
+   * configuración incompleta): no es un rechazo del emisor y no debe contar
+   * como intento fallido para la invalidación automática del token.
+   */
   status: 'APPROVED' | 'REJECTED' | 'PENDING';
   message: string;
   reference: string;
@@ -482,9 +487,12 @@ export async function collectPaymentWithToken(
 
   const config = getEnvConfig();
   if ('error' in config) {
+    // Sin credenciales no hay veredicto del emisor: es un fallo nuestro, no un
+    // rechazo de la tarjeta. Marcarlo como tal evita que cuente para la
+    // invalidación automática por intentos.
     return {
       ok: false,
-      status: 'REJECTED',
+      status: 'PENDING',
       message: config.error,
       reference: req.reference,
       amountCOP: req.amountCOP,
@@ -552,9 +560,11 @@ export async function collectPaymentWithToken(
     };
   } catch (err) {
     console.error('[PlaceToPay Collect] Error ejecutando cobro con token:', err);
+    // Timeout o error de red: el cobro pudo o no haberse ejecutado en la pasarela
+    // y no hubo veredicto del emisor. `PENDING` lo distingue de un rechazo real.
     return {
       ok: false,
-      status: 'REJECTED',
+      status: 'PENDING',
       message: (err as Error).message || 'Error de comunicación con pasarela',
       reference: req.reference,
       amountCOP: req.amountCOP,

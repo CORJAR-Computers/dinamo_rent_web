@@ -252,6 +252,8 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
 }
 ```
 
+**Respuestas del cobro.** `APPROVED` → **200**. Rechazo del emisor (`REJECTED`) → **402** con `attempts` y `tokenInvalidation`. Sin veredicto de la pasarela (timeout, error de red o credenciales ausentes) → **502** con `status: "PENDING"`, el cargo queda `PENDIENTE` y el token **no** se toca: esos fallos no cuentan como intentos para la invalidación automática, para no desvincular la tarjeta del cliente por una caída propia.
+
 ### 5.5 Impuestos (IVA 19%) y consistencia del monto
 
 Las tarifas publicadas **no incluyen IVA**. El impuesto se calcula en el servidor al crear la reserva:

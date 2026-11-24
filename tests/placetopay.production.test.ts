@@ -207,7 +207,11 @@ describe('PlaceToPay en producción: nunca simula', () => {
 				docNumber: '1047412345'
 			}
 		});
-		expect(collected.status).toBe('REJECTED');
+		// Sin credenciales no hay veredicto del emisor: PENDING, no REJECTED. Si se
+		// marcara como rechazo, tres fallos de configuración invalidarían el token
+		// del cliente (ver collect/+server.ts).
+		expect(collected.status).toBe('PENDING');
+		expect(collected.ok).toBe(false);
 		expect(collected.message).toMatch(/P2P_LOGIN y P2P_TRAN_KEY/);
 
 		expect(fetchSpy).not.toHaveBeenCalled();

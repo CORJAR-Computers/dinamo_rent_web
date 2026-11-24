@@ -250,6 +250,38 @@ describe('POST /api/payments/collect — 402 con intentos', () => {
 	});
 });
 
+describe('POST /api/payments/collect — pasarela sin respuesta', () => {
+	beforeEach(() => {
+		state.isAdmin = true;
+	});
+
+	it('un fallo de comunicación deja el cargo PENDIENTE, responde 502 y no invalida el token', async () => {
+		// Dos rechazos previos: si el error de red contara como tercer fallo, el
+		// token del cliente se desvincularía por una caída de la pasarela.
+		state.recentCharges = [{ status: 'RECHAZADO' }, { status: 'RECHAZADO' }];
+		state.collectResult = {
+			ok: false,
+			status: 'PENDING',
+			message: 'fetch failed',
+			reference: 'COL-123',
+			amountCOP: 50000
+		};
+
+		const res = await cobrar();
+		const body = (await res.json()) as CollectBody;
+
+		expect(res.status).toBe(502);
+		expect(body.attempts).toBe(0);
+		expect(body.tokenInvalidation).toBeNull();
+		expect(body.error).toContain('no se modificó');
+
+		expect(state.chargeCreates[0]).toMatchObject({ data: { status: 'PENDIENTE' } });
+		expect(state.findManyArgs).toHaveLength(0);
+		expect(state.invalidateCalls).toHaveLength(0);
+		expect(state.paymentUpdates).toHaveLength(0);
+	});
+});
+
 describe('POST /api/payments/collect — datos enviados a la pasarela', () => {
 	it('cobra con el token guardado y el monto pedido', async () => {
 		state.isAdmin = true;

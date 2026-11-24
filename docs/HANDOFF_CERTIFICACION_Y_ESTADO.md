@@ -82,6 +82,8 @@ Se superaron y blindaron las 4 observaciones principales formuladas por el anali
 - **Estructura enviada a PlacetoPay:** `payment.subscribe = true` en la sesión inicial para vincular el medio de pago del cliente.
 - **Almacenamiento (PCI-DSS):** Dinamo Rent a Car **no almacena** PAN, CVV ni fechas de caducidad. Únicamente se persiste el string alfanumérico opaco `token`, franquicia y últimos 4 dígitos enmascarados en la tabla `payments`.
 - **Cobros posteriores:** Endpoint `/api/payments/collect` que consume el servicio `POST /api/collect` de PlacetoPay utilizando el token guardado. Reservado exclusivamente para conceptos contractuales probados (daños con acta de entrega, faltante de gasolina, comparendos de tránsito SIMIT).
+- **Sin veredicto ≠ rechazo:** si `/api/collect` no responde (timeout, red o credenciales ausentes), el cobro queda `PENDIENTE`, se responde **502** y el token sigue ACTIVO; ese fallo no cuenta para los 3 intentos consecutivos que invalidan la tarjeta.
+
 - **Desacoplamiento de cifras rígidas en UI:** Se ajustaron los textos en web ([BookingModal.svelte](file:///d:/Proyectos/Dinamo_Rent_a_Car%20WEB/src/lib/components/BookingModal.svelte), [CarCard.svelte](file:///d:/Proyectos/Dinamo_Rent_a_Car%20WEB/src/lib/components/CarCard.svelte), [retorno/+page.svelte](file:///d:/Proyectos/Dinamo_Rent_a_Car%20WEB/src/routes/pago/retorno/+page.svelte)) para indicar *"Depósito / Garantía: Según contrato de alquiler"*, evitando confusiones con los deducibles reales de póliza (\$2.500.000 COP).
 
 ### 2.6 Medios de pago, IVA y datos de recaudo (definiciones del 23-nov-2026)

@@ -99,6 +99,9 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     });
 
     const isApproved = result.ok && result.status === 'APPROVED';
+    // Sin veredicto (timeout, error de red o configuración incompleta) el cobro no
+    // fue rechazado por el emisor: queda PENDIENTE y no cuenta como intento.
+    const unconfirmed = !isApproved && result.status === 'PENDING';
 
     // 5. Registrar en auditoría de cobros de garantía (DepositCharge)
     const chargeRecord = await db.depositCharge.create({
@@ -107,7 +110,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
         amount: numericAmount,
         concept: cleanConcept,
         description: cleanDescription,
-        status: isApproved ? 'APROBADO' : 'RECHAZADO',
+        status: isApproved ? 'APROBADO' : unconfirmed ? 'PENDIENTE' : 'RECHAZADO',
         transactionId: result.authorization || result.receipt || null,
         p2pRequestId: result.requestId || null,
         p2pStatusMessage: result.message,
@@ -133,6 +136,22 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
         },
       },
     });
+
+    // 6.b La pasarela no confirmó el cobro: se responde 502 sin tocar el token.
+    // Invalidarlo aquí desvincularía la tarjeta del cliente por un fallo de
+    // comunicación nuestro, no por un rechazo del emisor.
+    if (unconfirmed) {
+      return Response.json(
+        {
+          ok: false,
+          error: `No fue posible confirmar el cobro con la pasarela (${result.message}). El cargo quedó PENDIENTE: verifícalo en el panel de PlacetoPay antes de reintentar. El token de la tarjeta no se modificó.`,
+          status: 'PENDING',
+          attempts: 0,
+          tokenInvalidation: null,
+        },
+        { status: 502 }
+      );
+    }
 
     // 7. Control de rechazos e invalidación del token (Guía de Suscripción §8)
     // - Rechazos definitivos (robada, perdida, bloqueada, vencida, inválida, uso restringido) → invalidación inmediata.
