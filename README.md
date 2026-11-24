@@ -149,6 +149,9 @@ npm run check
 npm run build
 ```
 
+> 🪟 En Windows, `VERCEL=1 npm run build` falla con `EPERM: symlink` si no está
+> activo el Modo desarrollador; el adaptador real se valida en el CI, no en local.
+
 ---
 
 ## 📄 Licencia y Créditos
