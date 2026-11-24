@@ -11,6 +11,11 @@
 # El job corre en Node 24 y el build lleva `VERCEL=1` a propósito: sin esa
 # variable `adapter-auto` cae al adaptador genérico y el paso no validaría nada
 # del despliegue real. `@sveltejs/adapter-vercel` rechaza Node fuera de 22/24.
+#
+# Los tests corren contra un Postgres de servicio, no contra un DATABASE_URL
+# inalcanzable: el rate limit vive en la tabla `rate_limit_counters` y, sin base,
+# `checkRateLimit` cae al respaldo en memoria y el verde de login no probaría
+# nada. tests/rateLimit.shared.test.ts falla si eso ocurre.
 # El objetivo es que este check esté marcado como "required" en GitHub para que
 # bloquee los merges con errores.
 name: Check
@@ -33,6 +38,22 @@ jobs:
     # (required status check) lo exige por ese contexto en GitHub.
     name: svelte-check + guardia de contacto
     runs-on: ubuntu-latest
+    services:
+      # Postgres real para los tests: el contador de rate limit y el login
+      # ejercitan la tabla compartida en vez de un respaldo en memoria.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       # .env no está versionado: prisma generate valida estas variables aunque
       # no conecte a la base de datos, así que se proveen valores dummy de CI.
@@ -55,6 +76,9 @@ jobs:
 
       - name: Generar cliente de Prisma (tipos para svelte-check)
         run: npx prisma generate
+
+      - name: Aplicar migraciones al Postgres de CI
+        run: npx prisma migrate deploy
 
       - name: ESLint (TS + Svelte)
         run: npm run lint
