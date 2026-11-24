@@ -7,6 +7,10 @@
 # de adminAuth, rate-limit de login, vista pública de reservas y cobros de
 # garantía) y `npm run build` compila con Vite + adapter-vercel: un error de
 # bundling o de rutas que el type-check no detecta tumba el CI, no el deploy.
+#
+# El job corre en Node 24 y el build lleva `VERCEL=1` a propósito: sin esa
+# variable `adapter-auto` cae al adaptador genérico y el paso no validaría nada
+# del despliegue real. `@sveltejs/adapter-vercel` rechaza Node fuera de 22/24.
 # El objetivo es que este check esté marcado como "required" en GitHub para que
 # bloquee los merges con errores.
 name: Check
@@ -38,10 +42,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Node.js 26 (misma línea que el desarrollo local)
+      # Node 24: versión aceptada por @sveltejs/adapter-vercel (Node 26 falla con
+      # "Unsupported Node.js version") y línea usada por Vercel para construir.
+      - name: Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 26
+          node-version: 24
           cache: npm
 
       - name: Instalar dependencias (package-lock.json)
@@ -59,5 +65,9 @@ jobs:
       - name: svelte-check + guardia de contacto
         run: npm run check
 
+      # VERCEL=1 fuerza el adaptador real de despliegue; sin ella adapter-auto
+      # usa el genérico y solo se comprueba que el bundle no explota.
       - name: Build de producción (Vite + adapter-vercel)
         run: npm run build
+        env:
+          VERCEL: '1'
