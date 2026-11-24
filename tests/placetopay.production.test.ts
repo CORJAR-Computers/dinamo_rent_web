@@ -27,6 +27,11 @@ vi.mock('#lib/server/db.js', () => ({
 			},
 			update: async (args: unknown) => args
 		},
+		// checkRateLimit escribe en el contador compartido: se emula una fila
+		// permitida para no depender del respaldo en memoria, que en el CI
+		// delataría una base inalcanzable.
+		$queryRaw: async () => [{ count: 1, resetAt: new Date(Date.now() + 60_000) }],
+		$executeRaw: async () => 1,
 		$transaction: async (fn: (txn: unknown) => Promise<unknown>) =>
 			fn({
 				payment: { update: async () => ({}) },
