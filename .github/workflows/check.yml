@@ -8,9 +8,11 @@
 # garantía) y `npm run build` compila con Vite + adapter-vercel: un error de
 # bundling o de rutas que el type-check no detecta tumba el CI, no el deploy.
 #
-# El job corre en Node 24 y el build lleva `VERCEL=1` a propósito: sin esa
+# La versión de Node sale de .nvmrc (24), igual que en desarrollo: una sola
+# fuente de verdad, para que CI y local no puedan divergir. `@sveltejs/adapter-vercel`
+# rechaza Node fuera de 22/24 y el build lleva `VERCEL=1` a propósito: sin esa
 # variable `adapter-auto` cae al adaptador genérico y el paso no validaría nada
-# del despliegue real. `@sveltejs/adapter-vercel` rechaza Node fuera de 22/24.
+# del despliegue real.
 #
 # Los tests corren contra un Postgres de servicio, no contra un DATABASE_URL
 # inalcanzable: el rate limit vive en la tabla `rate_limit_counters` y, sin base,
@@ -63,12 +65,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Node 24: versión aceptada por @sveltejs/adapter-vercel (Node 26 falla con
-      # "Unsupported Node.js version") y línea usada por Vercel para construir.
-      - name: Node.js 24
+      # La versión se lee de .nvmrc (24), la misma que usa el desarrollo local.
+      # Fijarla a mano aquí es lo que permitió que local quedara en 26 y el build
+      # del adaptador fallara solo al final.
+      - name: Node.js (versión de .nvmrc)
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Instalar dependencias (package-lock.json)
