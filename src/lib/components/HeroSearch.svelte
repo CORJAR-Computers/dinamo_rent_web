@@ -2,6 +2,11 @@
   import { booking } from "#lib/stores/bookingStore.svelte.js";
   import { PICKUP_LOCATIONS } from "#lib/data/fleet.js";
   import { FLEET_SECTION } from "#lib/data/sections.js";
+  import { OFFICE_ADDRESS, whatsappLink } from "#lib/data/contact.js";
+
+  const OTHER_CITY_WHATSAPP = whatsappLink(
+    "Hola%20Dinamo%20Rent%2C%20quiero%20coordinar%20una%20entrega%20o%20devoluci%C3%B3n%20del%20veh%C3%ADculo%20fuera%20de%20Cartagena",
+  );
 
   const TIME_OPTIONS = [
     "06:00",
@@ -69,9 +74,9 @@
       <p
         class="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto font-normal leading-relaxed"
       >
-        Renta tu auto en línea, recíbelo sin filas directamente en el <strong
-          class="text-white font-semibold">Aeropuerto Rafael Núñez</strong
-        > o en tu hotel. Tarifas transparentes, soporte 24/7 y kilometraje libre
+        Renta tu auto en línea y recíbelo en nuestra <strong
+          class="text-white font-semibold">oficina principal</strong
+        >, sin filas. Tarifas transparentes, soporte 24/7 y kilometraje libre
         dentro de la costa.
       </p>
     </div>
@@ -87,63 +92,41 @@
           }}
           class="space-y-5"
         >
-          <!-- Locations Row -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- Pickup Place -->
-            <div class="space-y-1.5">
-              <label
-                for="pickup-loc"
-                class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300"
-              >
-                <i class="fa-solid fa-location-dot text-orange-400"></i> Lugar de
-                Entrega
-              </label>
-              <div class="relative">
-                <select
-                  id="pickup-loc"
-                  bind:value={booking.pickupPlace}
-                  class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-medium focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition appearance-none cursor-pointer"
-                >
-                  {#each PICKUP_LOCATIONS as loc (loc)}
-                    <option value={loc}>{loc}</option>
-                  {/each}
-                </select>
-                <i
-                  class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none"
-                ></i>
-              </div>
+          <!-- Único punto de entrega y devolución -->
+          <div
+            class="flex items-start gap-3 p-4 rounded-2xl bg-slate-950/60 border border-slate-800"
+          >
+            <div
+              class="w-9 h-9 shrink-0 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-400"
+            >
+              <i class="fa-solid fa-building"></i>
             </div>
-
-            <!-- Return Place -->
-            <div class="space-y-1.5">
-              <label
-                for="return-loc"
-                class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300"
+            <div class="space-y-1">
+              <p
+                class="text-xs font-bold uppercase tracking-wider text-slate-300"
               >
-                <i class="fa-solid fa-flag-checkered text-cyan-400"></i> Lugar de
-                Devolución
-              </label>
-              <div class="relative">
-                <select
-                  id="return-loc"
-                  bind:value={booking.returnPlace}
-                  class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-medium focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition appearance-none cursor-pointer"
-                >
-                  {#each PICKUP_LOCATIONS as loc (loc)}
-                    <option value={loc}>{loc}</option>
-                  {/each}
-                </select>
-                <i
-                  class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none"
-                ></i>
-              </div>
+                Entrega y devolución del vehículo
+              </p>
+              <p class="text-sm font-semibold text-white">
+                {PICKUP_LOCATIONS[0]}
+              </p>
+              <p class="text-[11px] text-slate-400 leading-relaxed">
+                Único punto de entrega y devolución ({OFFICE_ADDRESS}). Si
+                necesitas devolverlo en otra ciudad, coordínalo en la oficina o
+                por
+                <a
+                  href={OTHER_CITY_WHATSAPP}
+                  target="_blank"
+                  rel="noopener noreferrer external"
+                  class="text-emerald-400 font-semibold hover:text-emerald-300"
+                  >WhatsApp</a
+                >.
+              </p>
             </div>
           </div>
 
           <!-- Dates & Times Row -->
-          <div
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1"
-          >
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <!-- Pickup Date -->
             <div class="space-y-1.5">
               <label
@@ -271,13 +254,13 @@
         <div
           class="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-400 text-lg"
         >
-          <i class="fa-solid fa-plane-arrival"></i>
+          <i class="fa-solid fa-building"></i>
         </div>
         <div>
           <h4 class="text-xs font-bold text-white uppercase tracking-wider">
-            Aeropuerto CTG
+            Oficina Principal
           </h4>
-          <p class="text-[11px] text-slate-400">Entrega en sala de llegadas</p>
+          <p class="text-[11px] text-slate-400">Entrega y devolución en Crespo</p>
         </div>
       </div>
 

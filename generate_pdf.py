@@ -325,7 +325,7 @@ def build_pdf(filename):
     story.append(Paragraph("4. Módulos y Funcionalidades del Ecosistema Digital", h1_style))
     
     story.append(Paragraph("4.1. Portal Web y Motor de Reservas (Front-Facing)", h2_style))
-    story.append(Paragraph("• <b>Optimización para Cartagena:</b> Puntos de entrega configurables (Aeropuerto Rafael Núñez, Bocagrande, Zona Norte, Centro Histórico y Hoteles).", bullet_style))
+    story.append(Paragraph("• <b>Punto único de entrega y devolución:</b> oficina principal en Crespo, Cartagena; las devoluciones en otra ciudad se coordinan en la oficina o por WhatsApp.", bullet_style))
     story.append(Paragraph("• <b>Cotizador Inteligente:</b> Desglose automático de días de alquiler, depósito en garantía, seguro de lucro cesante y adicionales (sillas de bebé, GPS, conductor extra).", bullet_style))
     story.append(Paragraph("• <b>Carga de Documentación:</b> El usuario sube foto de cédula/pasaporte y licencia de conducción antes de llegar al mostrador.", bullet_style))
 

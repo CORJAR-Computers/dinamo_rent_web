@@ -23,9 +23,10 @@
  *     API de reservas) deben ser opciones de TIME_OPTIONS de
  *     src/lib/components/HeroSearch.svelte.
  *  5. PICKUP_LOCATIONS debe ser íntegro: sin duplicados (según la misma
- *     normalización que locationKey()), sin vacíos, y cada <select> de lugar
- *     del buscador debe mostrar exactamente sus elementos (sin opciones
- *     hardcodeadas ni each de otra lista).
+ *     normalización que locationKey()) y sin vacíos. El buscador ya no tiene
+ *     <select> de lugar (hay un único punto); si alguno se reintroduce, debe
+ *     mostrar exactamente sus elementos (sin opciones hardcodeadas ni each de
+ *     otra lista).
  *  6. En src/ no puede haber ids ni enlaces de sección hardcodeados: los
  *     href ancla (/#... o #...) y los ids (id="...", '#...') deben salir de
  *     src/lib/data/sections.ts, y getElementById(...) no puede recibir un
@@ -474,7 +475,8 @@ try {
       }
     });
 
-    // Opciones de ubicación que muestra el buscador, por cada select de lugar:
+    // Si el buscador reintroduce un <select> de lugar, cada uno debe mostrar
+    // exactamente PICKUP_LOCATIONS:
     //   each(PICKUP_LOCATIONS) × N + <option> literales  ===  N
     const heroSrc = readFileSync(join(ROOT, HERO_FILE), 'utf8');
     const selectRe = /<select[^>]*bind:value=\{booking\.(pickupPlace|returnPlace)\}[^>]*>([\s\S]*?)<\/select>/g;
@@ -483,18 +485,7 @@ try {
       if (!selects.has(m[1])) selects.set(m[1], m);
     }
 
-    for (const name of ['pickupPlace', 'returnPlace']) {
-      const sel = selects.get(name);
-      if (!sel) {
-        push({
-          rel: rel(HERO_FILE),
-          line: 1,
-          rule: `select de ${name} ausente en el buscador`,
-          detail: `No se encontró <select bind:value={booking.${name}}> en src/lib/components/HeroSearch.svelte`
-        });
-        continue;
-      }
-
+    for (const [name, sel] of selects) {
       const body = sel[2];
       const eachBlocks = (body.match(/\{#each PICKUP_LOCATIONS\s+as\s+\w+/g) || []).length;
       const literalOptions = (body.match(/<option[^>]*value=["'][^"']*["']/g) || []).length;
@@ -685,7 +676,7 @@ if (errors.length > 0) {
     console.error('Si el error es un default de horario, usa una hora de TIME_OPTIONS de src/lib/components/HeroSearch.svelte.');
   }
   if (errors.some((e) => e.rule.includes('duplic') || e.rule.includes('vacío') || e.rule.includes('select de') || e.rule.includes('PICKUP_LOCATIONS ilegible'))) {
-    console.error('Revisa la lista PICKUP_LOCATIONS de src/lib/data/fleet.ts y los <select> de lugar de HeroSearch.svelte.');
+    console.error('Revisa la lista PICKUP_LOCATIONS de src/lib/data/fleet.ts (y, si existe, el <select> de lugar de HeroSearch.svelte).');
   }
   if (errors.some((e) => e.rule.includes('getElementById'))) {
     console.error('getElementById no admite ids escritos a mano: usa SECTION.id de sections.ts o una referencia bind:this.');
@@ -708,7 +699,7 @@ if (errors.length > 0) {
 console.log(`✓ Guardia de contacto OK: ${scanned} archivos revisados, ${phones.length} teléfonos vigilados en ${CONTACT_FILE}.`);
 console.log('  Defaults de ubicación (schema.prisma + API) = PICKUP_LOCATIONS[0].');
 console.log('  Defaults de horario (schema.prisma + API) ∈ TIME_OPTIONS del buscador.');
-console.log('  PICKUP_LOCATIONS íntegra: sin duplicados ni vacíos y sincronizada con el buscador.');  console.log('  Enlaces e ids de sección → sin literales en src/ fuera de sections.ts (getElementById incluido).');
+console.log('  PICKUP_LOCATIONS íntegra: sin duplicados ni vacíos (selects de lugar opcionales, siempre sincronizados).');  console.log('  Enlaces e ids de sección → sin literales en src/ fuera de sections.ts (getElementById incluido).');
 console.log('  index.html = index.template.html con secciones de sections.ts y contacto de contact.ts.');
 console.log('  Dirección de oficina → solo en contact.ts (e index.html generado).');
 console.log('  Migración de normalización → canónicos ∈ PICKUP_LOCATIONS y DEFAULT = [0].');

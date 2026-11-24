@@ -12,7 +12,6 @@ export interface DriverData {
     email: string;
     license: string;
     licenseExp: string;
-    hotel: string;
 }
 
 export interface ReservationResult {
@@ -32,9 +31,6 @@ export interface ReservationResult {
 class BookingStore {
     currency = $state<'COP' | 'USD'>('COP');
     usdRate = $state<number>(4000);
-
-    pickupPlace = $state<string>(PICKUP_LOCATIONS[0]);
-    returnPlace = $state<string>(PICKUP_LOCATIONS[0]);
 
     pickupDate = $state<string>('');
     pickupTime = $state<string>('10:00');
@@ -58,8 +54,7 @@ class BookingStore {
         phone: '',
         email: '',
         license: '',
-        licenseExp: '',
-        hotel: ''
+        licenseExp: ''
     });
 
     // Signature data url
@@ -235,8 +230,9 @@ class BookingStore {
                     returnDate: this.returnDate,
                     pickupTime: this.pickupTime,
                     returnTime: this.returnTime,
-                    pickupLocation: this.pickupPlace,
-                    returnLocation: this.returnPlace,
+                    // Único punto de entrega y devolución (sin selector en la UI).
+                    pickupLocation: PICKUP_LOCATIONS[0],
+                    returnLocation: PICKUP_LOCATIONS[0],
                     customerName: this.driver.names,
                     customerLastname: this.driver.lastnames,
                     customerEmail: this.driver.email,
@@ -245,7 +241,6 @@ class BookingStore {
                     customerIdNumber: this.driver.docNumber,
                     customerLicense: this.driver.license,
                     customerLicenseExp: this.driver.licenseExp,
-                    customerHotel: this.driver.hotel,
                     insurancePlan: this.insuranceCoverage === 'total' ? 'TOTAL' : 'BASICO',
                     extras: {
                         babySeat: this.extraBabySeat,

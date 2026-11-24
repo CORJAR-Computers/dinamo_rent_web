@@ -352,7 +352,7 @@ def generate_consolidated_pdf(output_path):
         ],
         [
             Paragraph("<b>1. Solicitud Web</b>", table_cell_bold),
-            Paragraph("Cliente elige fechas, vehículo y puntos en Cartagena (Aeropuerto, Hoteles).", table_cell),
+            Paragraph("Cliente elige fechas, vehículo y la oficina de entrega en Cartagena.", table_cell),
             Paragraph("No se cobra de inmediato. Se crea la solicitud en estado <i>Pendiente</i>.", table_cell)
         ],
         [

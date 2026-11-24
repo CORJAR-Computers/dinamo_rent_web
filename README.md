@@ -12,7 +12,7 @@ Plataforma web oficial de reservas en línea para **Dinamo Rent a Car** en Carta
 
 ## 🌟 Características Principales
 
-- 📍 **Buscador Especializado para Cartagena**: Selector de entregas y devoluciones en el Aeropuerto Internacional Rafael Núñez (CTG), Bocagrande, Centro Histórico, Manga y hoteles.
+- 📍 **Punto Único de Entrega y Devolución**: La entrega y la devolución se realizan únicamente en la oficina principal de Crespo; las devoluciones en otra ciudad se coordinan en la oficina o por WhatsApp.
 - ⏱️ **Cotizador en Tiempo Real**: Cálculo preciso de tarifas por días de 24 horas y desglose transparente.
 - 💵 **Moneda Dual (COP / USD)**: Conversión instantánea de tarifas y depósitos para turistas internacionales y clientes locales.
 - 🚙 **Catálogo de Flota por Categorías**: Filtros para vehículos Económicos, Sedanes familiares, SUVs / Camionetas de turismo y Gama Alta 4x4.

@@ -15,47 +15,92 @@ import { isUserAdmin } from '#lib/server/adminAuth.js';
 import { PICKUP_LOCATIONS, normalizePickupLocation } from '#lib/data/fleet.js';
 import { validateDocumentNumber, normalizeDocType } from '#lib/utils/documentValidation.js';
 import { checkRateLimit } from '#lib/server/rateLimit.js';
+import {
+  PUBLIC_RESERVATION_SELECT,
+  PUBLIC_LOOKUP_RATE_LIMIT,
+} from '#lib/server/reservationView.js';
 import { calcTaxes } from '#lib/utils/taxes.js';
 
-export const GET: RequestHandler = async ({ url, cookies }) => {
+export const GET: RequestHandler = async ({ url, cookies, getClientAddress }) => {
   try {
-    const email = url.searchParams.get('email');
-    const code = url.searchParams.get('code');
-    const docNumber = url.searchParams.get('docNumber');
-    const requestId = url.searchParams.get('requestId');
-
     const isAdmin = isUserAdmin(cookies);
 
-    // Protección anti-scraping / anti-fuga de datos (PII):
-    // Si no es un administrador autenticado, se exige obligatoriamente un filtro de búsqueda específico.
-    if (!isAdmin && !code && !email && !docNumber && !requestId) {
+    // === ADMINISTRACIÓN: puede filtrar por cualquier campo y ver la fila completa ===
+    if (isAdmin) {
+      const email = url.searchParams.get('email');
+      const code = url.searchParams.get('code');
+      const docNumber = url.searchParams.get('docNumber');
+      const requestId = url.searchParams.get('requestId');
+
+      const where: Record<string, unknown> = {};
+      if (email) where.customerEmail = email.trim().toLowerCase();
+      if (code) where.code = code.trim().toUpperCase();
+      if (docNumber) where.customerIdNumber = docNumber.trim();
+      if (requestId) where.payment = { p2pRequestId: requestId.trim() };
+
+      const reservations = await db.reservation.findMany({
+        where,
+        include: { vehicle: true, payment: true, customer: true },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+
+      return Response.json({ ok: true, reservations, count: reservations.length });
+    }
+
+    // === CONSULTA PÚBLICA ===
+    // Solo por código de reserva o referencia de pago. Se descarta el filtro
+    // por correo o documento: cualquiera podría cosechar reservas de terceros.
+    // La respuesta usa una vista reducida (sin token, sin ids de la pasarela y
+    // sin datos de contacto o documento del cliente).
+    const code = url.searchParams.get('code')?.trim();
+    const requestId = url.searchParams.get('requestId')?.trim();
+
+    if (!code && !requestId) {
       return Response.json(
         {
           ok: false,
-          error: 'Por seguridad, debes indicar tu código de reserva, correo o número de documento para consultar.',
+          error: 'Para consultar una reserva necesitas su código o la referencia de pago.',
         },
         { status: 400 }
       );
     }
 
-    const where: Record<string, unknown> = {};
-    if (email) where.customerEmail = email.trim().toLowerCase();
-    if (code) where.code = code.toUpperCase();
-    if (docNumber) where.customerIdNumber = docNumber.trim();
-    if (requestId) where.payment = { p2pRequestId: requestId.trim() };
+    // El código DIN-AAAA-NNNN tiene pocas combinaciones: se limita el intento
+    // por IP para que no se pueda enumerar.
+    let clientIp = '127.0.0.1';
+    try {
+      clientIp = getClientAddress();
+    } catch {
+      clientIp = '127.0.0.1';
+    }
+    const rateLimit = await checkRateLimit(clientIp, PUBLIC_LOOKUP_RATE_LIMIT);
+    if (!rateLimit.allowed) {
+      return Response.json(
+        {
+          ok: false,
+          error: `Demasiadas consultas de reservas. Espera ${rateLimit.retryAfterSeconds} segundos.`,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
 
-    const reservations = await db.reservation.findMany({
-      where,
-      include: {
-        vehicle: true,
-        payment: true,
-        customer: true,
-      },
+    const reservation = await db.reservation.findFirst({
+      where: code
+        ? { code: code.toUpperCase() }
+        : { payment: { p2pRequestId: requestId ?? '' } },
+      select: PUBLIC_RESERVATION_SELECT,
       orderBy: { createdAt: 'desc' },
-      take: isAdmin ? 100 : 10,
     });
 
-    return Response.json({ ok: true, reservations, count: reservations.length });
+    const reservations = reservation ? [reservation] : [];
+    return Response.json(
+      { ok: true, reservations, count: reservations.length },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (e) {
     console.error('[api/reservations GET] error:', e);
     return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
@@ -72,7 +117,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
     }
 
-    const rateLimit = checkRateLimit(clientIp, {
+    const rateLimit = await checkRateLimit(clientIp, {
       endpointKey: 'create-reservation',
       windowMs: 10 * 60 * 1000,
       maxRequests: 15,
@@ -99,8 +144,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       returnDate,
       pickupTime = '10:00',
       returnTime = '10:00',
-      pickupLocation = 'Aeropuerto Internacional Rafael Núñez (CTG)',
-      returnLocation = 'Aeropuerto Internacional Rafael Núñez (CTG)',
+      pickupLocation = 'Oficina Principal — Crespo',
+      returnLocation = 'Oficina Principal — Crespo',
       customerName,
       customerLastname = '',
       customerEmail,
@@ -109,7 +154,6 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       customerIdNumber,
       customerLicense,
       customerLicenseExp,
-      customerHotel,
       docPhotoUrl,
       licensePhotoUrl,
       insurancePlan = 'TOTAL',
@@ -204,7 +248,6 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
         phone: cleanPhone,
         license: customerLicense?.trim() || null,
         licenseExp: customerLicenseExp?.trim() || null,
-        hotel: customerHotel?.trim() || null,
       },
       update: {
         docType: cleanDocType,
@@ -215,7 +258,6 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
         phone: cleanPhone,
         license: customerLicense?.trim() || undefined,
         licenseExp: customerLicenseExp?.trim() || undefined,
-        hotel: customerHotel?.trim() || undefined,
       },
     });
 
@@ -254,7 +296,6 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
           customerIdNumber: customer.docNumber,
           customerLicense: customer.license,
           customerLicenseExp: customer.licenseExp,
-          customerHotel: customer.hotel,
           pickupDate: start,
           returnDate: end,
           pickupTime,

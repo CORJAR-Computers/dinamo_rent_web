@@ -25,7 +25,6 @@
 		customerEmail: string;
 		customerPhone: string;
 		customerIdNumber: string;
-		customerHotel: string | null;
 		customer: {
 			id: string;
 			docNumber: string;
@@ -124,7 +123,7 @@
 		const cleanPhone = (r.customerPhone || '').replace(/\D/g, '');
 		const intlPhone = cleanPhone.startsWith('57') ? cleanPhone : `57${cleanPhone}`;
 		const text = encodeURIComponent(
-			`¡Hola ${r.customerName}! Te escribimos de Dinamo Rent a Car Cartagena sobre tu reserva #${r.code} para el ${r.vehicle.name}. ¿Tienes alguna inquietud sobre tu llegada al Aeropuerto Rafael Núñez?`
+			`¡Hola ${r.customerName}! Te escribimos de Dinamo Rent a Car Cartagena sobre tu reserva #${r.code} para el ${r.vehicle.name}. ¿Tienes alguna inquietud sobre la entrega en nuestra oficina principal?`
 		);
 		return `https://wa.me/${intlPhone}?text=${text}`;
 	}
@@ -359,9 +358,6 @@
 								<p class="font-bold text-white text-sm">{r.customerName}</p>
 								<p class="text-[11px] text-slate-400">Doc: <span class="font-mono font-semibold text-slate-300">{r.customerIdNumber}</span></p>
 								<p class="text-[11px] text-slate-400">{r.customerPhone}</p>
-								{#if r.customerHotel}
-									<p class="text-[10px] text-amber-400/90 mt-0.5">🏨 {r.customerHotel}</p>
-								{/if}
 							</td>
 
 							<!-- Vehículo -->

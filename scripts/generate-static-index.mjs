@@ -5,7 +5,7 @@
  * Únicas fuentes de verdad:
  *  - Secciones : src/lib/data/sections.ts → tokens {{FLEET_SECTION.id|label|href}}
  *  - Contacto  : src/lib/data/contact.ts   → tokens {{PRIMARY_PHONE}}, {{WHATSAPP_URL}}
- *  - Ubicaciones: src/lib/data/fleet.ts    → tokens {{LOCATION_OPTIONS}}, {{LOCATION_LIST}}
+ *  - Ubicaciones: src/lib/data/fleet.ts    → tokens {{PRIMARY_LOCATION}}, {{LOCATION_LIST}}
  *
  * La landing estática comparte así ids y enlaces con la app SvelteKit.
  *
@@ -90,12 +90,7 @@ export function renderIndex() {
   for (const [key, value] of loadContact()) tokens.set(key, value);
 
   const locations = loadPickupLocations();
-  tokens.set(
-    'LOCATION_OPTIONS',
-    locations
-      .map((loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`)
-      .join('\n')
-  );
+  tokens.set('PRIMARY_LOCATION', escapeHtml(locations[0]));
   tokens.set(
     'LOCATION_LIST',
     locations

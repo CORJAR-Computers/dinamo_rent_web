@@ -25,7 +25,7 @@
           </div>
         </div>
         <p class="text-xs text-slate-400 leading-relaxed">
-          Tu aliado de confianza para el alquiler de vehículos en Cartagena de Indias. Entregas personalizadas en aeropuerto y hoteles con el respaldo de una flota moderna y segura.
+          Tu aliado de confianza para el alquiler de vehículos en Cartagena de Indias. Entrega y devolución en nuestra oficina principal, con el respaldo de una flota moderna y segura.
         </p>
         <div class="flex items-center gap-3 text-slate-300">
           <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram Dinamo Rent" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center hover:text-orange-400 hover:border-orange-500 transition">
@@ -40,31 +40,22 @@
         </div>
       </div>
 
-      <!-- Col 2: Puntos de Entrega en Cartagena -->
+      <!-- Col 2: Punto de entrega y devolución -->
       <div class="space-y-3">
         <h4 class="font-heading font-bold text-white text-sm uppercase tracking-wider">
-          Puntos de Entrega
+          Punto de Entrega y Devolución
         </h4>
         <ul class="space-y-2 text-xs">
           <li class="flex items-start gap-2">
             <i class="fa-solid fa-building text-orange-400 mt-0.5"></i>
-            <span>Oficina: {OFFICE_ADDRESS}</span>
+            <span>Oficina Principal: {OFFICE_ADDRESS}, Cartagena</span>
           </li>
           <li class="flex items-start gap-2">
-            <i class="fa-solid fa-plane-arrival text-orange-400 mt-0.5"></i>
-            <span>Aeropuerto Rafael Núñez (CTG) — Sala de Llegadas</span>
+            <i class="fa-solid fa-location-dot text-cyan-400 mt-0.5"></i>
           </li>
           <li class="flex items-start gap-2">
-            <i class="fa-solid fa-hotel text-cyan-400 mt-0.5"></i>
-            <span>Bocagrande, Castillogrande y El Laguito</span>
-          </li>
-          <li class="flex items-start gap-2">
-            <i class="fa-solid fa-landmark text-amber-400 mt-0.5"></i>
-            <span>Centro Histórico, Getsemaní y San Diego</span>
-          </li>
-          <li class="flex items-start gap-2">
-            <i class="fa-solid fa-umbrella-beach text-emerald-400 mt-0.5"></i>
-            <span>Zona Norte, Manzanillo y Boquilla</span>
+            <i class="fa-brands fa-whatsapp text-emerald-400 mt-0.5"></i>
+            <span>Devoluciones en otra ciudad: se coordinan en la oficina o por WhatsApp.</span>
           </li>
         </ul>
       </div>

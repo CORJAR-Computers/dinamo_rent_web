@@ -4,7 +4,7 @@
   import ProcessSteps from '#lib/components/ProcessSteps.svelte';
   import TrustBadges from '#lib/components/TrustBadges.svelte';
   import ContactSection from '#lib/components/ContactSection.svelte';
-  import { whatsappLink } from '#lib/data/contact.js';
+  import { OFFICE_ADDRESS, whatsappLink } from '#lib/data/contact.js';
   import { FLEET_SECTION } from '#lib/data/sections.js';
   import { resolve } from '$app/paths';
 
@@ -14,8 +14,8 @@
 
   const FAQS = [
     {
-      q: '¿Cómo funciona la entrega del auto en el Aeropuerto Rafael Núñez?',
-      a: 'Nuestro asesor te esperará en la sala de llegadas nacionales o internacionales con un cartel a tu nombre. Realizamos la inspección digital con fotos en tu presencia y te entregamos las llaves inmediatamente, sin filas ni traslados a oficinas externas.'
+      q: '¿Dónde recojo y devuelvo el vehículo?',
+      a: `La entrega y la devolución se realizan únicamente en nuestra oficina principal (${OFFICE_ADDRESS}), dentro del horario de atención. Si necesitas devolver el vehículo en otra ciudad, debes coordinarlo previamente en la oficina o por WhatsApp.`
     },
     {
       q: '¿Cómo funciona la garantía del alquiler y qué tarjetas aceptan?',

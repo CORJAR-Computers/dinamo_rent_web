@@ -386,6 +386,12 @@ html {
   gap: 6px;
 }
 
+/* Único punto de entrega y devolución: ocupa el ancho de los dos campos
+   de ubicación que tenía el buscador. */
+.form-group-location {
+  grid-column: span 2;
+}
+
 .form-group label {
   font-size: 12px;
   font-weight: 700;
@@ -2170,7 +2176,8 @@ html {
   .driver-grid {
     grid-template-columns: 1fr;
   }
-  .form-group.full-width {
+  .form-group.full-width,
+  .form-group-location {
     grid-column: span 1;
   }
   .doc-signatures-grid {

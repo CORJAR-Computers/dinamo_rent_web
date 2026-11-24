@@ -26,10 +26,6 @@
         pickupLocation: string;
         customerName: string;
         customerLastname: string;
-        customerPhone: string;
-        customerEmail?: string;
-        customerIdType?: string;
-        customerIdNumber?: string;
         pickupTime?: string;
         returnTime?: string;
         synced: boolean;
@@ -41,19 +37,15 @@
             plate: string | null;
             image: string;
         };
+        // Vista pública: sin token de tarjeta ni ids internos de la pasarela.
         payment: {
             status: string;
             transactionId?: string | null;
-            p2pRequestId?: string | null;
-            p2pOpType: string | null;
             p2pSessionStatus: string | null;
-            p2pStatusMessage: string | null;
             cardBrand: string;
             cardLast4: string;
             amount: number;
-            token?: string | null;
             tokenStatus?: string | null;
-            tokenFranchise?: string | null;
             createdAt?: string;
             updatedAt?: string;
         } | null;
@@ -170,7 +162,6 @@
             `🗓 *Devolución:* ${formatDatePretty(reservation.returnDate)}%0A` +
             `⏱ *Duración:* ${reservation.days} día(s)%0A` +
             `👤 *Conductor:* ${reservation.customerName} ${reservation.customerLastname}%0A` +
-            `📱 *WhatsApp:* ${reservation.customerPhone}%0A` +
             `💰 *Total Pagado:* ${formatCurrency(reservation.totalAmount, "COP")}%0A` +
             `✅ *Estado:* PAGADA (confirmado online)%0A%0A` +
             `_He completado el check-in digital, firmado y pagado. Deseo recoger el vehículo en mostrador._`;
@@ -364,7 +355,7 @@
                                 >{reservation.payment.cardBrand} •••• {reservation.payment.cardLast4}</span
                             >
                         </div>
-                        {#if reservation.payment.token || reservation.payment.tokenStatus === 'ACTIVO'}
+                        {#if reservation.payment.tokenStatus === 'ACTIVO'}
                             <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
                                 <span class="text-slate-400 flex items-center gap-1.5">
                                     <i class="fa-solid fa-shield-halved text-emerald-400"></i>
@@ -470,8 +461,7 @@
                     class="p-5 rounded-2xl bg-slate-900 border border-red-500/30 space-y-3 mb-6"
                 >
                     <p class="text-sm text-slate-300">
-                        Tu pago fue rechazado por la entidad financiera. {reservation
-                            .payment?.p2pStatusMessage || ""}
+                        Tu pago fue rechazado por la entidad financiera.
                     </p>
                     <p class="text-xs text-slate-400">
                         La reserva <span class="font-mono text-white"
@@ -658,20 +648,6 @@
                 <span class="text-slate-500">Nombre:</span>
                 {r.customerName} {r.customerLastname}
             </p>
-            {#if r.customerIdNumber}
-                <p>
-                    <span class="text-slate-500">Documento:</span>
-                    {r.customerIdType || "CC"} {r.customerIdNumber}
-                </p>
-            {/if}
-            <p>
-                <span class="text-slate-500">Teléfono:</span> {r.customerPhone}
-            </p>
-            {#if r.customerEmail}
-                <p>
-                    <span class="text-slate-500">Correo:</span> {r.customerEmail}
-                </p>
-            {/if}
         </div>
         <div class="space-y-0.5">
             <h3

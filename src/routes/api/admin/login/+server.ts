@@ -1,14 +1,15 @@
 import { type RequestHandler } from '@sveltejs/kit';
 import { verifyAdminPassword, setAdminSessionCookie, isAuthConfigured } from '#lib/server/adminAuth.js';
+import { checkRateLimit, resetRateLimit } from '#lib/server/rateLimit.js';
 
-interface AttemptRecord {
-	count: number;
-	lockoutUntil: number;
-}
-
-const loginAttempts = new Map<string, AttemptRecord>();
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutos de bloqueo
+// Intentos por IP contados en la base de datos: 5 intentos por ventana de 15
+// minutos. Antes era un Map en memoria que se reiniciaba con cada instancia
+// serverless nueva, así que en producción el bloqueo era evitable.
+const LOGIN_RATE_LIMIT = {
+	endpointKey: 'admin-login',
+	windowMs: 15 * 60 * 1000,
+	maxRequests: 5
+};
 
 export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
 	// Fail closed: en producción sin ADMIN_PASSWORD/ADMIN_SECRET no se intenta
@@ -31,18 +32,20 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 		// Fallback si no está disponible
 	}
 
-	const now = Date.now();
-	const record = loginAttempts.get(clientIp);
+	// Cada intento (acertado o no) consume cupo; el acierto lo borra más abajo.
+	const rateLimit = await checkRateLimit(clientIp, LOGIN_RATE_LIMIT);
 
 	// Verificar si el IP está bloqueado por fuerza bruta
-	if (record && record.lockoutUntil > now) {
-		const remainingSecs = Math.ceil((record.lockoutUntil - now) / 1000);
+	if (!rateLimit.allowed) {
 		return Response.json(
 			{
 				ok: false,
-				message: `Demasiados intentos fallidos. Acceso bloqueado temporalmente. Intenta nuevamente en ${remainingSecs} segundos.`
+				message: `Demasiados intentos fallidos. Acceso bloqueado temporalmente. Intenta nuevamente en ${rateLimit.retryAfterSeconds} segundos.`
 			},
-			{ status: 429 }
+			{
+				status: 429,
+				headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) }
+			}
 		);
 	}
 
@@ -57,23 +60,20 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 		const isValid = verifyAdminPassword(password);
 
 		if (!isValid) {
-			const current = loginAttempts.get(clientIp) || { count: 0, lockoutUntil: 0 };
-			current.count += 1;
-
-			if (current.count >= MAX_ATTEMPTS) {
-				current.lockoutUntil = now + LOCKOUT_MS;
-				loginAttempts.set(clientIp, current);
+			if (rateLimit.remaining <= 0) {
 				return Response.json(
 					{
 						ok: false,
 						message: 'Demasiados intentos fallidos. Has sido bloqueado por 15 minutos por seguridad.'
 					},
-					{ status: 429 }
+					{
+						status: 429,
+						headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) }
+					}
 				);
 			}
 
-			loginAttempts.set(clientIp, current);
-			const remaining = MAX_ATTEMPTS - current.count;
+			const remaining = rateLimit.remaining;
 			return Response.json(
 				{
 					ok: false,
@@ -83,8 +83,8 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 			);
 		}
 
-		// Login exitoso: limpiar registro de intentos y asignar cookie
-		loginAttempts.delete(clientIp);
+		// Login exitoso: limpiar el contador de intentos y asignar cookie
+		await resetRateLimit(clientIp, LOGIN_RATE_LIMIT);
 		setAdminSessionCookie(cookies);
 
 		return Response.json({

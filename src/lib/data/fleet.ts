@@ -1,5 +1,3 @@
-import { OFFICE_NEIGHBORHOOD, OFFICE_STREET } from '#lib/data/contact.js';
-
 export interface Vehicle {
   id: string;
   name: string;
@@ -227,14 +225,15 @@ export const FLEET_DATABASE: Vehicle[] = [
   }
 ];
 
+/**
+ * Única ubicación de entrega y devolución: la oficina principal.
+ * Todo el alquiler se entrega y se recibe en la oficina principal. Las
+ * devoluciones en otra ciudad se negocian en la oficina o por WhatsApp, por eso
+ * no son una opción del buscador. Las reservas antiguas conservan en la base de
+ * datos la ubicación con la que se registraron.
+ */
 export const PICKUP_LOCATIONS = [
-  'Aeropuerto Internacional Rafael Núñez (CTG)',
-  `${OFFICE_NEIGHBORHOOD} (Oficina Principal — ${OFFICE_STREET})`,
-  'Bocagrande / Castillogrande / El Laguito (Hotel)',
-  'Centro Histórico (Torre del Reloj / Getsemaní)',
-  'Manga / Zona Portuaria',
-  'Zona Norte / Manzanillo del Mar',
-  'Entrega a Domicilio en Hotel / Airbnb'
+  'Oficina Principal — Crespo'
 ];
 
 /** Clave de comparación insensible a mayúsculas, acentos, guiones y espacios extra. */

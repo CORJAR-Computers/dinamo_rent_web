@@ -113,8 +113,8 @@ const AppState = {
   currentCategory: 'all',
   selectedVehicle: null,
   rentalDays: 3,
-  pickupPlace: 'Aeropuerto Rafael Núñez (CTG)',
-  returnPlace: 'Aeropuerto Rafael Núñez (CTG)',
+  pickupPlace: 'Oficina Principal — Crespo',
+  returnPlace: 'Oficina Principal — Crespo',
   pickupDate: '2026-08-17',
   pickupTime: '10:00',
   returnDate: '2026-08-20',
@@ -135,8 +135,7 @@ const AppState = {
     phone: '+57 300 895 4422',
     email: 'carlos.gomez@gmail.com',
     license: '13001-998822',
-    licenseExp: '2030-05-15',
-    hotel: 'Hotel Almirante Cartagena'
+    licenseExp: '2030-05-15'
   },
 
   // Firma
@@ -336,10 +335,8 @@ function initSearchForm() {
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const pLoc = document.getElementById('pickup-location');
-    const rLoc = document.getElementById('return-location');
-    AppState.pickupPlace = pLoc.options[pLoc.selectedIndex].text;
-    AppState.returnPlace = rLoc.options[rLoc.selectedIndex].text;
+    AppState.pickupPlace = document.getElementById('office-location').value;
+    AppState.returnPlace = AppState.pickupPlace;
     AppState.pickupTime = document.getElementById('pickup-time').value;
     AppState.returnTime = document.getElementById('return-time').value;
     
@@ -498,8 +495,7 @@ function saveDriverFormData() {
     phone: document.getElementById('driver-phone').value,
     email: document.getElementById('driver-email').value,
     license: document.getElementById('driver-license').value,
-    licenseExp: document.getElementById('driver-license-exp').value,
-    hotel: document.getElementById('driver-hotel').value
+    licenseExp: document.getElementById('driver-license-exp').value
   };
 
   // Actualizar textos legales
@@ -598,7 +594,6 @@ function processFinalBooking() {
   document.getElementById('doc-client-license').textContent = driver.license;
   document.getElementById('doc-client-phone').textContent = driver.phone;
   document.getElementById('doc-client-email').textContent = driver.email;
-  document.getElementById('doc-client-hotel').textContent = driver.hotel || 'Cartagena de Indias';
 
   // Vehículo
   document.getElementById('doc-vehicle-name').textContent = car.name;

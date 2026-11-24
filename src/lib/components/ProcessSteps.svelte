@@ -49,7 +49,7 @@
         </div>
         <h3 class="font-heading font-black text-xl text-white">Entrega y ¡A Rodar!</h3>
         <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-          Al aterrizar en el Aeropuerto de Cartagena o en tu hotel, nuestro asesor te hace entrega del auto limpio, tanqueado e inspeccionado.
+          En nuestra oficina principal de Crespo te entregamos el auto limpio, tanqueado e inspeccionado, y ahí mismo lo recibimos al terminar tu renta.
         </p>
       </div>
 

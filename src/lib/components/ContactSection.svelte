@@ -25,7 +25,7 @@
         Central de Reservas 24/7
       </h2>
       <p class="text-slate-400 text-sm max-w-xl mx-auto">
-        Llámanos o escríbenos por WhatsApp: atendemos entregas en el aeropuerto, hoteles y toda Cartagena de Indias.
+        Llámanos o escríbenos por WhatsApp: entregamos y recibimos el vehículo en nuestra oficina principal de Crespo. Si necesitas devolverlo en otra ciudad, lo coordinamos contigo por WhatsApp.
       </p>
     </div>
 

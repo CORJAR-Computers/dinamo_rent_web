@@ -3,8 +3,10 @@
 # `npm run check` incluye scripts/check-contact.mjs: falla si un teléfono, un
 # enlace wa.me o un default de ubicación de la empresa aparece hardcodeado
 # fuera de su fuente de verdad (contact.ts / PICKUP_LOCATIONS).
-# `npm run lint` aplica ESLint (TS + Svelte) y `npm test` corre Vitest
-# (fail-closed de adminAuth y rate-limit de login).
+# `npm run lint` aplica ESLint (TS + Svelte), `npm test` corre Vitest (fail-closed
+# de adminAuth, rate-limit de login, vista pública de reservas y cobros de
+# garantía) y `npm run build` compila con Vite + adapter-vercel: un error de
+# bundling o de rutas que el type-check no detecta tumba el CI, no el deploy.
 # El objetivo es que este check esté marcado como "required" en GitHub para que
 # bloquee los merges con errores.
 name: Check
@@ -56,3 +58,6 @@ jobs:
 
       - name: svelte-check + guardia de contacto
         run: npm run check
+
+      - name: Build de producción (Vite + adapter-vercel)
+        run: npm run build

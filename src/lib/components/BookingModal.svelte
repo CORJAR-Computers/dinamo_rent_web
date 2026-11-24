@@ -6,7 +6,12 @@
         formatDatePretty,
         formatDateTimePretty,
     } from "#lib/utils/formatters.js";
-    import { CONTACT_PHONES, telLink, whatsappLink } from "#lib/data/contact.js";
+    import {
+        CONTACT_PHONES,
+        OFFICE_ADDRESS,
+        telLink,
+        whatsappLink,
+    } from "#lib/data/contact.js";
     import { compressImageFile } from "#lib/utils/imageCompression.js";
     import {
         PLACETOPAY_DOCUMENT_TYPES,
@@ -863,19 +868,14 @@
                                     class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none"
                                 />
                             </div>
-                            <div class="space-y-1.5 sm:col-span-2">
-                                <label
-                                    for="d-hotel"
-                                    class="text-xs font-bold text-slate-300"
-                                    >Hotel / Airbnb (opcional)</label
-                                >
-                                <input
-                                    id="d-hotel"
-                                    type="text"
-                                    bind:value={booking.driver.hotel}
-                                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 outline-none"
-                                    placeholder="Nombre del hotel o dirección"
-                                />
+                            <div class="sm:col-span-2 p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2">
+                                <i class="fa-solid fa-building text-orange-400 mt-0.5"></i>
+                                <span>
+                                    La entrega y la devolución se realizan únicamente en
+                                    nuestra oficina principal ({OFFICE_ADDRESS}). Si
+                                    necesitas devolver el vehículo en otra ciudad,
+                                    coordínalo previamente en la oficina.
+                                </span>
                             </div>
 
                             <!-- Digitalización de Documentos (Cédula y Licencia) -->

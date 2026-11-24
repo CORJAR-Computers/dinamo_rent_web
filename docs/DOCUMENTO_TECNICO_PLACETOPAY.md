@@ -22,7 +22,7 @@
 
 ## 1. Resumen Ejecutivo y Justificación del Modelo
 
-**Dinamo Rent a Car** es una empresa dedicada al alquiler de vehículos turísticos y corporativos con base de operaciones en Cartagena de Indias (Aeropuerto Internacional Rafael Núñez CTG, sedes hoteleras y urbanas).
+**Dinamo Rent a Car** es una empresa dedicada al alquiler de vehículos turísticos y corporativos con base de operaciones en Cartagena de Indias (oficina principal en Crespo).
 
 En el modelo de negocio de alquiler de vehículos en Colombia, el servicio de **Preautorización (Hold / Retención temporal de cupo)** no se encuentra actualmente habilitado por las entidades adquirentes bancarias. En respuesta y siguiendo las directrices técnicas de **Evertec / Place to Pay**, se ha implementado el modelo oficial y certificado de **Suscripción (Tokenización de Tarjetas)** en combinación con el servicio Server-to-Server **`/api/collect`**.
 
@@ -52,7 +52,7 @@ El sistema implementa una arquitectura moderna, desacoplada y con defensas cript
            ▼                              ▼                              ▼
 [ Pasarela Place to Pay (Evertec) ]  [ Base de Datos Neon PG ]   [ Sync Mostrador ]
 • Procesamiento bancario 3DS          • PostgreSQL Serverless    • Software Local
-• Ambiente certificado PCI-DSS Nivel 1 • Tokens y auditoría       • Mostrador Aeropuerto
+• Ambiente certificado PCI-DSS Nivel 1 • Tokens y auditoría       • Mostrador Oficina Crespo
 • Bóveda de tarjetas (Tokenización)   • Registros inmutables
 ```
 

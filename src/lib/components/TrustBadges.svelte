@@ -63,17 +63,17 @@
         </ul>
       </div>
 
-      <!-- Card 3: Entrega VIP Aeropuerto -->
+      <!-- Card 3: Entrega en Oficina Principal -->
       <div class="rounded-3xl bg-slate-950 p-7 border border-slate-800/80 hover:border-emerald-500/40 transition-all space-y-4">
         <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl">
-          <i class="fa-solid fa-plane-circle-check"></i>
+          <i class="fa-solid fa-building-circle-check"></i>
         </div>
-        <h3 class="font-heading font-black text-xl text-white">Entrega en Aeropuerto CTG</h3>
+        <h3 class="font-heading font-black text-xl text-white">Entrega en Oficina Crespo</h3>
         <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
-          Un asesor de Dinamo Rent te espera con el vehículo listo en el Aeropuerto Internacional Rafael Núñez. Inspección digital fotográfica y entrega de llaves en menos de 10 minutos.
+          Te esperamos en nuestra oficina principal de Crespo con el vehículo listo: inspección digital fotográfica y entrega de llaves en menos de 10 minutos. La devolución se hace en el mismo punto; si necesitas otra ciudad, coordínalo por WhatsApp.
         </p>
         <div class="pt-2 border-t border-slate-900 text-emerald-400 text-xs font-semibold flex items-center gap-1.5">
-          <i class="fa-solid fa-clock"></i> Sin filas en mostradores tradicionales
+          <i class="fa-solid fa-clock"></i> Un solo punto de entrega y devolución
         </div>
       </div>
 

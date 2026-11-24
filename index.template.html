@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dinamo Rent a Car | Alquiler de Autos en Cartagena de Indias</title>
-  <meta name="description" content="Renta de autos y camionetas en Cartagena. Entregas en el Aeropuerto Rafael Núñez, Bocagrande y Centro Histórico. Reserva online con firma digital y garantía protegida.">
+  <meta name="description" content="Renta de autos y camionetas en Cartagena. Entrega y devolución en nuestra oficina principal de Crespo. Reserva online con firma digital y garantía protegida.">
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,7 +28,7 @@
           <span class="divider">•</span>
           <span><i class="fa-solid fa-shield-halved text-cyan"></i> Garantía con Tarjeta Tokenizada (Evertec PlacetoPay)</span>
           <span class="divider">•</span>
-          <span><i class="fa-solid fa-plane-arrival text-orange"></i> Entrega en Aeropuerto Rafael Núñez</span>
+          <span><i class="fa-solid fa-building text-orange"></i> Entrega y devolución en Oficina Crespo</span>
         </div>
         <div class="top-bar-actions">
           <div class="currency-selector">
@@ -113,7 +113,7 @@
           Alquila el auto ideal para recorrer <span class="highlight-text">Cartagena y la Costa</span>
         </h1>
         <p class="hero-subtitle">
-          Flota moderna, entrega directa en el <b>Aeropuerto Rafael Núñez</b> o tu hotel, tarifas transparentes con seguro de lucro cesante y reserva segura con firma digital.
+          Flota moderna, entrega y devolución en nuestra <b>oficina principal de Crespo</b>, tarifas transparentes con seguro de lucro cesante y reserva segura con firma digital.
         </p>
 
         <!-- Buscador Inteligente -->
@@ -124,20 +124,10 @@
           </div>
           
           <form id="booking-search-form" class="search-grid">
-            <!-- Lugar de Recogida -->
-            <div class="form-group">
-              <label><i class="fa-solid fa-map-pin text-orange"></i> Lugar de Recogida</label>
-              <select id="pickup-location" class="form-control" required>
-                {{LOCATION_OPTIONS}}
-              </select>
-            </div>
-
-            <!-- Lugar de Devolución -->
-            <div class="form-group">
-              <label><i class="fa-solid fa-location-arrow text-cyan"></i> Lugar de Devolución</label>
-              <select id="return-location" class="form-control" required>
-                {{LOCATION_OPTIONS}}
-              </select>
+            <!-- Punto único de entrega y devolución -->
+            <div class="form-group form-group-location">
+              <label><i class="fa-solid fa-building text-orange"></i> Entrega y Devolución</label>
+              <input type="text" id="office-location" class="form-control" value="{{PRIMARY_LOCATION}}" readonly>
             </div>
 
             <!-- Fecha y Hora Recogida -->
@@ -180,10 +170,10 @@
     <section class="perks-section">
       <div class="container perks-grid">
         <div class="perk-card">
-          <div class="perk-icon"><i class="fa-solid fa-plane-departure"></i></div>
+          <div class="perk-icon"><i class="fa-solid fa-building"></i></div>
           <div class="perk-info">
-            <h4>Entrega Inmediata en Aeropuerto</h4>
-            <p>Te esperamos en la salida de vuelos con tu vehículo listo y limpio.</p>
+            <h4>Entrega en Oficina Principal</h4>
+            <p>Te esperamos en nuestra oficina de Crespo con tu vehículo listo y limpio.</p>
           </div>
         </div>
         <div class="perk-card">
@@ -263,7 +253,7 @@
             <div class="step-number">4</div>
             <div class="step-icon"><i class="fa-solid fa-key"></i></div>
             <h3>4. ¡Recibe y Disfruta!</h3>
-            <p>Te entregamos el auto en el aeropuerto u hotel con tanque lleno. Al devolver, tu garantía se libera al instante.</p>
+            <p>Te entregamos el auto en nuestra oficina principal con tanque lleno y lo recibimos en el mismo punto. Al devolver, tu garantía se libera al instante.</p>
           </div>
         </div>
       </div>
@@ -361,9 +351,10 @@
         </div>
 
         <div class="footer-col" id="{{LOCATIONS_SECTION.id}}">
-          <h4>Puntos de Entrega</h4>
+          <h4>Punto de Entrega y Devolución</h4>
           <ul>
             {{LOCATION_LIST}}
+            <li><i class="fa-brands fa-whatsapp text-green"></i> Devoluciones en otra ciudad: se coordinan en la oficina o por WhatsApp.</li>
           </ul>
         </div>
 
@@ -431,8 +422,8 @@
 
               <div class="pickup-summary-box">
                 <h4><i class="fa-solid fa-route text-orange"></i> Itinerario en Cartagena</h4>
-                <p><strong>Recogida:</strong> <span id="summary-pickup-place">Aeropuerto Rafael Núñez</span> (<span id="summary-pickup-date">17 Ago 2026, 10:00 AM</span>)</p>
-                <p><strong>Devolución:</strong> <span id="summary-return-place">Aeropuerto Rafael Núñez</span> (<span id="summary-return-date">20 Ago 2026, 10:00 AM</span>)</p>
+                <p><strong>Recogida:</strong> <span id="summary-pickup-place">Oficina Principal — Crespo</span> (<span id="summary-pickup-date">17 Ago 2026, 10:00 AM</span>)</p>
+                <p><strong>Devolución:</strong> <span id="summary-return-place">Oficina Principal — Crespo</span> (<span id="summary-return-date">20 Ago 2026, 10:00 AM</span>)</p>
                 <p class="text-highlight"><strong>Total Días:</strong> <span id="summary-rental-days">3 días</span></p>
               </div>
             </div>
@@ -561,11 +552,6 @@
               <div class="form-group">
                 <label>Vencimiento de Licencia</label>
                 <input type="date" id="driver-license-exp" class="form-control" value="2030-05-15">
-              </div>
-
-              <div class="form-group full-width">
-                <label>Lugar de Hospedaje en Cartagena (Hotel / Edificio / Apto)</label>
-                <input type="text" id="driver-hotel" class="form-control" placeholder="Ej: Hotel Estelar Bocagrande, Torre 2" value="Hotel Almirante Cartagena">
               </div>
 
               <!-- Simulador de Carga de Documentos -->
@@ -726,7 +712,7 @@
                 </tr>
                 <tr>
                   <td><strong>Email de Contacto:</strong> <span id="doc-client-email">carlos.gomez@gmail.com</span></td>
-                  <td><strong>Lugar Hospedaje:</strong> <span id="doc-client-hotel">Hotel Almirante Cartagena</span></td>
+                  <td><strong>Ciudad de Entrega:</strong> <span>Cartagena de Indias</span></td>
                 </tr>
               </table>
 
@@ -738,11 +724,11 @@
                   <td><strong>Placa / Matrícula:</strong> <strong id="doc-vehicle-plate">LMY-842 (Cartagena)</strong></td>
                 </tr>
                 <tr>
-                  <td><strong>Lugar de Entrega:</strong> <span id="doc-pickup-loc">Aeropuerto Rafael Núñez</span></td>
+                  <td><strong>Lugar de Entrega:</strong> <span id="doc-pickup-loc">Oficina Principal — Crespo</span></td>
                   <td><strong>Fecha Recogida:</strong> <span id="doc-pickup-dt">17/08/2026 10:00 AM</span></td>
                 </tr>
                 <tr>
-                  <td><strong>Lugar de Devolución:</strong> <span id="doc-return-loc">Aeropuerto Rafael Núñez</span></td>
+                  <td><strong>Lugar de Devolución:</strong> <span id="doc-return-loc">Oficina Principal — Crespo</span></td>
                   <td><strong>Fecha Retorno:</strong> <span id="doc-return-dt">20/08/2026 10:00 AM</span></td>
                 </tr>
                 <tr>
@@ -903,16 +889,16 @@
           <h4><i class="fa-solid fa-bell text-cyan"></i> Notificaciones de Entregas & Devoluciones Hoy</h4>
           <ul class="delivery-alerts-list">
             <li>
-              <i class="fa-solid fa-plane-arrival text-orange"></i>
+              <i class="fa-solid fa-building text-orange"></i>
               <div>
-                <strong>10:00 AM - Aeropuerto Rafael Núñez</strong>
+                <strong>10:00 AM - Oficina Principal Crespo</strong>
                 <p>Entrega Chevrolet Onix (LMY-842) a Carlos Andrés Gómez</p>
               </div>
             </li>
             <li>
-              <i class="fa-solid fa-hotel text-cyan"></i>
+              <i class="fa-solid fa-key text-cyan"></i>
               <div>
-                <strong>03:30 PM - Hotel Hyatt Regency Bocagrande</strong>
+                <strong>03:30 PM - Oficina Principal Crespo</strong>
                 <p>Devolución Renault Duster (FRK-551)</p>
               </div>
             </li>

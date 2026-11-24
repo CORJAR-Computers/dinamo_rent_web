@@ -120,7 +120,7 @@
         </span>
         <span class="hidden md:inline text-slate-600">•</span>
         <span class="hidden md:flex items-center gap-1.5 text-cyan-400">
-          <i class="fa-solid fa-plane-arrival"></i> Entregas en Aeropuerto Rafael Núñez y Hoteles
+          <i class="fa-solid fa-building"></i> Entregas y devoluciones en oficina de Crespo
         </span>
       </div>
       

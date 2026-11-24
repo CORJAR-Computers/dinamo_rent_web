@@ -97,6 +97,7 @@ model Customer {
   city              String?  @default("Cartagena")
   country           String?  @default("Colombia")
   address           String?
+  // Legado: ya no se captura en la web (entrega y devolución solo en la oficina).
   hotel             String?
   license           String?
   licenseExp        String?
@@ -165,6 +166,7 @@ model Reservation {
   customerIdNumber   String
   customerLicense    String?
   customerLicenseExp String?
+  // Legado: snapshot de reservas anteriores; la web ya no lo envía.
   customerHotel      String?
 
   // Fechas y Ubicaciones
@@ -172,8 +174,8 @@ model Reservation {
   returnDate     DateTime
   pickupTime     String   @default("10:00")
   returnTime     String   @default("10:00")
-  pickupLocation String   @default("Aeropuerto Internacional Rafael Núñez (CTG)")
-  returnLocation String   @default("Aeropuerto Internacional Rafael Núñez (CTG)")
+  pickupLocation String   @default("Oficina Principal — Crespo")
+  returnLocation String   @default("Oficina Principal — Crespo")
 
   // Montos calculados
   days            Int
@@ -282,6 +284,19 @@ model InsuranceBlock {
   createdAt DateTime @default(now())
 
   @@map("insurance_blocks")
+}
+
+/// Contador de rate limiting compartido entre instancias serverless.
+/// La clave es el hash de endpoint + IP; nunca se guarda la IP en claro.
+model RateLimitCounter {
+  key       String   @id
+  endpoint  String
+  count     Int      @default(1)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+  @@map("rate_limit_counters")
 }
 
 model SyncLog {

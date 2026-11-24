@@ -20,7 +20,7 @@ export const POST: RequestHandler = async ({ request, url, getClientAddress }) =
       clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
     }
 
-    const rateLimit = checkRateLimit(clientIp, {
+    const rateLimit = await checkRateLimit(clientIp, {
       endpointKey: 'create-payment-session',
       windowMs: 10 * 60 * 1000,
       maxRequests: 8,

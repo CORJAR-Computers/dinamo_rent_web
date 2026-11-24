@@ -1,19 +1,19 @@
 -- =============================================================================
 -- Migración: normalize_pickup_return_locations
--- Fecha: 2026-10-04
+-- Fecha: 2026-10-04 (actualizada 2026-11-24)
 --
 -- Objetivo: que TODA fila de `reservations` tenga `pickupLocation` y
 -- `returnLocation` con un valor de PICKUP_LOCATIONS (src/lib/data/fleet.ts),
 -- la lista que la API de reservas exige desde su validación.
 --
--- Fuente de verdad: PICKUP_LOCATIONS (7 valores). El literal DEFAULT es
--- PICKUP_LOCATIONS[0]; si esa lista cambia de orden, actualizar el literal.
+-- Fuente de verdad: PICKUP_LOCATIONS (hoy un solo valor vigente: la oficina
+-- principal). Todos los valores legados se consolidan ahí: el negocio no hace
+-- entregas a domicilio, en aeropuerto ni en hoteles, y las devoluciones en otra
+-- ciudad se negocian en la oficina o por WhatsApp, no en el buscador.
 --
 -- Origen de los valores legados (verificado en el histórico de git):
 --   * 'Bocagrande (Oficina Principal / Hotel)': valor de PICKUP_LOCATIONS
---     desde el commit inicial hasta 2026-09. Se mapea a la variante Bocagrande
---     (la palabra clave del valor viejo); la oficina de Crespo es una ubicación
---     posterior que esas filas no podían describir.
+--     desde el commit inicial hasta 2026-09.
 --   * 'Aeropuerto Rafael Núñez (CTG)' y similares: default literal del
 --     bookingStore en versiones tempranas (sin "Internacional").
 --   * Etiquetas de la landing estática (app.js / index.html antiguos).
@@ -26,62 +26,63 @@
 -- (no existía historial de migraciones), así que puede aplicarse con:
 --   npx prisma db execute --file prisma/migrations/20261004210000_normalize_pickup_return_locations/migration.sql --url "$DATABASE_URL"
 -- o, si se adopta `prisma migrate` desde ahora, con `npx prisma migrate deploy`.
+-- Si ya se aplicó la versión anterior, volver a ejecutarla consolida además las
+-- reservas históricas de aeropuerto, hoteles y zonas en la oficina principal.
 -- =============================================================================
 
 WITH legacy (old, canonical) AS (
   VALUES
+    -- Ubicación única vigente (se mapea a sí misma: no-op)
+    ('Oficina Principal — Crespo',
+     'Oficina Principal — Crespo'),
+    -- Variantes con guion simple (teclado sin em dash)
+    ('Oficina Principal - Crespo',
+     'Oficina Principal — Crespo'),
+    ('Crespo (Oficina Principal — Carrera 3 #70-200)',
+     'Oficina Principal — Crespo'),
+    ('Crespo (Oficina Principal - Carrera 3 #70-200)',
+     'Oficina Principal — Crespo'),
+    ('Oficina Principal Dinamo Rent',
+     'Oficina Principal — Crespo'),
+    ('Oficina Principal',
+     'Oficina Principal — Crespo'),
+
     -- ---------------------------------------------------------------------
-    -- Valores actuales de PICKUP_LOCATIONS (se mapean a sí mismos: no-op)
+    -- Ubicaciones que ya no se ofrecen (aeropuerto, hoteles, zonas y
+    -- domicilio): sus reservas históricas se consolidan en la oficina.
     -- ---------------------------------------------------------------------
     ('Aeropuerto Internacional Rafael Núñez (CTG)',
-     'Aeropuerto Internacional Rafael Núñez (CTG)'),
-    ('Crespo (Oficina Principal — Carrera 3 #70-200)',
-     'Crespo (Oficina Principal — Carrera 3 #70-200)'),
-    -- Variante con guion simple (teclado sin em dash)
-    ('Crespo (Oficina Principal - Carrera 3 #70-200)',
-     'Crespo (Oficina Principal — Carrera 3 #70-200)'),
-    ('Bocagrande / Castillogrande / El Laguito (Hotel)',
-     'Bocagrande / Castillogrande / El Laguito (Hotel)'),
-    ('Centro Histórico (Torre del Reloj / Getsemaní)',
-     'Centro Histórico (Torre del Reloj / Getsemaní)'),
-    ('Manga / Zona Portuaria',
-     'Manga / Zona Portuaria'),
-    ('Zona Norte / Manzanillo del Mar',
-     'Zona Norte / Manzanillo del Mar'),
-    ('Entrega a Domicilio en Hotel / Airbnb',
-     'Entrega a Domicilio en Hotel / Airbnb'),
-
-    -- ---------------------------------------------------------------------
-    -- Legados históricos (PICKUP_LOCATIONS del commit inicial -> 2026-09)
-    -- ---------------------------------------------------------------------
-    ('Bocagrande (Oficina Principal / Hotel)',
-     'Bocagrande / Castillogrande / El Laguito (Hotel)'),
-
-    -- ---------------------------------------------------------------------
-    -- Legados del bookingStore temprano y de la landing estática
-    -- ---------------------------------------------------------------------
+     'Oficina Principal — Crespo'),
     ('Aeropuerto Rafael Núñez (CTG)',
-     'Aeropuerto Internacional Rafael Núñez (CTG)'),
+     'Oficina Principal — Crespo'),
     ('Aeropuerto Rafael Nunez (CTG)',
-     'Aeropuerto Internacional Rafael Núñez (CTG)'),
+     'Oficina Principal — Crespo'),
     ('Aeropuerto Rafael Núñez',
-     'Aeropuerto Internacional Rafael Núñez (CTG)'),
-    ('Oficina Principal Dinamo Rent',
-     'Crespo (Oficina Principal — Carrera 3 #70-200)'),
-    ('Oficina Principal',
-     'Crespo (Oficina Principal — Carrera 3 #70-200)'),
+     'Oficina Principal — Crespo'),
+    ('Bocagrande / Castillogrande / El Laguito (Hotel)',
+     'Oficina Principal — Crespo'),
+    ('Bocagrande (Oficina Principal / Hotel)',
+     'Oficina Principal — Crespo'),
     ('Bocagrande / El Laguito',
-     'Bocagrande / Castillogrande / El Laguito (Hotel)'),
+     'Oficina Principal — Crespo'),
+    ('Centro Histórico (Torre del Reloj / Getsemaní)',
+     'Oficina Principal — Crespo'),
     ('Centro Histórico / Getsemaní',
-     'Centro Histórico (Torre del Reloj / Getsemaní)'),
+     'Oficina Principal — Crespo'),
     ('Centro Historico / Getsemani',
-     'Centro Histórico (Torre del Reloj / Getsemaní)'),
+     'Oficina Principal — Crespo'),
+    ('Manga / Zona Portuaria',
+     'Oficina Principal — Crespo'),
+    ('Zona Norte / Manzanillo del Mar',
+     'Oficina Principal — Crespo'),
     ('Zona Norte / Hoteles Manzanillo',
-     'Zona Norte / Manzanillo del Mar'),
+     'Oficina Principal — Crespo'),
     ('Zona Norte / Manzanillo',
-     'Zona Norte / Manzanillo del Mar'),
+     'Oficina Principal — Crespo'),
     ('Hoteles Zona Norte & Manzanillo',
-     'Zona Norte / Manzanillo del Mar')
+     'Oficina Principal — Crespo'),
+    ('Entrega a Domicilio en Hotel / Airbnb',
+     'Oficina Principal — Crespo')
 ),
 -- Claves de comparación con la MISMA normalización que aplicará el lookup:
 -- minúsculas + espacios colapsados + recortados (equivalente a locationKey()
@@ -102,9 +103,9 @@ mapped AS (
   SELECT
     s.id,
     coalesce(np.canonical,
-             'Aeropuerto Internacional Rafael Núñez (CTG)') AS pickup_new,
+             'Oficina Principal — Crespo') AS pickup_new,
     coalesce(nr.canonical,
-             'Aeropuerto Internacional Rafael Núñez (CTG)') AS return_new
+             'Oficina Principal — Crespo') AS return_new
   FROM src AS s
   LEFT JOIN norm AS np ON np.key = lower(s.pk)
   LEFT JOIN norm AS nr ON nr.key = lower(s.rk)
