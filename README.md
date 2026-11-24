@@ -107,8 +107,14 @@ dinamo_rent_web/
 
 ### 1. Prerrequisitos
 
-- [Node.js](https://nodejs.org/) v20 o superior
+- [Node.js](https://nodejs.org/) **24.x** — fijada en `.nvmrc` y en `engines`
 - [npm](https://www.npmjs.com/) v10 o superior
+
+> ⚠️ **Node 24 es obligatorio.** `@sveltejs/adapter-vercel` rechaza otras versiones al
+> compilar (`Unsupported Node.js version`) y el build falla al final. Por eso el CI
+> compila con 24 y la versión está fijada en `.nvmrc` + `engines`. Con `nvm` o `fnm`,
+> `nvm use` / `fnm use` en la raíz del proyecto lee `.nvmrc`; sin gestor de versiones,
+> npm avisa con `EBADENGINE` al instalar.
 
 ### 2. Clonar el Repositorio
 
