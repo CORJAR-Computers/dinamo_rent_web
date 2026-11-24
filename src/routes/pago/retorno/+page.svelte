@@ -6,7 +6,7 @@
         formatDatePretty,
         formatDateTimePretty,
     } from "#lib/utils/formatters.js";
-    import { whatsappLink } from "#lib/data/contact.js";
+    import { whatsappLink, CONTACT_PHONES, OFFICE_ADDRESS_CITY } from "#lib/data/contact.js";
     import { FLEET_SECTION } from "#lib/data/sections.js";
     import { resolve } from "$app/paths";
 
@@ -27,6 +27,11 @@
         customerName: string;
         customerLastname: string;
         customerPhone: string;
+        customerEmail?: string;
+        customerIdType?: string;
+        customerIdNumber?: string;
+        pickupTime?: string;
+        returnTime?: string;
         synced: boolean;
         desktopRef: string | null;
         createdAt?: string;
@@ -71,6 +76,30 @@
             reservation?.updatedAt ||
             reservation?.createdAt ||
             "",
+    );
+
+    // Comprobante imprimible: solo se emite cuando el pago está aprobado.
+    let printable = $derived(
+        !!reservation &&
+            (reservation.status === "PAGADA" ||
+                reservation.payment?.status === "APROBADO"),
+    );
+    let subtotal = $derived(
+        reservation
+            ? reservation.baseAmount +
+                  reservation.insuranceAmount +
+                  reservation.extrasAmount
+            : 0,
+    );
+    let rejected = $derived(
+        !!reservation?.payment &&
+            (reservation.payment.status === "RECHAZADO" ||
+                reservation.payment.p2pSessionStatus === "REJECTED"),
+    );
+    let insuranceLabel = $derived(
+        reservation?.insurancePlan === "TOTAL"
+            ? "Cobertura Total Cero Deducible"
+            : "Seguro Básico Legal",
     );
 
     async function loadReservation() {
@@ -155,8 +184,8 @@
     <title>Comprobante de Reserva — Dinamo Rent a Car</title>
 </svelte:head>
 
-<section class="min-h-[80vh] py-12 sm:py-16 bg-slate-950">
-    <div class="max-w-2xl mx-auto px-4 sm:px-6">
+<section class="min-h-[80vh] py-12 sm:py-16 bg-slate-950 print:bg-white print:py-0">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 no-print">
         {#if loading}
             <div class="text-center space-y-4 py-16">
                 <i
@@ -269,11 +298,7 @@
                             ? 'text-cyan-400'
                             : 'text-slate-400'}"
                     >
-                        <span
-                            >{reservation.insurancePlan === "TOTAL"
-                                ? "Cobertura Total Cero Deducible"
-                                : "Seguro Básico Legal"}</span
-                        >
+                        <span>{insuranceLabel}</span>
                         <span class="font-semibold"
                             >{reservation.insuranceAmount > 0
                                 ? formatCurrency(
@@ -297,22 +322,14 @@
                     <div class="flex justify-between text-[11px] text-slate-400">
                         <span>Subtotal (sin IVA)</span>
                         <span class="font-semibold text-slate-200"
-                            >{formatCurrency(
-                                reservation.baseAmount +
-                                    reservation.insuranceAmount +
-                                    reservation.extrasAmount,
-                                "COP",
-                            )}</span
+                            >{formatCurrency(subtotal, "COP")}</span
                         >
                     </div>
                     <div class="flex justify-between text-[11px] text-slate-400">
                         <span>IVA 19%</span>
                         <span class="font-semibold text-slate-200"
                             >{formatCurrency(
-                                reservation.totalAmount -
-                                    (reservation.baseAmount +
-                                        reservation.insuranceAmount +
-                                        reservation.extrasAmount),
+                                reservation.totalAmount - subtotal,
                                 "COP",
                             )}</span
                         >
@@ -502,4 +519,247 @@
             {/if}
         {/if}
     </div>
+
+    <!-- Comprobante imprimible: único contenido que sale en papel (Ctrl/Cmd + P) -->
+    {#if reservation}
+        {@const paid = reservation.payment}
+        <article
+            class="print-only mx-auto max-w-3xl text-slate-900 text-[11px] leading-snug"
+        >
+            {@render receiptHeader(
+                printable
+                    ? "Comprobante de reserva"
+                    : rejected
+                      ? "Comprobante de intento de pago"
+                      : "Comprobante de solicitud de reserva",
+                printable
+                    ? reservation.status
+                    : rejected
+                      ? "RECHAZADO"
+                      : "PENDIENTE",
+            )}
+            {@render receiptTrip(reservation)}
+            {@render receiptAmounts(
+                reservation,
+                printable
+                    ? "Total pagado (IVA incluido)"
+                    : "Total (IVA incluido)",
+            )}
+
+            {#if printable}
+                {#if paid}
+                    <div class="mt-3 grid grid-cols-2 gap-8">
+                        <p>
+                            <span class="text-slate-500">Medio de pago:</span>
+                            {paid.cardBrand} •••• {paid.cardLast4}
+                        </p>
+                        {#if paid.transactionId}
+                            <p>
+                                <span class="text-slate-500">Autorización / CUS:</span>
+                                <span class="font-mono">{paid.transactionId}</span>
+                            </p>
+                        {/if}
+                    </div>
+                {/if}
+                <p class="mt-4 border border-slate-300 bg-slate-50 px-2.5 py-2">
+                    El depósito de garantía se rige por el contrato de alquiler y
+                    no se cobra al reservar. Presenta este comprobante al recibir
+                    el vehículo.
+                </p>
+            {:else}
+                <p class="mt-4 border border-slate-300 bg-slate-50 px-2.5 py-2">
+                    {#if rejected}
+                        El pago del total fue rechazado por la entidad financiera y
+                        no se realizó ningún cobro. La reserva sigue activa: puede
+                        pagarse de nuevo con otra tarjeta desde el sitio web. Este
+                        documento no acredita pago.
+                    {:else}
+                        El pago del total se encuentra pendiente de confirmación por
+                        la entidad financiera. Este documento acredita únicamente la
+                        solicitud de reserva, no el pago: verifica el estado antes de
+                        presentarte o comunícate con la central de reservas.
+                    {/if}
+                </p>
+            {/if}
+
+            <footer
+                class="mt-5 pt-3 border-t border-slate-300 text-[10px] text-slate-600 flex items-start justify-between gap-6"
+            >
+                <p>
+                    {printable
+                        ? "Comprobante informativo de la reserva y su pago en línea. No constituye factura de venta."
+                        : "Documento informativo del estado de la reserva. No constituye factura de venta ni comprobante de pago."}
+                </p>
+                <p class="text-right shrink-0">
+                    Dinamo Rent a Car · Cartagena de Indias
+                </p>
+            </footer>
+        </article>
+    {:else if error}
+        <!-- Error de consulta: solo un aviso, nunca la interfaz del sitio -->
+        <article
+            class="print-only mx-auto max-w-3xl text-slate-900 text-[11px] leading-snug"
+        >
+            {@render receiptHeader("Consulta de reserva", "no verificada")}
+            <p class="mt-6 text-sm font-bold">
+                No fue posible verificar la reserva en este intento.
+            </p>
+            <p class="mt-1">{error}</p>
+            {#if reference || requestId}
+                <p class="mt-1">
+                    <span class="text-slate-500">Referencia consultada:</span>
+                    <span class="font-mono">{reference || requestId}</span>
+                </p>
+            {/if}
+            <p class="mt-3">
+                Comunícate con la central de reservas: {CONTACT_PHONES.join(
+                    " · ",
+                )} · reservas@dinamorent.com
+            </p>
+        </article>
+    {/if}
 </section>
+
+{#snippet receiptHeader(titulo: string, estado: string)}
+    <header
+        class="flex items-start justify-between gap-6 border-b-2 border-slate-900 pb-4"
+    >
+        <div>
+            <p class="font-heading font-black text-base leading-tight">
+                DINAMO RENT A CAR S.A.S.
+            </p>
+            <p>NIT 900694866-3</p>
+            <p>{OFFICE_ADDRESS_CITY}, Colombia</p>
+            <p>Tel. {CONTACT_PHONES.join(" · ")}</p>
+            <p>reservas@dinamorent.com</p>
+        </div>
+        <div class="text-right">
+            <p class="font-heading font-black text-base uppercase">{titulo}</p>
+            {#if reservation}
+                <p class="mt-1">
+                    No. <span class="font-mono font-bold">{reservation.code}</span>
+                </p>
+                <p>Emitido: {formatDateTimePretty(transactionDate)}</p>
+            {/if}
+            <p class="mt-1 font-bold uppercase">Estado: {estado}</p>
+        </div>
+    </header>
+{/snippet}
+
+{#snippet receiptTrip(r: ReservationData)}
+    <div class="grid grid-cols-2 gap-8 pt-4">
+        <div class="space-y-0.5">
+            <h3
+                class="font-heading font-bold uppercase border-b border-slate-300 pb-1 mb-2"
+            >
+                Conductor
+            </h3>
+            <p>
+                <span class="text-slate-500">Nombre:</span>
+                {r.customerName} {r.customerLastname}
+            </p>
+            {#if r.customerIdNumber}
+                <p>
+                    <span class="text-slate-500">Documento:</span>
+                    {r.customerIdType || "CC"} {r.customerIdNumber}
+                </p>
+            {/if}
+            <p>
+                <span class="text-slate-500">Teléfono:</span> {r.customerPhone}
+            </p>
+            {#if r.customerEmail}
+                <p>
+                    <span class="text-slate-500">Correo:</span> {r.customerEmail}
+                </p>
+            {/if}
+        </div>
+        <div class="space-y-0.5">
+            <h3
+                class="font-heading font-bold uppercase border-b border-slate-300 pb-1 mb-2"
+            >
+                Vehículo y entrega
+            </h3>
+            <p>
+                <span class="text-slate-500">Vehículo:</span> {r.vehicle.name}{#if r.vehicle.plate}<span
+                        > · Placa {r.vehicle.plate}</span
+                    >{/if}
+            </p>
+            <p>
+                <span class="text-slate-500">Entrega:</span>
+                {formatDatePretty(r.pickupDate)}{#if r.pickupTime}<span
+                        > · {r.pickupTime}</span
+                    >{/if}
+            </p>
+            <p>
+                <span class="text-slate-500">Devolución:</span>
+                {formatDatePretty(r.returnDate)}{#if r.returnTime}<span
+                        > · {r.returnTime}</span
+                    >{/if}
+            </p>
+            <p>
+                <span class="text-slate-500">Duración:</span>
+                {r.days} día(s)
+            </p>
+            <p>
+                <span class="text-slate-500">Lugar:</span> {r.pickupLocation}
+            </p>
+        </div>
+    </div>
+{/snippet}
+
+{#snippet receiptAmounts(r: ReservationData, totalLabel: string)}
+    <table class="w-full mt-5 border-collapse">
+        <thead>
+            <tr class="border-b border-slate-900 text-left">
+                <th class="py-1.5 font-heading uppercase">Concepto</th>
+                <th class="py-1.5 text-right font-heading uppercase">
+                    Valor (COP)
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="border-b border-slate-200">
+                <td class="py-1.5">
+                    Alquiler {r.vehicle.name} — {r.days} día(s)
+                </td>
+                <td class="py-1.5 text-right">
+                    {formatCurrency(r.baseAmount, "COP")}
+                </td>
+            </tr>
+            <tr class="border-b border-slate-200">
+                <td class="py-1.5">{insuranceLabel}</td>
+                <td class="py-1.5 text-right">
+                    {r.insuranceAmount > 0
+                        ? formatCurrency(r.insuranceAmount, "COP")
+                        : "Incluido"}
+                </td>
+            </tr>
+            {#if r.extrasAmount > 0}
+                <tr class="border-b border-slate-200">
+                    <td class="py-1.5">Adicionales</td>
+                    <td class="py-1.5 text-right">
+                        {formatCurrency(r.extrasAmount, "COP")}
+                    </td>
+                </tr>
+            {/if}
+            <tr class="border-b border-slate-200">
+                <td class="py-1.5">Subtotal (sin IVA)</td>
+                <td class="py-1.5 text-right">
+                    {formatCurrency(subtotal, "COP")}
+                </td>
+            </tr>
+            <tr class="border-b border-slate-200">
+                <td class="py-1.5">IVA 19%</td>
+                <td class="py-1.5 text-right">
+                    {formatCurrency(r.totalAmount - subtotal, "COP")}
+                </td>
+            </tr>
+            <tr class="border-b-2 border-slate-900 font-bold">
+                <td class="py-2">{totalLabel}</td>
+                <td class="py-2 text-right">
+                    {formatCurrency(r.totalAmount, "COP")}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+{/snippet}

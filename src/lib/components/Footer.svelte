@@ -10,7 +10,7 @@
   import { resolve } from '$app/paths';
 </script>
 
-<footer id={LOCATIONS_SECTION.id} class="bg-slate-950 border-t border-slate-800/80 text-slate-400 text-xs pt-16 pb-12">
+<footer id={LOCATIONS_SECTION.id} class="no-print bg-slate-950 border-t border-slate-800/80 text-slate-400 text-xs pt-16 pb-12">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">

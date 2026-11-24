@@ -181,7 +181,7 @@
 
 {#if booking.isModalOpen && vehicle}
     <div
-        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in"
+        class="no-print fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in"
         role="dialog"
         aria-modal="true"
     >

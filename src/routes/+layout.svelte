@@ -14,7 +14,7 @@
 {#if isAdmin}
   {@render children?.()}
 {:else}
-  <div class="flex flex-col min-h-screen bg-slate-950 text-slate-100 selection:bg-orange-500 selection:text-white">
+  <div class="flex flex-col min-h-screen bg-slate-950 text-slate-100 selection:bg-orange-500 selection:text-white print:bg-white">
     <Navbar />
     <main class="flex-1">
       {@render children?.()}

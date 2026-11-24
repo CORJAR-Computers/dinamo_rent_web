@@ -64,6 +64,38 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   box-shadow: 0 8px 32px 0 rgba(0, 128, 255, 0.15);
 }
 
+/* Impresión del comprobante de reserva.
+   .no-print  → todo el sitio (navbar, footer, modal, pantalla) desaparece del papel.
+   .print-only → el documento no existe en pantalla y sale solo al imprimir.
+   Van sin @layer y con !important para no depender del orden de capas de Tailwind. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body {
+    color: #0f172a;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+}
+
 /* Glow effects */
 .glow-orange {
   box-shadow: 0 0 25px rgba(255, 107, 0, 0.35);
