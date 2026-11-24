@@ -3,6 +3,14 @@ import type { Cookies } from '@sveltejs/kit';
 
 const DEFAULT_PASSWORD = 'DinamoAdmin2026!*';
 
+/**
+ * El contador de intentos vive en Postgres y sobrevive entre ejecuciones: una IP
+ * bloqueada por un run anterior seguiría bloqueada 15 minutos y tumbaría el
+ * siguiente. Cada ejecución usa sus propias IPs para no colisionar.
+ */
+const RUN = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+const testIp = (name: string) => `${RUN}-${name}`;
+
 /** Estado mutable que sustituye a `$app/env/private` dentro de los tests. */
 const envState = vi.hoisted(() => ({
 	NODE_ENV: 'development',
@@ -50,7 +58,7 @@ async function loadLogin(overrides: Partial<typeof envState> = {}): Promise<Logi
 	return { POST: mod.POST, ...auth };
 }
 
-function post(route: LoginRoute, password?: string, ip = '10.0.0.1'): Promise<Response> {
+function post(route: LoginRoute, password?: string, ip = testIp('default')): Promise<Response> {
 	const request = new Request('http://localhost/api/admin/login', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
@@ -68,7 +76,7 @@ function post(route: LoginRoute, password?: string, ip = '10.0.0.1'): Promise<Re
 function postWithCookies(
 	route: LoginRoute,
 	password?: string,
-	ip = '10.0.0.1'
+	ip = testIp('default')
 ): { response: Promise<Response>; cookies: ReturnType<typeof vi.fn> } {
 	const request = new Request('http://localhost/api/admin/login', {
 		method: 'POST',
@@ -100,7 +108,7 @@ describe('POST /api/admin/login', () => {
 
 	it('responde 401 con la contraseña incorrecta', async () => {
 		const route = await loadLogin({ ADMIN_PASSWORD: 'clave-correcta' });
-		const res = await post(route, 'clave-mala', '10.0.0.2');
+		const res = await post(route, 'clave-mala', testIp('mala'));
 		expect(res.status).toBe(401);
 		const body = (await res.json()) as { ok: boolean; message: string };
 		expect(body.ok).toBe(false);
@@ -110,7 +118,7 @@ describe('POST /api/admin/login', () => {
 
 	it('responde 200 y establece la cookie de sesión con la contraseña correcta', async () => {
 		const route = await loadLogin({ ADMIN_PASSWORD: 'clave-correcta', ADMIN_SECRET: 'secreto-sesion' });
-		const { response, cookies } = postWithCookies(route, 'clave-correcta', '10.0.0.3');
+		const { response, cookies } = postWithCookies(route, 'clave-correcta', testIp('ok'));
 		const res = await response;
 
 		expect(res.status).toBe(200);
@@ -127,7 +135,7 @@ describe('POST /api/admin/login', () => {
 
 	it('bloquea 15 minutos tras 5 intentos fallidos, incluso con la contraseña correcta', async () => {
 		const route = await loadLogin({ ADMIN_PASSWORD: 'clave-correcta', ADMIN_SECRET: 'secreto-sesion' });
-		const ip = '10.9.9.9';
+		const ip = testIp('bloqueo');
 
 		for (let i = 1; i <= 4; i++) {
 			const res = await post(route, 'clave-mala', ip);
@@ -144,13 +152,13 @@ describe('POST /api/admin/login', () => {
 		expect(body.message).toContain('bloqueado');
 
 		// Otra IP no está afectada por el bloqueo de esta.
-		const otraIp = await post(route, 'clave-correcta', '10.8.8.8');
+		const otraIp = await post(route, 'clave-correcta', testIp('otra'));
 		expect(otraIp.status).toBe(200);
 	});
 
 	it('limpia el registro de intentos tras un login exitoso', async () => {
 		const route = await loadLogin({ ADMIN_PASSWORD: 'clave-correcta', ADMIN_SECRET: 'secreto-sesion' });
-		const ip = '10.7.7.7';
+		const ip = testIp('limpia');
 
 		await post(route, 'clave-mala', ip);
 		await post(route, 'clave-mala', ip);
