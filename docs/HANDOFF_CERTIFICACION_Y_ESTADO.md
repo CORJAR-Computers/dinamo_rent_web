@@ -138,6 +138,15 @@ Se superaron y blindaron las 4 observaciones principales formuladas por el anali
   - La app de escritorio (`D:\dinamo_rent_tr`) cuenta con `DocumentosDigitalizadosModal.svelte`.
   - Permite al personal de mostrador previsualizar cédula, licencia y firma en alta definición, descargarlas o imprimirlas en hoja tamaño Carta para el expediente físico.
 
+### 3.3 Copy sin promesas de correo electrónico
+- **Decisión:** el proyecto **no envía correos transaccionales**: ni voucher, ni comprobante, ni confirmación de reserva. El correo del conductor se captura solo como dato de contacto.
+- **Criterio de copy:** ningún texto visible (web, panel o comprobante) debe prometer un envío por email. Las vías reales de entrega son el comprobante imprimible de `/pago/retorno`, el botón de WhatsApp al asesor y el código de reserva copiable.
+- **Ajustes aplicados (25-nov-2026):**
+  - `/pago/retorno`, paso 2: «Guarda tu comprobante» — se imprime con «Imprimir Comprobante» o se envían los datos al asesor por WhatsApp.
+  - `src/routes/terminos/+page.svelte` §3: la confirmación escrita se emite «por WhatsApp o mediante el comprobante de la reserva en la web» (antes: «correo electrónico o WhatsApp»).
+  - `index.template.html` (landing estática; regenerar con `npm run generate:index`): el contrato «queda disponible en el comprobante de tu reserva, listo para imprimir» y la etiqueta queda como «Correo Electrónico *», sin «(para contrato PDF)».
+- **Fuera de alcance:** los planes comerciales (`Plan_Maestro_Dinamo_Rent_a_Car.pdf`, `Plan_de_Integracion_Web_Dinamo_Rent_a_Car.pdf` y sus generadores `generate_pdf.py` / `generate_consolidated_pdf.py`) mencionan Amazon SES como integración **futura** dentro del cronograma, no como capacidad actual del sitio.
+
 ---
 
 ## 4. Arquitectura de Base de Datos y Modelos Prisma
