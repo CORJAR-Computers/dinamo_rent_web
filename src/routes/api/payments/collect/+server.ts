@@ -5,6 +5,7 @@ import {
   collectPaymentWithToken,
   classifyTokenRejection,
   invalidateToken,
+  sanitizeGatewayText,
 } from '#lib/server/placetopay.js';
 
 export const POST = async ({ request, cookies, getClientAddress }: RequestEvent) => {
@@ -66,8 +67,16 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
 
     // 3. Generar referencia única de cobro para idempotencia (Place to Pay previene duplicados en 24h)
     const reference = `COL-${reservation.code}-${Date.now().toString(36).toUpperCase()}`;
-    const cleanConcept = String(concept).toUpperCase().trim();
-    const cleanDescription = `Dinamo Rent: ${cleanConcept} — ${description || 'Cargos según contrato'} (Reserva #${reservation.code})`;
+    // La pasarela valida `payment.description` con caracteres y longitud
+    // restringidos. Se normaliza aquí (ASCII, sin saltos de línea, máx. 200)
+    // antes de enviarla a Collect; el texto original del administrador se
+    // conserva en DepositCharge para auditoría.
+    const cleanConcept = sanitizeGatewayText(concept, 30).toUpperCase() || 'OTRO';
+    const detail = sanitizeGatewayText(description, 120);
+    const cleanDescription = sanitizeGatewayText(
+      `Dinamo Rent: ${cleanConcept} - ${detail || 'Cargos segun contrato'} (Reserva ${reservation.code})`,
+      200
+    );
 
     let clientIp = '127.0.0.1';
     try {
@@ -141,10 +150,15 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     // Invalidarlo aquí desvincularía la tarjeta del cliente por un fallo de
     // comunicación nuestro, no por un rechazo del emisor.
     if (unconfirmed) {
+      // Un error de validación del request no deja cargo en la pasarela: el
+      // mensaje se lo dice al administrador para que corrija el dato.
+      const validationFailure = result.error === 'Solicitud rechazada por validación de la pasarela';
       return Response.json(
         {
           ok: false,
-          error: `No fue posible confirmar el cobro con la pasarela (${result.message}). El cargo quedó PENDIENTE: verifícalo en el panel de PlacetoPay antes de reintentar. El token de la tarjeta no se modificó.`,
+          error: validationFailure
+            ? `${result.message} El cobro no se ejecutó y el token de la tarjeta no se modificó.`
+            : `No fue posible confirmar el cobro con la pasarela (${result.message}). El cargo quedó PENDIENTE: verifícalo en el panel de PlacetoPay antes de reintentar. El token de la tarjeta no se modificó.`,
           status: 'PENDING',
           attempts: 0,
           tokenInvalidation: null,

@@ -294,6 +294,28 @@ describe('POST /api/payments/collect — datos enviados a la pasarela', () => {
 			customer: { docNumber: '1234567890' }
 		});
 	});
+
+	it('normaliza el description a ASCII imprimible y lo acota antes de enviarlo', async () => {
+		state.isAdmin = true;
+		const res = await post(collect, '/api/payments/collect', {
+			reservationId: 'res_1',
+			amount: 50000,
+			concept: 'DEDUCIBLE',
+			description: `Daño en espejo — “izquierdo” #1\nAcción de garantía ${'x'.repeat(400)}`
+		});
+
+		expect(res.status).toBe(200);
+		const sent = state.collectCalls[0] as unknown as { description: string };
+		// La API de PlacetoPay valida description: nada fuera de ASCII, sin saltos
+		// de línea y con longitud acotada (causa del error reportado por Evertec).
+		expect(sent.description).toMatch(/^[A-Za-z0-9 .,()_:/+-]+$/);
+		expect(sent.description).not.toContain('—');
+		expect(sent.description).not.toContain('#');
+		expect(sent.description).not.toContain('\n');
+		expect(sent.description.length).toBeLessThanOrEqual(200);
+		expect(sent.description).toContain('DEDUCIBLE');
+		expect(sent.description).toContain('DIN-2026-0001');
+	});
 });
 
 describe('POST /api/payments/token/invalidate', () => {

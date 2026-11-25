@@ -263,6 +263,43 @@ describe('webhook PlacetoPay: idempotencia', () => {
 	});
 });
 
+describe('webhook PlacetoPay: tokenización sin cobro', () => {
+	it('actualiza el token sin marcar el pago ni la reserva como aprobados', async () => {
+		dbState.payment = {
+			...paymentFixture(),
+			status: 'APROBADO',
+			reservation: { code: 'DIN-2026-9001', status: 'PAGADA' }
+		};
+		queryState.result = {
+			ok: true,
+			status: 'APPROVED',
+			subscriptionOnly: true,
+			token: 'tok_nuevo_12345678',
+			tokenStatus: 'ACTIVO',
+			cardBrand: 'MASTERCARD',
+			cardLast4: '1111'
+		};
+
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: sign(REQUEST_ID, 'APPROVED', STATUS_DATE)
+		});
+
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as { tokenUpdated?: boolean };
+		expect(body.tokenUpdated).toBe(true);
+		expect(dbState.paymentUpdates).toHaveLength(1);
+		expect(dbState.reservationUpdates).toHaveLength(0);
+
+		const update = dbState.paymentUpdates[0] as { data: Record<string, unknown> };
+		expect(update.data.token).toBe('tok_nuevo_12345678');
+		expect(update.data.tokenStatus).toBe('ACTIVO');
+		expect(update.data.status).toBeUndefined();
+		expect(dbState.syncLogs).toHaveLength(1);
+	});
+});
+
 describe('webhook PlacetoPay: el estado sale solo de QuerySession', () => {
 	it('un cuerpo APPROVED con la sesión PENDING no marca la reserva como PAGADA', async () => {
 		const response = await webhook({

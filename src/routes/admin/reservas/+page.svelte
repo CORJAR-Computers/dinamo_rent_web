@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 
 	interface ReservationItem {
 		id: string;
@@ -154,6 +155,26 @@
 	let collectConcept = $state<string>('DEDUCIBLE');
 	let collectDescription = $state('');
 	let cancelReason = $state<string>(CANCEL_REASONS[0]);
+	let retokenizing = $state(false);
+
+	// Resultado de la sesión de tokenización sin cobro (retorno desde PlacetoPay).
+	let tokenNotice = $derived.by(() => {
+		const outcome = page.url.searchParams.get('token');
+		if (!outcome) return null;
+		if (outcome === 'actualizado') {
+			const code = page.url.searchParams.get('reserva') || '';
+			return {
+				type: 'success' as const,
+				text: `Medio de pago actualizado${code ? ` para la reserva ${code}` : ''}. El token quedó activo para cobros de garantía.`
+			};
+		}
+		return {
+			type: 'error' as const,
+			text:
+				page.url.searchParams.get('detalle') ||
+				'No se pudo completar la tokenización del medio de pago.'
+		};
+	});
 
 	let cardPayment = $derived(cardReservation?.payment ?? null);
 	let tokenActive = $derived(
@@ -243,6 +264,37 @@
 		}
 	}
 
+	async function startRetokenization() {
+		if (!cardReservation) return;
+		retokenizing = true;
+		actionMessage = null;
+		try {
+			const res = await fetch('/api/payments/token/resubscribe', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ reservationId: cardReservation.id })
+			});
+			const data = await res.json().catch(() => null);
+			if (res.ok && data?.ok && data.processUrl) {
+				// Sesión de suscripción sin cobro: el administrador registra la tarjeta
+				// en la pasarela y vuelve al panel para guardar el token.
+				window.location.href = data.processUrl;
+				return;
+			}
+			actionMessage = {
+				type: 'error',
+				text: data?.error || `No se pudo iniciar la tokenización (HTTP ${res.status}).`
+			};
+		} catch (err) {
+			actionMessage = {
+				type: 'error',
+				text: (err as Error).message || 'Error de conexión con el servidor.'
+			};
+		} finally {
+			retokenizing = false;
+		}
+	}
+
 	async function submitCancellation() {
 		if (!cardReservation) return;
 		submitting = true;
@@ -288,6 +340,19 @@
 			</p>
 		</div>
 	</div>
+
+	{#if tokenNotice}
+		<div
+			class="p-3 rounded-xl text-xs flex items-start gap-2 {tokenNotice.type === 'success'
+				? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+				: 'bg-red-500/10 text-red-400 border border-red-500/20'}"
+		>
+			<i
+				class="fa-solid {tokenNotice.type === 'success' ? 'fa-check' : 'fa-circle-exclamation'} mt-0.5"
+			></i>
+			<span>{tokenNotice.text}</span>
+		</div>
+	{/if}
 
 	<!-- Barra de Búsqueda y Filtros -->
 	<div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-3">
@@ -424,12 +489,12 @@
 							<!-- Acciones: Cobro Garantía, WhatsApp y Voucher -->
 							<td class="py-3.5 px-4 text-right">
 								<div class="flex items-center justify-end gap-1.5">
-									{#if p?.token}
+									{#if p?.token || r.status !== 'CANCELADA'}
 										<button
 											type="button"
 																								onclick={() => openCardModal(r, 'manage')}
 											class="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white transition-colors cursor-pointer"
-											title="Administrar Tarjeta de Garantía: estado del token, cargos y cancelación de la suscripción"
+											title="Tarjeta de Garantía: registrar o actualizar el medio de pago, aplicar cobros y cancelar la suscripción"
 										>
 											<i class="fa-solid fa-shield-halved text-sm"></i>
 										</button>
@@ -568,6 +633,32 @@
 						</div>
 					{/if}
 
+					{#if cardMode === 'manage'}
+						<!-- Tokenización sin cobro: registra o reemplaza la tarjeta de garantía -->
+						<div class="p-3.5 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 space-y-2">
+							<p class="text-[11px] text-cyan-200/90 leading-relaxed">
+								Registra una nueva tarjeta de garantía mediante una sesión de tokenización de
+								Place to Pay <strong>sin ejecutar ningún cobro</strong>. Sirve para reemplazar una tarjeta
+								rechazada, vencida o para registrar una tarjeta de prueba destinada a validar los
+								escenarios de rechazo recuperable y no recuperable.
+							</p>
+							<button
+								type="button"
+								onclick={startRetokenization}
+								disabled={submitting || retokenizing}
+								class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+							>
+								{#if retokenizing}
+									<i class="fa-solid fa-circle-notch fa-spin"></i>
+									<span>Abriendo tokenización...</span>
+								{:else}
+									<i class="fa-solid fa-arrows-rotate"></i>
+									<span>{cardPayment?.token ? 'Actualizar medio de pago' : 'Registrar tarjeta de garantía'}</span>
+								{/if}
+							</button>
+						</div>
+					{/if}
+
 					{#if cardMode === 'collect'}
 						<!-- Cobro con el token activo -->
 						<div class="space-y-3">
@@ -629,8 +720,9 @@
 						<div class="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20 text-[11px] text-rose-300/90 flex items-start gap-2">
 							<i class="fa-solid fa-ban mt-0.5"></i>
 							<span>
-								La suscripción de esta reserva está cancelada o vencida y el token fue invalidado en Place to Pay:
-								no admite nuevos cobros.
+								La suscripción de esta reserva no tiene un token activo (cancelada, vencida o aún no
+								registrada): no admite nuevos cobros. Usa «Registrar / actualizar medio de pago»
+								para tokenizar la tarjeta.
 							</span>
 						</div>
 					{:else}

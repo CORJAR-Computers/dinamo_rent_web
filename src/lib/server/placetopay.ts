@@ -52,6 +52,11 @@ export interface P2PStatusResult {
   tokenStatus?: string;
   tokenValidUntil?: string;
   tokenFranchise?: string;
+  /**
+   * Sesión de tokenización sin cobro (suscripción pura): no existe `payment`
+   * en la respuesta. Permite guardar el token sin marcar el pago como aprobado.
+   */
+  subscriptionOnly?: boolean;
 }
 
 export interface P2PCollectRequest {
@@ -67,6 +72,22 @@ export interface P2PCollectRequest {
     docType: string;
     docNumber: string;
   };
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface P2PSubscriptionRequest {
+  reference: string;
+  description: string;
+  customer: {
+    names: string;
+    lastnames: string;
+    email: string;
+    phone: string;
+    docType: string;
+    docNumber: string;
+  };
+  returnUrl: string;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -194,6 +215,45 @@ function extractInstrumentValue(
 }
 
 /**
+ * Limpia nombres y apellidos según los requisitos de certificación de Evertec:
+ * solo letras, espacios, tildes y Ñ.
+ */
+function sanitizeName(val: string): string {
+  return val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '').trim();
+}
+
+/** Móvil/teléfono: solo dígitos (máx. 10 dígitos locales de Colombia). */
+function sanitizePhone(val: string): string {
+  return val.replace(/\D/g, '').slice(-10);
+}
+
+/**
+ * Normaliza el texto que viaja a la pasarela en `*.description`.
+ *
+ * PlacetoPay valida `description` con un conjunto restringido de caracteres y
+ * una longitud máxima. El guion largo (—), las comillas tipográficas, los
+ * saltos de línea o las tildes pueden provocar un error de validación en
+ * `/api/collect` (el campo viajaba antes tal cual desde el panel de
+ * administración). Aquí se convierte a ASCII imprimible, se colapsan espacios
+ * y se acota la longitud; el texto original se conserva en la base local.
+ */
+export function sanitizeGatewayText(val: unknown, maxLength = 200): string {
+  return String(val ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[^\x20-\x7e]/g, ' ')
+    // Solo caracteres conservadores. PlacetoPay documentó soporte para #, %,
+    // &, @, [] y otros en `*.description` de /api/session, pero no garantiza lo
+    // mismo en /api/collect: se excluyen para no reintroducir el error.
+    .replace(/[^A-Za-z0-9 .,()_:/+-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+    .trim();
+}
+
+/**
  * Crea una sesión de pago con tokenización en Place to Pay (Evertec).
  * La suscripción se pide con `payment.subscribe: true` (no con el bloque raíz
  * `subscription`, que la pasarela rechaza cuando hay cobro y suscripción a la vez).
@@ -228,18 +288,11 @@ export async function createPaymentSession(
   const expiration = new Date();
   expiration.setMinutes(expiration.getMinutes() + 25); // 25 minutos de vigencia
 
-  // Limpiar campos según requisitos de certificación de Evertec:
-  // - Nombres y apellidos: solo letras, espacios, tildes y Ñ
-  const sanitizeName = (val: string) => val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '').trim();
-  // - Móvil/Teléfono: solo dígitos numéricos (máx 10 dígitos locales de Colombia)
-  const sanitizePhone = (val: string) => val.replace(/\D/g, '').slice(-10);
-  // - Descripción: texto limpio alfanumérico y espacios estándar
-  const sanitizeDescription = (val: string) => val.replace(/[^\w\s\-.,()]/gi, '').slice(0, 250);
-
   const cleanNames = sanitizeName(req.customer.names) || 'Cliente';
   const cleanLastnames = sanitizeName(req.customer.lastnames) || 'Dinamo';
   const cleanPhone = sanitizePhone(req.customer.phone) || '3000000000';
-  const cleanDescription = sanitizeDescription(req.description) || 'Alquiler de vehiculo Dinamo Rent';
+  const cleanDescription =
+    sanitizeGatewayText(req.description, 200) || 'Alquiler de vehiculo Dinamo Rent';
 
   // IVA 19%: se declara solo si la base es válida y menor que el total. Así una reserva
   // antigua (creada antes de sumar IVA, donde base = total) no envía un impuesto en cero.
@@ -327,6 +380,106 @@ export async function createPaymentSession(
 }
 
 /**
+ * Crea una sesión de tokenización SIN cobro (suscripción pura).
+ *
+ * Se envía el bloque raíz `subscription` y ningún objeto `payment`, tal como
+ * documenta PlacetoPay en «Crear Sesión». Así el administrador puede registrar
+ * o reemplazar la tarjeta de garantía sin que el token dependa de un pago
+ * aprobado, lo que permite reproducir de forma controlada los escenarios de
+ * rechazo recuperable y no recuperable de la certificación.
+ */
+export async function createSubscriptionSession(
+  req: P2PSubscriptionRequest
+): Promise<P2PSessionResult> {
+  // Simulador local: solo en desarrollo/test con P2P_MOCK=true (ver isMockEnabled).
+  if (isMockEnabled()) {
+    const mockRequestId = `P2P-TOK-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const returnUrlWithParams = new URL(req.returnUrl);
+    returnUrlWithParams.searchParams.set('requestId', mockRequestId);
+    returnUrlWithParams.searchParams.set('reference', req.reference);
+
+    return {
+      ok: true,
+      requestId: mockRequestId,
+      processUrl: returnUrlWithParams.toString(),
+      statusMessage: 'Sesión de tokenización generada en modo Sandbox Dinamo Rent',
+    };
+  }
+
+  const config = getEnvConfig();
+  if ('error' in config) {
+    return { ok: false, error: config.error };
+  }
+  const { login, tranKey, baseUrl } = config;
+
+  const auth = generateAuth(login, tranKey);
+  const expiration = new Date();
+  expiration.setMinutes(expiration.getMinutes() + 25);
+
+  const cleanNames = sanitizeName(req.customer.names) || 'Cliente';
+  const cleanLastnames = sanitizeName(req.customer.lastnames) || 'Dinamo';
+  const cleanPhone = sanitizePhone(req.customer.phone) || '3000000000';
+
+  const payload = {
+    auth,
+    locale: 'es_CO',
+    buyer: {
+      name: cleanNames,
+      surname: cleanLastnames,
+      email: req.customer.email.trim(),
+      mobile: cleanPhone,
+      documentType: normalizeDocType(req.customer.docType),
+      document: req.customer.docNumber.trim(),
+    },
+    // Suscripción pura: sin objeto `payment`, no se ejecuta ningún cobro.
+    subscription: {
+      reference: sanitizeGatewayText(req.reference, 50) || req.reference,
+      description:
+        sanitizeGatewayText(req.description, 200) ||
+        'Tokenizacion tarjeta de garantia Dinamo Rent',
+    },
+    expiration: expiration.toISOString(),
+    returnUrl: req.returnUrl,
+    ipAddress: req.ipAddress || '127.0.0.1',
+    userAgent: req.userAgent || 'Mozilla/5.0 DinamoRent/1.0 Admin-Tokenization',
+  };
+
+  try {
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (data?.status?.status === 'OK' && data.processUrl) {
+      return {
+        ok: true,
+        requestId: String(data.requestId),
+        processUrl: data.processUrl,
+        statusMessage: data.status.message,
+      };
+    }
+
+    console.error(
+      '[PlaceToPay] Respuesta no exitosa al crear sesión de tokenización:',
+      data?.status?.message
+    );
+    return {
+      ok: false,
+      statusMessage: data?.status?.message,
+      error: data?.status?.message || 'La pasarela no pudo crear la sesión de tokenización',
+    };
+  } catch (err) {
+    console.error('[PlaceToPay] Error conectando a pasarela (tokenización):', err);
+    return {
+      ok: false,
+      error: (err as Error).message || 'Error de conexión con la pasarela de pagos',
+    };
+  }
+}
+
+/**
  * Consulta el estado de una sesión en Place to Pay (Evertec).
  * Extrae tanto la confirmación del pago del canon como los datos de tokenización
  * (suscripción) de la tarjeta para la garantía.
@@ -381,6 +534,10 @@ export async function queryPaymentSession(
     else if (p2pStatus === 'REJECTED') status = 'REJECTED';
 
     const firstPayment = data?.payment?.[0];
+    // Sesión de tokenización pura: hay `subscription` pero ningún pago asociado.
+    const subscriptionOnly =
+      Boolean(data?.subscription) &&
+      (!Array.isArray(data?.payment) || data.payment.length === 0);
 
     // Extraer datos de la suscripción (Tokenización de tarjeta para garantía)
     let token: string | undefined;
@@ -424,6 +581,7 @@ export async function queryPaymentSession(
       tokenStatus,
       tokenValidUntil,
       tokenFranchise,
+      subscriptionOnly,
     };
   } catch (err) {
     return {
@@ -514,8 +672,10 @@ export async function collectPaymentWithToken(
       mobile: req.customer.phone,
     },
     payment: {
-      reference: req.reference,
-      description: req.description,
+      reference: sanitizeGatewayText(req.reference, 50) || req.reference,
+      // El `description` viaja siempre en ASCII imprimible y acotado: es el
+      // campo que la pasarela validaba como error en el cobro con token.
+      description: sanitizeGatewayText(req.description, 200) || 'Cobro de garantia Dinamo Rent',
       amount: {
         currency: 'COP',
         total: req.amountCOP,
@@ -537,18 +697,69 @@ export async function collectPaymentWithToken(
       body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const rawBody = await res.text();
+    let data: {
+      status?: { status?: string; message?: string; reason?: string };
+      payment?: {
+        authorization?: string;
+        receipt?: string;
+        franchise?: string;
+        lastDigits?: string;
+      };
+      requestId?: string | number;
+    } | null = null;
+    try {
+      data = rawBody ? JSON.parse(rawBody) : null;
+    } catch {
+      data = null;
+    }
+
+    // HTTP distinto de 2xx = la solicitud no fue procesada (validación,
+    // autenticación o indisponibilidad). No es veredicto del emisor: se trata
+    // como PENDING para no contar intentos ni invalidar la tarjeta.
+    if (!res.ok) {
+      console.error(`[PlaceToPay Collect] HTTP ${res.status}:`, rawBody.slice(0, 500));
+      return {
+        ok: false,
+        status: 'PENDING',
+        message: `La pasarela rechazó la solicitud (HTTP ${res.status}): ${
+          data?.status?.message || 'sin detalle'
+        }. No es un rechazo del emisor; el token no se modifica.`,
+        reference: req.reference,
+        amountCOP: req.amountCOP,
+        requestId: data?.requestId ? String(data.requestId) : undefined,
+        error: 'Solicitud rechazada por la pasarela',
+      };
+    }
+
     const p2pStatus = data?.status?.status;
     let status: 'APPROVED' | 'REJECTED' | 'PENDING' = 'PENDING';
     if (p2pStatus === 'APPROVED') status = 'APPROVED';
     else if (p2pStatus === 'REJECTED') status = 'REJECTED';
+
+    const message = data?.status?.message || 'Procesado por pasarela';
+
+    // Un error de validación del request (por ejemplo el antiguo `description`)
+    // tampoco es un rechazo de la tarjeta: no debe consumir intentos.
+    if (status === 'REJECTED' && isGatewayValidationFailure(message)) {
+      console.error('[PlaceToPay Collect] Validación rechazada por la pasarela:', message);
+      return {
+        ok: false,
+        status: 'PENDING',
+        message: `La pasarela no procesó la solicitud por validación: ${message}. No es un rechazo del emisor; el token no se modifica.`,
+        reference: req.reference,
+        amountCOP: req.amountCOP,
+        requestId: data?.requestId ? String(data.requestId) : undefined,
+        error: 'Solicitud rechazada por validación de la pasarela',
+      };
+    }
 
     const paymentInfo = data?.payment;
 
     return {
       ok: status === 'APPROVED',
       status,
-      message: data?.status?.message || 'Procesado por pasarela',
+      message,
       reference: req.reference,
       amountCOP: req.amountCOP,
       authorization: paymentInfo?.authorization,
@@ -556,7 +767,7 @@ export async function collectPaymentWithToken(
       franchise: paymentInfo?.franchise,
       lastDigits: paymentInfo?.lastDigits,
       requestId: data?.requestId ? String(data.requestId) : undefined,
-      error: status === 'REJECTED' ? data?.status?.message : undefined,
+      error: status === 'REJECTED' ? message : undefined,
     };
   } catch (err) {
     console.error('[PlaceToPay Collect] Error ejecutando cobro con token:', err);
@@ -595,13 +806,31 @@ const IMMEDIATE_INVALIDATION_PATTERNS: Array<{ label: string; pattern: RegExp }>
  * - `immediate: false` → rechazos transitorios (fondos insuficientes, límites, etc.),
  *   sujetos a la regla de máximo 3 intentos antes de invalidar.
  */
-export function classifyTokenRejection(message?: string): { immediate: boolean; reason?: string } {
-  if (!message) return { immediate: false };
-
-  const normalized = message
+/** Normaliza un mensaje de la pasarela para compararlo sin tildes ni mayúsculas. */
+function normalizeGatewayMessage(message: string): string {
+  return message
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+}
+
+/**
+ * true si el mensaje corresponde a un problema de la solicitud (campo, formato,
+ * longitud) y no a un rechazo del emisor. Evita clasificar como «tarjeta
+ * inválida» un error de validación del `description`.
+ */
+function isGatewayValidationFailure(message?: string): boolean {
+  if (!message) return false;
+  const normalized = normalizeGatewayMessage(message);
+  return /descripcion|description|\bcampo\b|\bfield\b|requerid|required|formato|format|longitud|length|parametro/.test(
+    normalized
+  );
+}
+
+export function classifyTokenRejection(message?: string): { immediate: boolean; reason?: string } {
+  if (!message) return { immediate: false };
+
+  const normalized = normalizeGatewayMessage(message);
 
   // Los rechazos por fondos, cupo o límites NO invalidan el token: solo cuentan intentos.
   if (/fondos|insuficiente|cupo|limite|excede/.test(normalized)) {

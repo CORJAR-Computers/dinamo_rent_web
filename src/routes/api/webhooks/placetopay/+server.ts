@@ -131,6 +131,58 @@ export const POST: RequestHandler = async ({ request }) => {
       return Response.json({ ok: true, message: 'Notificación procesada sin registro local' });
     }
 
+    // Tokenización sin cobro (re-tokenización administrativa): la sesión no
+    // tiene pago asociado. Solo se actualiza el instrumento; nunca se marca la
+    // reserva como PAGADA ni se altera el estado del cobro original.
+    if (query.subscriptionOnly) {
+      if (query.status !== 'APPROVED' || !query.token) {
+        return Response.json({
+          ok: true,
+          status: finalPaymentStatus,
+          requestId: requestIdStr,
+          tokenUpdated: false,
+        });
+      }
+
+      await db.payment.update({
+        where: { id: payment.id },
+        data: {
+          token: query.token,
+          tokenStatus: 'ACTIVO',
+          tokenValidUntil: query.tokenValidUntil || payment.tokenValidUntil,
+          tokenFranchise: query.tokenFranchise || query.cardBrand || payment.tokenFranchise,
+          cardBrand: query.cardBrand || payment.cardBrand,
+          cardLast4: query.cardLast4 || payment.cardLast4,
+          p2pStatusMessage: 'Tarjeta de garantía actualizada mediante tokenización sin cobro',
+        },
+      });
+
+      await db.syncLog.create({
+        data: {
+          entity: 'PAYMENT',
+          entityId: payment.id,
+          action: 'UPDATE',
+          status: 'PENDING',
+          message: `[Token] Nueva tokenización administrativa para reserva ${payment.reservation.code}`,
+          payload: {
+            requestId: query.requestId,
+            reservationCode: payment.reservation.code,
+            tokenPrefix: query.token.slice(0, 8),
+            tokenFranchise: query.tokenFranchise || query.cardBrand,
+            tokenValidUntil: query.tokenValidUntil,
+            purpose: 'RETOKENIZACION',
+          },
+        },
+      });
+
+      return Response.json({
+        ok: true,
+        status: finalPaymentStatus,
+        requestId: requestIdStr,
+        tokenUpdated: true,
+      });
+    }
+
     if (finalPaymentStatus === 'PENDIENTE') {
       // La pasarela aún no resolvió: no se escribe nada. La sonda reintentará.
       return Response.json({ ok: true, status: finalPaymentStatus, requestId: requestIdStr });

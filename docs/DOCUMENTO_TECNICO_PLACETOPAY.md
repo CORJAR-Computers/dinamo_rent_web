@@ -162,13 +162,13 @@ Cada llamada saliente a las API de Place to Pay genera una cabecera criptográfi
     "name": "Juan",
     "surname": "Pérez",
     "email": "juan.perez@email.com",
-    "mobile": "+573001234567",
+    "mobile": "3001234567",
     "documentType": "CC",
     "document": "1047123456"
   },
   "payment": {
     "reference": "DIN-189201-4412",
-    "description": "Alquiler Dinamo Rent — Renault Duster Iconic (4 días)",
+    "description": "Alquiler Dinamo Rent - Renault Duster Iconic (4 dias)",
     "amount": {
       "currency": "COP",
       "total": 809200,
@@ -236,7 +236,7 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
   },
   "payment": {
     "reference": "COL-DIN-189201-GAS-01",
-    "description": "Dinamo Rent: GASOLINA — Combustible faltante (Reserva #DIN-189201-4412)",
+    "description": "Dinamo Rent: GASOLINA - Combustible faltante (Reserva DIN-189201-4412)",
     "amount": {
       "currency": "COP",
       "total": 120000
@@ -252,7 +252,52 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
 }
 ```
 
+**Normalización de `description`.** La API de PlacetoPay valida `payment.description` con un conjunto restringido de caracteres y una longitud máxima. Por eso el texto se construye en el servidor y se sanea antes de enviarlo: `sanitizeGatewayText()` (`src/lib/server/placetopay.ts`) pasa el valor a ASCII imprimible, reemplaza guiones tipográficos (`—`, `–`), elimina saltos de línea y caracteres no garantizados (`#`, `%`, `&`, `@`, `[]`, comillas tipográficas), colapsa espacios y lo acota a **200 caracteres**. El formato final es:
+
+```text
+Dinamo Rent: {CONCEPTO} - {detalle del administrador} (Reserva {CODIGO})
+```
+
+El texto original del administrador se conserva en `deposit_charges.description` para auditoría; a la pasarela viaja siempre la versión saneada. Esto corrige el error de validación reportado por Evertec al probar los distintos conceptos de cargo.
+
 **Respuestas del cobro.** `APPROVED` → **200**. Rechazo del emisor (`REJECTED`) → **402** con `attempts` y `tokenInvalidation`. Sin veredicto de la pasarela (timeout, error de red o credenciales ausentes) → **502** con `status: "PENDING"`, el cargo queda `PENDIENTE` y el token **no** se toca: esos fallos no cuentan como intentos para la invalidación automática, para no desvincular la tarjeta del cliente por una caída propia.
+
+**Error de validación ≠ rechazo de tarjeta.** Si la pasarela responde un HTTP distinto de 2xx, o un `REJECTED` cuyo mensaje corresponde a un campo/formato de la solicitud (por ejemplo `El campo description es inválido`), el resultado se clasifica como `PENDING`: no consume intentos y **no** dispara la invalidación del token. Solo un rechazo real del emisor (`Fondos insuficientes`, `Tarjeta vencida`, etc.) alimenta la regla de 3 intentos o la invalidación inmediata.
+
+### 5.4.1 Actualización administrativa del medio de pago (tokenización sin cobro)
+
+Requisito de certificación: registrar o reemplazar la tarjeta de garantía sin depender de un pago aprobado, para poder reproducir de forma controlada los escenarios de rechazo recuperable y no recuperable.
+
+**Ruta del panel:** `/admin/reservas` → botón de escudo de la reserva → **«Registrar tarjeta de garantía»** o **«Actualizar medio de pago»**. El administrador es redirigido al Hosted Checkout de PlacetoPay, registra la tarjeta y vuelve al panel; el token se guarda en `payments` y queda `ACTIVO`.
+
+**Creación de la sesión (servidor, autenticado):** `POST /api/payments/token/resubscribe` con `{ reservationId }`. Envía el bloque raíz `subscription` y **ningún** objeto `payment`, tal como documenta PlacetoPay en «Crear Sesión»:
+
+```json
+{
+  "auth": { ... },
+  "locale": "es_CO",
+  "buyer": {
+    "name": "Juan",
+    "surname": "Perez",
+    "email": "juan.perez@email.com",
+    "mobile": "3001234567",
+    "documentType": "CC",
+    "document": "1047123456"
+  },
+  "subscription": {
+    "reference": "DIN-189201-4412",
+    "description": "Tokenizacion tarjeta de garantia - Reserva DIN-189201-4412"
+  },
+  "expiration": "2026-09-21T19:00:00.000Z",
+  "returnUrl": "https://dinamo-rent-a-car.vercel.app/api/payments/token/resubscribe/return?reservationId=...",
+  "ipAddress": "190.131.x.x",
+  "userAgent": "Mozilla/5.0 DinamoRent/1.0 Admin-Tokenization"
+}
+```
+
+* **Retorno:** `GET /api/payments/token/resubscribe/return` consulta la sesión (`QuerySession`), reintenta si la pasarela aún no consolidó el instrumento y guarda `token`, `tokenStatus = ACTIVO`, `tokenValidUntil`, `tokenFranchise`, franquicia y últimos 4 en `payments`. **No** modifica el estado del pago original ni el de la reserva.
+* **Webhook:** si la notificación corresponde a una sesión de tokenización pura (`subscription` sin arreglo `payment`), `queryPaymentSession` devuelve `subscriptionOnly: true` y el webhook solo actualiza el instrumento. Nunca marca la reserva como `PAGADA`.
+* **Ciclo completo certificable:** tokenizar sin cobro → ejecutar Collect con el token → provocar rechazo recuperable (hasta 3 intentos) → provocar rechazo no recuperable (invalidación inmediata) → confirmar que el token invalidado no permite nuevos cobros.
 
 ### 5.5 Impuestos (IVA 19%) y consistencia del monto
 
@@ -283,6 +328,7 @@ La cadena se arma siempre con `P2P_TRAN_KEY`; el prefijo determina el algoritmo.
 **Idempotencia.** La firma de una notificación sigue siendo válida de forma indefinida, por lo que el webhook es idempotente:
 
 * Pago ya `APROBADO` → responde 200 con `duplicate: true` y no reescribe pago ni reserva.
+* Notificación de tokenización sin cobro (`subscriptionOnly`) → solo actualiza el token del instrumento y responde 200 con `tokenUpdated: true`; el pago y la reserva no cambian de estado.
 * Reserva `CANCELADA` + notificación `APPROVED` → no se revive la reserva; se registra un `SyncLog` con `ignored: RESERVA_CANCELADA` y se responde 200 para detener los reintentos.
 
 **Configuración fail-closed.** Con `P2P_ENV=prod`, si falta `P2P_LOGIN` o `P2P_TRAN_KEY`, ninguna función de `src/lib/server/placetopay.ts` llama a la pasarela: creación de sesión, consulta, `collect` e invalidación devuelven error explícito. No hay credenciales de sandbox por defecto en producción.

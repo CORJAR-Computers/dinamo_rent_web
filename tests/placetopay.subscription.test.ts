@@ -1,0 +1,192 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * Sesión de suscripción pura (sin `payment`) y clasificación de errores del
+ * Collect. Evertec reportó un error de validación en `description` al cobrar
+ * con token: un fallo así no puede contar como rechazo de la tarjeta.
+ */
+
+const { createSubscriptionSession, queryPaymentSession, collectPaymentWithToken, sanitizeGatewayText } =
+	await import('../src/lib/server/placetopay.js');
+
+const customer = {
+	names: 'Ana',
+	lastnames: 'Pérez',
+	email: 'ana@example.com',
+	phone: '3001234567',
+	docType: 'CC',
+	docNumber: '1234567890'
+};
+
+function productionEnv(): void {
+	vi.stubEnv('NODE_ENV', 'production');
+	vi.stubEnv('P2P_ENV', 'prod');
+	vi.stubEnv('P2P_LOGIN', 'comercio-real');
+	vi.stubEnv('P2P_TRAN_KEY', 'clave-transaccional-real');
+	vi.stubEnv('P2P_MOCK', 'false');
+}
+
+beforeEach(() => {
+	vi.unstubAllEnvs();
+	vi.unstubAllGlobals();
+});
+
+describe('sanitizeGatewayText', () => {
+	it('convierte guiones largos y tildes, y descarta caracteres no permitidos', () => {
+		const salida = sanitizeGatewayText('Daño — “espejo” izquierdo\nAcción #1');
+		expect(salida).toBe('Dano - espejo izquierdo Accion 1');
+		expect(salida).toMatch(/^[A-Za-z0-9 .,()_:/+-]+$/);
+	});
+
+	it('acota la longitud y colapsa espacios', () => {
+		const salida = sanitizeGatewayText(`  ${'a'.repeat(500)}  `, 200);
+		expect(salida).toHaveLength(200);
+	});
+});
+
+describe('createSubscriptionSession', () => {
+	it('envía el bloque subscription sin payment y con description ASCII', async () => {
+		productionEnv();
+		let enviado: Record<string, unknown> | null = null;
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_url: string, init: RequestInit) => {
+				enviado = JSON.parse(String(init.body)) as Record<string, unknown>;
+				return new Response(
+					JSON.stringify({
+						requestId: 555,
+						processUrl: 'https://checkout-test.placetopay.com/session/555',
+						status: { status: 'OK', message: 'Sesión creada' }
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			})
+		);
+
+		const result = await createSubscriptionSession({
+			reference: 'DIN-2026-0001',
+			description: 'Tokenización — tarjeta “de prueba”',
+			customer,
+			returnUrl: 'https://dinamo-rent-a-car.vercel.app/api/payments/token/resubscribe/return?reservationId=res_1'
+		});
+
+		expect(result.ok).toBe(true);
+		expect(result.processUrl).toContain('/session/555');
+
+		const payload = enviado as unknown as {
+			payment?: unknown;
+			subscription: { reference: string; description: string };
+			buyer: { document: string };
+		};
+		expect(payload.payment).toBeUndefined();
+		expect(payload.subscription.reference).toBe('DIN-2026-0001');
+		expect(payload.subscription.description).toMatch(/^[\x20-\x7E]+$/);
+		expect(payload.subscription.description).not.toContain('—');
+		expect(payload.buyer.document).toBe('1234567890');
+	});
+
+	it('falla cerrado sin credenciales en producción y no llama a la pasarela', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('P2P_ENV', 'prod');
+		vi.stubEnv('P2P_LOGIN', '');
+		vi.stubEnv('P2P_TRAN_KEY', '');
+		const fetchSpy = vi.fn();
+		vi.stubGlobal('fetch', fetchSpy);
+
+		const result = await createSubscriptionSession({
+			reference: 'DIN-2026-0001',
+			description: 'Tokenizacion',
+			customer,
+			returnUrl: 'https://example.com/return'
+		});
+
+		expect(result.ok).toBe(false);
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+});
+
+describe('queryPaymentSession — tokenización sin cobro', () => {
+	it('marca subscriptionOnly cuando la respuesta no trae payment', async () => {
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							status: { status: 'APPROVED', message: 'Aprobada' },
+							payment: [],
+							subscription: {
+								status: { status: 'APPROVED' },
+								instrument: [
+									{ keyword: 'token', value: 'tok_nuevo_12345678' },
+									{ keyword: 'last_digits', value: '1111' }
+								]
+							}
+						}),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await queryPaymentSession('555');
+
+		expect(result.ok).toBe(true);
+		expect(result.subscriptionOnly).toBe(true);
+		expect(result.token).toBe('tok_nuevo_12345678');
+		expect(result.tokenStatus).toBe('ACTIVO');
+	});
+});
+
+describe('collectPaymentWithToken — errores de validación', () => {
+	const pedido = {
+		token: 'tok_real_9f8e7d6c',
+		reference: 'COL-DIN-2026-0001-ABC',
+		description: 'Cobro de garantia',
+		amountCOP: 50000,
+		customer
+	};
+
+	it('un HTTP 400 queda PENDING: no es un rechazo del emisor', async () => {
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							status: { status: 'REJECTED', message: 'El campo description es inválido' }
+						}),
+						{ status: 400, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await collectPaymentWithToken(pedido);
+
+		expect(result.status).toBe('PENDING');
+		expect(result.error).toContain('pasarela');
+	});
+
+	it('un REJECTED por el campo description no se clasifica como rechazo de tarjeta', async () => {
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							status: { status: 'REJECTED', message: 'El campo description es inválido' }
+						}),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await collectPaymentWithToken(pedido);
+
+		expect(result.status).toBe('PENDING');
+		expect(result.error).toBe('Solicitud rechazada por validación de la pasarela');
+	});
+});
