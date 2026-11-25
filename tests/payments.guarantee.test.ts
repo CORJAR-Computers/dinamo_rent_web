@@ -318,6 +318,125 @@ describe('POST /api/payments/collect — datos enviados a la pasarela', () => {
 	});
 });
 
+describe('POST /api/payments/collect — vigencia del token', () => {
+	beforeEach(() => {
+		state.isAdmin = true;
+	});
+
+	it('un token vencido se marca EXPIRADO y se rechaza sin llamar a la pasarela', async () => {
+		state.reservation = reservationFixture({
+			payment: {
+				id: 'pay_1',
+				token: 'tok_real_9f8e7d6c',
+				tokenStatus: 'ACTIVO',
+				tokenValidUntil: '2020-01-31'
+			}
+		});
+
+		const res = await cobrar();
+		const body = (await res.json()) as CollectBody & {
+			tokenStatus?: string;
+			retokenizationRequired?: boolean;
+		};
+
+		expect(res.status).toBe(400);
+		expect(body.tokenStatus).toBe('EXPIRADO');
+		expect(body.retokenizationRequired).toBe(true);
+		expect(body.error).toContain('EXPIRADO');
+		expect(body.error).toContain('tokenización');
+		expect(body.error).toContain('2020-01-31');
+
+		// Nada salió hacia PlacetoPay: ni cobro, ni cargo, ni invalidación.
+		expect(state.collectCalls).toHaveLength(0);
+		expect(state.chargeCreates).toHaveLength(0);
+		expect(state.invalidateCalls).toHaveLength(0);
+		expect(state.paymentUpdates[0]).toMatchObject({ data: { tokenStatus: 'EXPIRADO' } });
+
+		const log = state.syncLogs[0].data as Obj;
+		expect(String(log.message)).toContain('token vencido');
+		expect((log.payload as Obj).purpose).toBe('EXPIRACION');
+	});
+
+	it('un token vigente sigue cobrando con normalidad', async () => {
+		state.reservation = reservationFixture({
+			payment: {
+				id: 'pay_1',
+				token: 'tok_real_9f8e7d6c',
+				tokenStatus: 'ACTIVO',
+				tokenValidUntil: '2999-12-31'
+			}
+		});
+
+		const res = await cobrar();
+
+		expect(res.status).toBe(200);
+		expect(state.collectCalls).toHaveLength(1);
+		expect(state.paymentUpdates).toHaveLength(0);
+	});
+
+	it('la vigencia cubre el día completo informado, no solo su inicio', async () => {
+		// La pasarela informa solo fecha (YYYY-MM-DD): un token que vence hoy
+		// sigue siendo cobrable hasta el final del día.
+		const hoy = new Date().toISOString().slice(0, 10);
+		state.reservation = reservationFixture({
+			payment: {
+				id: 'pay_1',
+				token: 'tok_real_9f8e7d6c',
+				tokenStatus: 'ACTIVO',
+				tokenValidUntil: hoy
+			}
+		});
+
+		const res = await cobrar();
+
+		expect(res.status).toBe(200);
+		expect(state.collectCalls).toHaveLength(1);
+	});
+	it('un token ya marcado EXPIRADO no se reescribe ni llama a la pasarela', async () => {
+		// La sonda diaria ya lo marcó (o el estado quedó guardado de un intento
+		// anterior): el cobro debe responder igual que en el bloqueo por fecha.
+		state.reservation = reservationFixture({
+			payment: {
+				id: 'pay_1',
+				token: 'tok_real_9f8e7d6c',
+				tokenStatus: 'EXPIRADO',
+				tokenValidUntil: '2029-12-31'
+			}
+		});
+
+		const res = await cobrar();
+		const body = (await res.json()) as CollectBody & {
+			status?: string;
+			tokenStatus?: string;
+			retokenizationRequired?: boolean;
+		};
+
+		expect(res.status).toBe(400);
+		expect(body.status).toBe('EXPIRED');
+		expect(body.tokenStatus).toBe('EXPIRADO');
+		expect(body.retokenizationRequired).toBe(true);
+		expect(body.error).toContain('tokenización');
+		expect(state.collectCalls).toHaveLength(0);
+		expect(state.chargeCreates).toHaveLength(0);
+		expect(state.paymentUpdates).toHaveLength(0);
+		expect(state.syncLogs).toHaveLength(0);
+	});
+
+	it('un token cancelado se rechaza sin llamar a la pasarela', async () => {
+		state.reservation = reservationFixture({
+			payment: { id: 'pay_1', token: 'tok_real_9f8e7d6c', tokenStatus: 'CANCELADO' }
+		});
+
+		const res = await cobrar();
+		const body = (await res.json()) as CollectBody & { tokenStatus?: string };
+
+		expect(res.status).toBe(400);
+		expect(body.tokenStatus).toBe('CANCELADO');
+		expect(state.collectCalls).toHaveLength(0);
+		expect(state.paymentUpdates).toHaveLength(0);
+	});
+});
+
 describe('POST /api/payments/token/invalidate', () => {
 	it('responde 401 sin sesión y no toca el token', async () => {
 		const res = await cancelar();

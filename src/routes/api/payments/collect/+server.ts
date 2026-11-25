@@ -5,6 +5,7 @@ import {
   collectPaymentWithToken,
   classifyTokenRejection,
   invalidateToken,
+  isTokenExpired,
   sanitizeGatewayText,
 } from '#lib/server/placetopay.js';
 
@@ -55,14 +56,54 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
       );
     }
 
-    if (payment.tokenStatus === 'CANCELADO' || payment.tokenStatus === 'EXPIRADO') {
+    if (payment.tokenStatus === 'CANCELADO') {
       return Response.json(
         {
           ok: false,
-          error: `El token de la tarjeta no está activo (estado actual: ${payment.tokenStatus}).`,
+          error: 'El token de la tarjeta fue cancelado y no admite nuevos cobros.',
+          status: 'CANCELLED',
+          tokenStatus: 'CANCELADO',
+          retokenizationRequired: true,
         },
         { status: 400 }
       );
+    }
+
+    // 2.b Vigencia del token: si la fecha informada por la pasarela ya pasó, el
+    // instrumento no debe viajar a Collect. Enviarlo con una tarjeta vencida
+    // provoca un rechazo definitivo que además invalida el token; aquí se marca
+    // EXPIRADO y se pide la re-tokenización sin gastar el intento ni llamar a
+    // la pasarela. Si la sonda diaria ya lo marcó, solo se responde: reescribir
+    // el pago o duplicar el SyncLog en cada intento no aporta nada.
+    if (payment.tokenStatus === 'EXPIRADO' || isTokenExpired(payment.tokenValidUntil)) {
+      if (payment.tokenStatus !== 'EXPIRADO') {
+        await db.payment.update({
+          where: { id: payment.id },
+          data: {
+            tokenStatus: 'EXPIRADO',
+            p2pStatusMessage: `Token vencido el ${payment.tokenValidUntil}: requiere re-tokenización`,
+          },
+        });
+
+        await db.syncLog.create({
+          data: {
+            entity: 'PAYMENT',
+            entityId: payment.id,
+            action: 'UPDATE',
+            status: 'PENDING',
+            message: `[Token] Cobro bloqueado para reserva ${reservation.code}: token vencido el ${payment.tokenValidUntil}`,
+            payload: {
+              reservationCode: reservation.code,
+              tokenValidUntil: payment.tokenValidUntil,
+              tokenStatus: 'EXPIRADO',
+              gatewayCalled: false,
+              purpose: 'EXPIRACION',
+            },
+          },
+        });
+      }
+
+      return expiredTokenResponse(payment.tokenValidUntil);
     }
 
     // 3. Generar referencia única de cobro para idempotencia (Place to Pay previene duplicados en 24h)
@@ -269,3 +310,24 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     return Response.json({ ok: false, error: "Error interno del servidor. Intenta de nuevo." }, { status: 500 });
   }
 };
+
+/**
+ * Respuesta del cobro cuando el token está vencido (o ya marcado EXPIRADO por
+ * la sonda diaria). Es un 400, no un 402: la pasarela no vio la solicitud, no
+ * hubo veredicto del emisor y no se consumió ningún intento.
+ */
+function expiredTokenResponse(tokenValidUntil: string | null) {
+  const fecha = String(tokenValidUntil ?? '').trim();
+  return Response.json(
+    {
+      ok: false,
+      error: fecha
+        ? `El token de la tarjeta venció el ${fecha} y quedó marcado como EXPIRADO. Registra una nueva tarjeta de garantía (re-tokenización) antes de cobrar. No se envió ningún cargo a la pasarela.`
+        : 'El token de la tarjeta está marcado como EXPIRADO. Registra una nueva tarjeta de garantía (re-tokenización) antes de cobrar. No se envió ningún cargo a la pasarela.',
+      status: 'EXPIRED',
+      tokenStatus: 'EXPIRADO',
+      retokenizationRequired: true,
+    },
+    { status: 400 }
+  );
+}

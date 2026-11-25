@@ -126,6 +126,7 @@ sequenceDiagram
     Admin->>Dinamo: 1. Ingresa a /admin/reservas y define monto/concepto (ej. Gasolina $150,000 COP)
     Note over Admin,Dinamo: Verificación de sesión administrativa RBAC (Cookie HttpOnly)
     Dinamo->>Neon: 2. Consulta reserva y recupera token seguro de la tarjeta
+    Note over Dinamo: Si tokenValidUntil ya venció → 400 EXPIRED sin llamar a la pasarela
     Dinamo->>Dinamo: 3. Genera referencia única (idempotencia) y Auth SHA-256
     Dinamo->>P2P: 4. POST /api/collect con { auth, payer, payment, instrument: { token } }
     P2P-->>Dinamo: 5. Respuesta bancaria (APPROVED / REJECTED, authorization, receipt)
@@ -261,6 +262,20 @@ Dinamo Rent: {CONCEPTO} - {detalle del administrador} (Reserva {CODIGO})
 La versión saneada es la única que existe: es la que viaja a la pasarela y la que se persiste en `deposit_charges.description` para auditoría del cargo. El texto libre original con tildes, guiones tipográficos o caracteres no garantizados **no** se almacena en ningún campo (evita duplicar datos y conservar valores que la pasarela nunca recibió). Para reconstruir lo ocurrido basta el propio registro: concepto, detalle saneado, monto, estado, `p2pRequestId` y mensaje de la pasarela. Esto corrige el error de validación reportado por Evertec al probar los distintos conceptos de cargo.
 
 **Respuestas del cobro.** `APPROVED` → **200**. Rechazo del emisor (`REJECTED`) → **402** con `attempts` y `tokenInvalidation`. Sin veredicto de la pasarela (timeout, error de red o credenciales ausentes) → **502** con `status: "PENDING"`, el cargo queda `PENDIENTE` y el token **no** se toca: esos fallos no cuentan como intentos para la invalidación automática, para no desvincular la tarjeta del cliente por una caída propia.
+
+**Token vencido: rechazo local sin llamar a la pasarela.** Antes de generar la referencia de cobro y de invocar `/api/collect`, el servidor compara `payments.tokenValidUntil` con la hora actual (`isTokenExpired`, en `src/lib/utils/tokenValidity.ts`). Un valor `YYYY-MM-DD` vale hasta el final de ese día en UTC; una hora sin zona se interpreta como UTC; un valor ausente o ilegible **no** se considera vencido (en ese caso decide la pasarela). Si el token venció, el cobro no viaja a Evertec: se marca `tokenStatus = "EXPIRADO"`, se registra un `SyncLog` con `payload.purpose = "EXPIRACION"` y `gatewayCalled: false`, **no** se crea `DepositCharge`, no se consume ningún intento de la regla de 3 y no se ejecuta `classifyTokenRejection` (que invalidaría el token de inmediato por un rechazo de tarjeta vencida). Respuesta —HTTP **400**—:
+
+```json
+{
+  "ok": false,
+  "status": "EXPIRED",
+  "tokenStatus": "EXPIRADO",
+  "retokenizationRequired": true,
+  "error": "El token de la tarjeta venció el 2020-01-31 y quedó marcado como EXPIRADO. Registra una nueva tarjeta de garantía (re-tokenización) antes de cobrar. No se envió ningún cargo a la pasarela."
+}
+```
+
+El mensaje cita la fecha informada por la pasarela y la acción concreta (re-tokenizar). El panel `/admin/reservas` aplica el mismo criterio en el cliente: muestra el token como **EXPIRADA** con la fecha de vigencia, oculta el botón de cobro y deja a la vista la re-tokenización. La sonda diaria (`GET /api/cron/p2p-check-pending`) marca `EXPIRADO` todo token vencido con su propio `SyncLog`, de modo que el estado no depende de que alguien intente cobrar.
 
 **Error de validación ≠ rechazo de tarjeta.** Si la pasarela responde un HTTP distinto de 2xx, o un `REJECTED` cuyo mensaje corresponde a un campo/formato de la solicitud (por ejemplo `El campo description es inválido`), el resultado se clasifica como `PENDING`: no consume intentos y **no** dispara la invalidación del token. Solo un rechazo real del emisor (`Fondos insuficientes`, `Tarjeta vencida`, etc.) alimenta la regla de 3 intentos o la invalidación inmediata.
 

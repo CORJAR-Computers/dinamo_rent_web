@@ -175,6 +175,11 @@ export function isMockEnabled(): boolean {
   return (env === 'development' || env === 'test') && process.env.P2P_MOCK === 'true';
 }
 
+// La vigencia del token se evalúa en `$lib/utils/tokenValidity` para que el
+// panel de administración aplique exactamente el mismo criterio. Se reexporta
+// aquí porque es la puerta de entrada histórica del resto del servidor.
+export { isTokenExpired } from '#lib/utils/tokenValidity.js';
+
 /**
  * Genera la autenticación de Place to Pay (Evertec) según su especificación:
  * SHA256(rawNonce + seed + tranKey) codificado en Base64.
