@@ -1,0 +1,105 @@
+# Automerge — mergea el PR cuando el workflow "Check" termina en verde, con el
+# GITHUB_TOKEN del repo: es una instalación de la GitHub App de Actions, así que
+# no depende de que la organización apruebe ninguna OAuth App.
+#
+# Se usa `workflow_run` y no un job más dentro de check.yml porque este workflow
+# corre con permiso de escritura: `workflow_run` ejecuta siempre la copia del
+# archivo que está en la rama por defecto, no la del PR, y aquí no hay checkout ni
+# `npm ci`. El token que escribe nunca convive con código de PR.
+#
+# La protección de rama sigue mandando: si el check requerido no está en verde
+# sobre el head del PR, GitHub rechaza el merge aunque el token tenga
+# `contents: write`.
+#
+# Válvula de escape: un PR con la etiqueta `no-automerge` no se mergea nunca;
+# sirve para dejar un PR abierto solo para que corra el CI. Se evalúa en cada run,
+# así que al quitarla basta con provocar otro run del check en la rama
+# (`gh workflow run check.yml --ref <rama>`), porque cambiar etiquetas no dispara
+# este workflow.
+#
+# El merge con este token no dispara el workflow de `push`: GitHub suprime los
+# eventos generados con GITHUB_TOKEN, así que main quedaría sin verificar. Se
+# compensa al final con `gh workflow run check.yml --ref main`; los eventos
+# `workflow_dispatch` sí crean run aunque los lance el propio token.
+#
+# `workflow_run` solo empieza a dispararse cuando este archivo ya está en main.
+name: Automerge
+
+on:
+  workflow_run:
+    # Tiene que coincidir con el `name:` de check.yml.
+    workflows: ['Check']
+    types: [completed]
+
+permissions:
+  # mergear
+  contents: write
+  pull-requests: write
+  # relanzar Check sobre main tras el merge
+  actions: write
+
+concurrency:
+  # Serializa los runs de una misma rama: si dos runs del check terminan seguidos,
+  # el segundo encuentra el PR ya mergeado y sale sin hacer nada.
+  group: automerge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    # Solo PRs abiertos desde el propio repo (uno de fork también puede salir
+    # verde y no queremos mergear código de fuera sin revisión) y solo cuando el
+    # check terminó bien. Los runs de `push` quedan fuera por `event`.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Mergear el PR del run
+        id: merge
+        run: |
+          set -euo pipefail
+          # En los runs de `pull_request` el payload ya trae el PR. Si viniera
+          # vacío no se busca otro por SHA: se sale, y el siguiente check de la
+          # rama lo vuelve a evaluar. Buscar por SHA podría resolver un PR
+          # distinto del que disparó el run.
+          number='${{ github.event.workflow_run.pull_requests[0].number }}'
+          if [ -z "$number" ]; then
+            echo "::notice::El run no trae PR asociado; nada que mergear."
+            exit 0
+          fi
+
+          read -r state draft head labels <<<"$(gh api "repos/$GH_REPO/pulls/$number" \
+            --jq '[.state, .draft, .head.sha, ([.labels[].name] | join(","))] | @tsv')"
+
+          # El run puede ser anterior a un cierre o a un "ready for review": se
+          # comprueba el estado actual antes de tocar nada.
+          if [ "$state" != "open" ] || [ "$draft" = "true" ]; then
+            echo "PR #$number está en estado '$state' (borrador: $draft); no se mergea."
+            exit 0
+          fi
+          case ",$labels," in
+            *,no-automerge,*)
+              echo "PR #$number lleva la etiqueta no-automerge; no se mergea."
+              exit 0
+              ;;
+          esac
+
+          # --rebase conserva los commits convencionales sueltos y el historial
+          # lineal, que es lo que se hacía a mano con fast-forward; requiere que el
+          # repo mantenga activo "Allow rebase merging".
+          # --match-head-commit evita colar un push que llegó después del check.
+          gh pr merge "$number" --rebase --match-head-commit "$head"
+          echo "merged=si" >> "$GITHUB_OUTPUT"
+
+      # Los push hechos con GITHUB_TOKEN no disparan workflows, así que el run de
+      # `push` que normalmente verificaría main no existe. Se lanza a mano.
+      - name: Verificar main después del merge
+        if: steps.merge.outputs.merged == 'si'
+        run: |
+          set -euo pipefail
+          gh workflow run check.yml --ref main
+          echo "::notice::Check relanzado sobre main tras el merge."
