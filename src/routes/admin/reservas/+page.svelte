@@ -493,10 +493,14 @@
 								<span class="font-black text-orange-400 font-mono text-sm whitespace-nowrap">{r.code}</span>
 								<p class="text-[11px] text-slate-500 mt-0.5">{formatDate(r.createdAt)}</p>
 								<!-- En móvil el estado del pago vive en la columna "Total Pagado", fuera de la
-								     vista: se repite aquí para que se lea sin desplazar la tabla. -->
-								<span class="sm:hidden flex items-start gap-1 text-[10px] font-bold mt-1 {pay.tone}">
-									<i class="fa-solid {pay.icon} text-[9px] mt-0.5"></i>
-									<span>{pay.short}</span>
+								     vista: se repite aquí para que se lea sin desplazar la tabla. Es una copia
+								     visual del badge de escritorio, así que se oculta a lectores de pantalla. -->
+								<span
+									class="sm:hidden flex items-center gap-1 text-[10px] font-bold mt-1 {pay.tone}"
+									aria-hidden="true"
+								>
+									<i class="fa-solid {pay.icon} text-[9px]"></i>
+									{pay.short}
 								</span>
 							</td>
 
