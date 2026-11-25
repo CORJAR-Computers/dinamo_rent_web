@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { isTokenExpired } from '#lib/utils/tokenValidity.js';
 
 	interface ReservationItem {
 		id: string;
@@ -120,6 +121,21 @@
 		});
 	}
 
+	/** Estado del pago en la tabla: el badge no puede ser verde por defecto. */
+	function paymentStatusBadge(status?: string | null): {
+		text: string;
+		icon: string;
+		tone: string;
+	} {
+		if (status === 'APROBADO')
+			return { text: 'Pagado Place to Pay', icon: 'fa-circle-check', tone: 'text-emerald-400' };
+		if (status === 'RECHAZADO')
+			return { text: 'Pago rechazado', icon: 'fa-circle-xmark', tone: 'text-rose-400' };
+		if (status === 'PENDIENTE')
+			return { text: 'Pago pendiente', icon: 'fa-clock', tone: 'text-amber-400' };
+		return { text: 'Sin pago registrado', icon: 'fa-circle-minus', tone: 'text-slate-400' };
+	}
+
 	function buildWhatsAppLink(r: ReservationItem): string {
 		const cleanPhone = (r.customerPhone || '').replace(/\D/g, '');
 		const intlPhone = cleanPhone.startsWith('57') ? cleanPhone : `57${cleanPhone}`;
@@ -177,15 +193,22 @@
 	});
 
 	let cardPayment = $derived(cardReservation?.payment ?? null);
+	// Un token con vigencia cumplida se trata como EXPIRADO aunque la base aún
+	// no lo haya marcado (la sonda diaria lo hace a las 8:00): el panel no debe
+	// ofrecer un cobro que el backend va a rechazar.
+	let tokenExpired = $derived(
+		isTokenExpired(cardPayment?.tokenValidUntil) && cardPayment?.tokenStatus !== 'CANCELADO'
+	);
 	let tokenActive = $derived(
 		Boolean(cardPayment?.token) &&
 			cardPayment?.tokenStatus !== 'CANCELADO' &&
-			cardPayment?.tokenStatus !== 'EXPIRADO'
+			cardPayment?.tokenStatus !== 'EXPIRADO' &&
+			!tokenExpired
 	);
 	let tokenStatusLabel = $derived(
 		cardPayment?.tokenStatus === 'CANCELADO'
 			? 'CANCELADA'
-			: cardPayment?.tokenStatus === 'EXPIRADO'
+			: cardPayment?.tokenStatus === 'EXPIRADO' || tokenExpired
 				? 'EXPIRADA'
 				: 'ACTIVA'
 	);
@@ -409,8 +432,14 @@
 				<tbody class="divide-y divide-slate-800/60">
 					{#each filteredReservations as r (r.id)}
 						{@const p = r.payment}
+						{@const rowTokenExpired =
+							Boolean(p?.token) && p?.tokenStatus !== 'CANCELADO' && isTokenExpired(p?.tokenValidUntil)}
 						{@const rowTokenActive =
-							Boolean(p?.token) && p?.tokenStatus !== 'CANCELADO' && p?.tokenStatus !== 'EXPIRADO'}
+							Boolean(p?.token) &&
+								p?.tokenStatus !== 'CANCELADO' &&
+								p?.tokenStatus !== 'EXPIRADO' &&
+								!rowTokenExpired}
+						{@const pay = paymentStatusBadge(p?.status)}
 						<tr class="hover:bg-slate-800/30 transition-colors">
 							<!-- Código + Fecha Registro -->
 							<td class="py-3.5 px-4">
@@ -446,8 +475,10 @@
 								<p class="text-[10px] text-slate-400 tabular-nums">
 									IVA 19%: {formatCOP(r.totalAmount - (r.baseAmount + r.insuranceAmount + r.extrasAmount))}
 								</p>
-								<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
-									<i class="fa-solid fa-circle-check text-[9px]"></i> Pagado Place to Pay
+								<span
+									class="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-bold {pay.tone}"
+								>
+									<i class="fa-solid {pay.icon} text-[9px]"></i> {pay.text}
 								</span>
 								{#if p?.token}
 									<div class="mt-1 pt-1 border-t border-slate-800 flex flex-col gap-0.5">
@@ -457,7 +488,11 @@
 												: 'text-rose-400'}"
 										>
 											<i class="fa-solid fa-shield-halved text-[9px]"></i> Tarjeta Garantía
-																								{rowTokenActive ? '(activa)' : '(cancelada)'}
+																								{rowTokenActive
+													? '(activa)'
+													: rowTokenExpired
+														? `(vencida el ${p?.tokenValidUntil})`
+														: '(cancelada)'}
 										</span>
 										<span class="text-[10px] text-slate-400 font-mono">
 											{p.cardBrand || 'Tarjeta'} •••• {p.cardLast4 || '****'}
@@ -493,8 +528,13 @@
 										<button
 											type="button"
 																								onclick={() => openCardModal(r, 'manage')}
+										aria-label={rowTokenExpired
+											? `Token vencido el ${p?.tokenValidUntil}: registrar nueva tarjeta de garantía`
+											: `Tarjeta de garantía de la reserva ${r.code}`}
 											class="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white transition-colors cursor-pointer"
-											title="Tarjeta de Garantía: registrar o actualizar el medio de pago, aplicar cobros y cancelar la suscripción"
+											title={rowTokenExpired
+											? `Token vencido el ${p?.tokenValidUntil}: registrar una nueva tarjeta de garantía`
+											: 'Tarjeta de Garantía: registrar o actualizar el medio de pago, aplicar cobros y cancelar la suscripción'}
 										>
 											<i class="fa-solid fa-shield-halved text-sm"></i>
 										</button>
@@ -503,6 +543,7 @@
 											<button
 												type="button"
 												onclick={() => openCardModal(r, 'collect')}
+										aria-label={`Aplicar cobro a la garantía de la reserva ${r.code}`}
 											class="p-2 rounded-lg bg-orange-500/10 hover:bg-orange-500 text-orange-400 hover:text-white transition-colors cursor-pointer"
 											title="Aplicar Cobro a Garantía con Token Place to Pay"
 										>
@@ -516,6 +557,7 @@
 											rel="noopener noreferrer external"
 											class="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors"
 											title="Contactar al cliente por WhatsApp"
+										aria-label={`Contactar por WhatsApp al cliente de la reserva ${r.code}`}
 										>
 											<i class="fa-brands fa-whatsapp text-sm"></i>
 										</a>
@@ -526,6 +568,7 @@
 											target="_blank"
 											class="p-2 rounded-lg bg-slate-800 hover:bg-orange-500 hover:text-white text-slate-300 transition-colors"
 											title="Ver Voucher Oficial"
+										aria-label={`Ver voucher de la reserva ${r.code}`}
 										>
 											<i class="fa-solid fa-file-invoice text-sm"></i>
 										</a>
@@ -609,10 +652,23 @@
 								<i class="fa-solid fa-circle text-[6px]"></i> {tokenStatusLabel}
 							</span>
 							{#if cardPayment?.tokenValidUntil}
-								<span class="text-slate-500 text-[10px] block mt-1">Vigencia: {cardPayment.tokenValidUntil}</span>
+								<span class="text-slate-500 text-[10px] block mt-1">Vigencia: {cardPayment.tokenValidUntil}{tokenExpired ? ' (vencida)' : ''}</span>
 							{/if}
 						</div>
 					</div>
+
+					{#if tokenExpired}
+						<div
+							class="p-3.5 rounded-2xl bg-rose-500/5 border border-rose-500/20 text-[11px] text-rose-300/90 flex items-start gap-2"
+						>
+							<i class="fa-solid fa-calendar-xmark mt-0.5"></i>
+							<span>
+								Token <strong class="text-rose-200">vencido</strong> el
+								<strong class="font-mono text-rose-200">{cardPayment?.tokenValidUntil}</strong>. La tarjeta
+								de garantía no admite cobros: registra una nueva (re-tokenización) para volver a operar.
+							</span>
+						</div>
+					{/if}
 
 					{#if cardPayment?.p2pStatusMessage}
 						<p class="text-[11px] text-slate-400 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2">
@@ -633,7 +689,7 @@
 						</div>
 					{/if}
 
-					{#if cardMode === 'manage'}
+					{#if cardMode === 'manage' || !tokenActive}
 						<!-- Tokenización sin cobro: registra o reemplaza la tarjeta de garantía -->
 						<div class="p-3.5 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 space-y-2">
 							<p class="text-[11px] text-cyan-200/90 leading-relaxed">
@@ -653,13 +709,19 @@
 									<span>Abriendo tokenización...</span>
 								{:else}
 									<i class="fa-solid fa-arrows-rotate"></i>
-									<span>{cardPayment?.token ? 'Actualizar medio de pago' : 'Registrar tarjeta de garantía'}</span>
+									<span
+										>{tokenExpired
+											? 'Registrar nueva tarjeta (re-tokenización)'
+											: cardPayment?.token
+												? 'Actualizar medio de pago'
+												: 'Registrar tarjeta de garantía'}</span
+									>
 								{/if}
 							</button>
 						</div>
 					{/if}
 
-					{#if cardMode === 'collect'}
+					{#if cardMode === 'collect' && tokenActive}
 						<!-- Cobro con el token activo -->
 						<div class="space-y-3">
 							<div>
@@ -721,8 +783,8 @@
 							<i class="fa-solid fa-ban mt-0.5"></i>
 							<span>
 								La suscripción de esta reserva no tiene un token activo (cancelada, vencida o aún no
-								registrada): no admite nuevos cobros. Usa «Registrar / actualizar medio de pago»
-								para tokenizar la tarjeta.
+								registrada): no admite nuevos cobros. Usa el botón de re-tokenización para
+								registrar una tarjeta nueva.
 							</span>
 						</div>
 					{:else}

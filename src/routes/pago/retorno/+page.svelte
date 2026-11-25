@@ -56,6 +56,27 @@
     let error = $state<string | null>(null);
     let syncing = $state<boolean>(false);
     let syncedNow = $state<boolean>(false);
+    let copiedCode = $state<boolean>(false);
+
+    /** Copia el código de reserva: es lo que el cliente pega en WhatsApp o dicta en mostrador. */
+    async function copyReservationCode() {
+        if (!reservation) return;
+        try {
+            await navigator.clipboard.writeText(reservation.code);
+        } catch {
+            // Fallback para navegadores sin Clipboard API o contexto no seguro.
+            const aux = document.createElement("textarea");
+            aux.value = reservation.code;
+            aux.style.position = "fixed";
+            aux.style.opacity = "0";
+            document.body.appendChild(aux);
+            aux.select();
+            document.execCommand("copy");
+            aux.remove();
+        }
+        copiedCode = true;
+        setTimeout(() => (copiedCode = false), 2000);
+    }
 
     // Lee los parámetros que envía la pasarela al regresar o el panel administrativo
     let reference = $derived(page.url.searchParams.get("reference") || "");
@@ -425,6 +446,81 @@
                             convierta en una renta al entregar el vehículo.
                         {/if}
                     </p>
+                </div>
+
+                <!-- Qué sigue: código copiable y próximos pasos -->
+                <div
+                    class="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 mb-6"
+                >
+                    <h3
+                        class="font-bold text-white uppercase tracking-wider text-[11px] border-b border-slate-800 pb-2"
+                    >
+                        Código y próximos pasos
+                    </h3>
+                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                        <span class="font-mono font-black text-lg text-white tracking-wide"
+                            >{reservation.code}</span
+                        >
+                        <button
+                            type="button"
+                            onclick={copyReservationCode}
+                            aria-label={`Copiar el código de reserva ${reservation.code}`}
+                            class="px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer {copiedCode
+                                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                                : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}"
+                        >
+                            <i
+                                class="fa-solid {copiedCode
+                                    ? 'fa-check'
+                                    : 'fa-copy'}"
+                            ></i>
+                            <span>{copiedCode ? "Copiado" : "Copiar código"}</span>
+                        </button>
+                    </div>
+
+                    <ol class="space-y-2.5">
+                        <li class="flex items-start gap-3">
+                            <span
+                                class="w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0"
+                            >
+                                <i class="fa-solid fa-check text-[10px]"></i>
+                            </span>
+                            <div>
+                                <p class="text-xs font-bold text-white">Pago confirmado</p>
+                                <p class="text-[11px] text-slate-400">
+                                    Ya recibimos el pago del canon del alquiler.
+                                </p>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span
+                                class="w-6 h-6 rounded-full bg-slate-800 text-slate-300 text-[10px] font-black flex items-center justify-center shrink-0"
+                                >2</span
+                            >
+                            <div>
+                                <p class="text-xs font-bold text-white">Guarda tu comprobante</p>
+                                <p class="text-[11px] text-slate-400">
+                                    Puedes imprimirlo con «Imprimir Comprobante» o enviar los
+                                    datos de tu reserva a tu asesor por WhatsApp.
+                                </p>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span
+                                class="w-6 h-6 rounded-full bg-slate-800 text-slate-300 text-[10px] font-black flex items-center justify-center shrink-0"
+                                >3</span
+                            >
+                            <div>
+                                <p class="text-xs font-bold text-white">
+                                    Preséntate en la oficina
+                                </p>
+                                <p class="text-[11px] text-slate-400">
+                                    Con tu cédula y licencia de conducción en
+                                    {OFFICE_ADDRESS_CITY}. Nuestro equipo te entrega el vehículo.
+                                </p>
+                            </div>
+                        </li>
+                    </ol>
                 </div>
 
                 <!-- Botones de acción -->

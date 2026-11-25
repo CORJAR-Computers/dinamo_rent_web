@@ -22,6 +22,9 @@
     import { FLEET_SECTION } from "#lib/data/sections.js";
     import SignatureCanvas from "./SignatureCanvas.svelte";
 
+    /** Etapas del modal: única fuente de verdad para el indicador de pasos. */
+    const STEPS = ["Seguros", "Conductor", "Firma", "Pago"];
+
     let vehicle = $derived(booking.selectedVehicle);
     let termsAccepted = $state(false);
     let privacyAccepted = $state(false);
@@ -274,9 +277,29 @@
                 </button>
             </div>
 
-            <!-- Step Indicator Bar (4 pasos: Seguros, Conductor, Firma, Pago) -->
+            <!-- Indicador de pasos: etiqueta compacta en móvil, círculos con etiquetas desde sm -->
             <div
-                class="bg-slate-950 px-4 sm:px-6 py-2.5 border-b border-slate-800/80 flex items-center justify-between text-xs font-semibold overflow-x-auto"
+                class="sm:hidden bg-slate-950 px-4 py-2.5 border-b border-slate-800/80 flex items-center gap-2"
+            >
+                <span class="text-xs text-slate-400 whitespace-nowrap"
+                    >Paso {booking.modalStep} de {STEPS.length}</span
+                >
+                <span class="text-xs text-slate-600">·</span>
+                <span class="text-xs font-semibold text-white truncate"
+                    >{STEPS[booking.modalStep - 1]}</span
+                >
+                <div
+                    class="ml-auto w-16 h-1 rounded-full bg-slate-800 overflow-hidden shrink-0"
+                >
+                    <div
+                        class="h-full bg-orange-500 transition-all"
+                        style="width: {(booking.modalStep / STEPS.length) * 100}%"
+                    ></div>
+                </div>
+            </div>
+
+            <div
+                class="hidden sm:flex bg-slate-950 px-6 py-2.5 border-b border-slate-800/80 items-center justify-between text-xs font-semibold overflow-x-auto"
             >
                 <div class="flex items-center gap-2 shrink-0">
                     <span
@@ -286,9 +309,9 @@
                             : 'bg-slate-800 text-slate-500'}">1</span
                     >
                     <span
-                        class="{booking.modalStep === 1
+                        class={booking.modalStep === 1
                             ? 'text-white'
-                            : 'text-slate-500'} hidden sm:inline">Seguros</span
+                            : 'text-slate-500'}>{STEPS[0]}</span
                     >
                 </div>
                 <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"
@@ -301,10 +324,9 @@
                             : 'bg-slate-800 text-slate-500'}">2</span
                     >
                     <span
-                        class="{booking.modalStep === 2
+                        class={booking.modalStep === 2
                             ? 'text-white'
-                            : 'text-slate-500'} hidden sm:inline"
-                        >Conductor</span
+                            : 'text-slate-500'}>{STEPS[1]}</span
                     >
                 </div>
                 <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"
@@ -317,9 +339,9 @@
                             : 'bg-slate-800 text-slate-500'}">3</span
                     >
                     <span
-                        class="{booking.modalStep === 3
+                        class={booking.modalStep === 3
                             ? 'text-white'
-                            : 'text-slate-500'} hidden sm:inline">Firma</span
+                            : 'text-slate-500'}>{STEPS[2]}</span
                     >
                 </div>
                 <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"
@@ -332,9 +354,9 @@
                             : 'bg-slate-800 text-slate-500'}">4</span
                     >
                     <span
-                        class="{booking.modalStep === 4
+                        class={booking.modalStep === 4
                             ? 'text-white'
-                            : 'text-slate-500'} hidden sm:inline">Pago</span
+                            : 'text-slate-500'}>{STEPS[3]}</span
                     >
                 </div>
             </div>
@@ -1119,6 +1141,13 @@
                         <div
                             class="p-5 rounded-2xl bg-linear-to-br from-slate-950 to-blue-950/30 border border-slate-800 space-y-3"
                         >
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-receipt text-orange-400 text-xs"></i>
+                                <span
+                                    class="text-xs uppercase tracking-wider font-bold text-orange-400"
+                                    >Lo que pagas hoy</span
+                                >
+                            </div>
                             <div class="flex items-center justify-between">
                                 <span
                                     class="text-xs text-slate-400 uppercase tracking-wider"
@@ -1156,10 +1185,10 @@
                                 class="flex items-center justify-between pt-3 border-t border-slate-800"
                             >
                                 <span class="text-sm text-slate-300"
-                                    >Total a Pagar (IVA incluido)</span
+                                    >Total a pagar hoy</span
                                 >
                                 <span
-                                    class="font-heading font-black text-3xl text-orange-400"
+                                    class="shrink-0 font-heading font-black text-2xl sm:text-3xl text-orange-400"
                                 >
                                     {formatCurrency(
                                         booking.persistedReservation
@@ -1170,12 +1199,38 @@
                                 </span>
                             </div>
                             <div
-                                class="flex items-center justify-between text-[11px] text-slate-500"
+                                class="flex items-center justify-between gap-2 text-[11px] text-slate-500"
                             >
-                                <span
+                                <span class="leading-snug"
                                     >Incluye vehículo, seguro, adicionales e IVA 19%</span
                                 >
-                                <span>{booking.rentalDays} día(s)</span>
+                                <span class="shrink-0">{booking.rentalDays} día(s)</span>
+                            </div>
+
+                            <!-- Qué se cobra hoy y qué no: la duda aparece justo antes de pagar -->
+                            <div class="pt-3 border-t border-slate-800 space-y-2.5">
+                                <div class="flex items-start gap-2 text-[11px] leading-relaxed">
+                                    <i
+                                        class="fa-solid fa-shield-halved text-emerald-400 mt-0.5"
+                                    ></i>
+                                    <span class="text-slate-300">
+                                        <strong class="text-white">Garantía hoy: $0.</strong>
+                                        No se cobra ni se retiene cupo. Tu tarjeta queda
+                                        tokenizada en Evertec PlacetoPay como respaldo del depósito
+                                        y deducibles del contrato; cualquier cobro justificado se
+                                        informa al titular.
+                                    </span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    {#each ['Visa', 'Mastercard', 'American Express'] as franquicia (franquicia)}
+                                        <span
+                                            class="px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-700 text-[10px] font-bold text-slate-200"
+                                        >
+                                            {franquicia}
+                                        </span>
+                                    {/each}
+                                    <span class="text-[10px] text-slate-500">crédito y débito</span>
+                                </div>
                             </div>
                         </div>
 
@@ -1204,22 +1259,10 @@
                             </div>
 
                             <div class="flex items-start gap-2">
-                                <i
-                                    class="fa-solid fa-credit-card text-cyan-400 mt-0.5"
-                                ></i>
-                                <span
-                                    ><strong class="text-white"
-                                        >Medios habilitados:</strong
-                                    > Tarjetas de Crédito y Débito (Visa, Mastercard, Amex).</span
-                                >
-                            </div>
-                            <div class="flex items-start gap-2">
                                 <i class="fa-solid fa-shield-check text-cyan-400 mt-0.5"
                                 ></i>
                                 <span
-                                    ><strong class="text-white"
-                                        >Depósito de Garantía:</strong
-                                    > al pagar el canon, tu tarjeta se vincula de forma segura mediante Evertec Place to Pay como respaldo del depósito y deducibles del vehículo según lo estipulado en el contrato, sin congelar ni debitar saldo anticipadamente.</span
+                                    >Tus datos de tarjeta se ingresan directamente en PlacetoPay: no pasan por nuestros servidores ni se almacenan.</span
                                 >
                             </div>
                         </div>
@@ -1240,7 +1283,7 @@
             <!-- Modal Footer -->
             {#if booking.modalStep <= 4}
                 <div
-                    class="bg-slate-950 px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-3"
+                    class="sticky bottom-0 z-10 shrink-0 bg-slate-950 px-4 sm:px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-2 sm:gap-3"
                 >
                     {#if booking.modalStep > 1}
                         <button
@@ -1258,12 +1301,14 @@
 
                     <div class="text-right">
                         <span class="text-[10px] text-slate-400 block"
-                            >{booking.modalStep === 4 && booking.persistedReservation
-                                ? "Total a Pagar (IVA incl.)"
-                                : "Total Estimado (IVA incl.)"}</span
+                            ><span class="hidden sm:inline"
+                                >{booking.modalStep === 4 && booking.persistedReservation
+                                    ? "Total a Pagar (IVA incl.)"
+                                    : "Total Estimado (IVA incl.)"}</span
+                            ><span class="sm:hidden">Total</span></span
                         >
                         <span
-                            class="font-heading font-black text-lg text-orange-400"
+                            class="font-heading font-black text-lg text-orange-400 whitespace-nowrap"
                         >
                             {formatCurrency(
                                 booking.modalStep === 4 &&
