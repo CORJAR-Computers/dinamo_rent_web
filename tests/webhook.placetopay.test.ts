@@ -359,3 +359,51 @@ describe('webhook PlacetoPay: el estado sale solo de QuerySession', () => {
 		expect(dbState.reservationUpdates).toHaveLength(0);
 	});
 });
+
+describe('webhook PlacetoPay: pago normal con suscripción', () => {
+	it('una sesión con payment y subscription marca la reserva PAGADA y no se trata como tokenización sin cobro', async () => {
+		// Es la forma en que QuerySession responde a la compra del canon cuando
+		// además se tokeniza la garantía: hay pago, así que subscriptionOnly es
+		// false y el webhook debe seguir el camino normal.
+		queryState.result = {
+			ok: true,
+			status: 'APPROVED',
+			message: 'Pago aprobado',
+			reference: 'DIN-2026-9001',
+			authorization: 'AUTH-456',
+			subscriptionOnly: false,
+			token: 'tok_garantia_12345678',
+			tokenStatus: 'ACTIVO',
+			tokenFranchise: 'VISA',
+			cardBrand: 'VISA',
+			cardLast4: '4242'
+		};
+
+		const response = await webhook({
+			requestId: REQUEST_ID,
+			status: { status: 'APPROVED', date: STATUS_DATE },
+			signature: sign(REQUEST_ID, 'APPROVED', STATUS_DATE)
+		});
+
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as {
+			status?: string;
+			tokenUpdated?: boolean;
+			duplicate?: boolean;
+		};
+		expect(body.status).toBe('APROBADO');
+		expect(body.tokenUpdated).toBeUndefined();
+		expect(body.duplicate).toBeUndefined();
+
+		expect(dbState.paymentUpdates).toHaveLength(1);
+		expect((dbState.paymentUpdates[0] as { data: Record<string, unknown> }).data).toMatchObject({
+			status: 'APROBADO',
+			token: 'tok_garantia_12345678',
+			tokenStatus: 'ACTIVO'
+		});
+		expect(dbState.reservationUpdates).toHaveLength(1);
+		expect((dbState.reservationUpdates[0] as { data: Record<string, unknown> }).data).toMatchObject({
+			status: 'PAGADA'
+		});
+	});
+});

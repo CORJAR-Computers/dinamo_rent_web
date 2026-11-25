@@ -139,6 +139,56 @@ describe('queryPaymentSession — tokenización sin cobro', () => {
 	});
 });
 
+describe('queryPaymentSession — sesión normal de pago con suscripción', () => {
+	it('no marca subscriptionOnly cuando la sesión trae payment y subscription', async () => {
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							status: { status: 'APPROVED', message: 'Pago aprobado' },
+							payment: [
+								{
+									reference: 'DIN-2026-0001',
+									authorization: 'AUTH-123456',
+									status: { status: 'APPROVED' },
+									paymentMethodName: 'VISA',
+									lastDigits: '4242'
+								}
+							],
+							subscription: {
+								status: { status: 'APPROVED' },
+								instrument: [
+									{ keyword: 'token', value: 'tok_garantia_12345678' },
+									{ keyword: 'last_digits', value: '4242' },
+									{ keyword: 'franchise', value: 'VISA' }
+								]
+							}
+						}),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await queryPaymentSession('777');
+
+		// Regresión: la compra normal con suscripción de garantía trae `payment`
+		// y `subscription` a la vez. Si el discriminante la marcara como
+		// tokenización pura, el webhook dejaría de marcar la reserva como PAGADA.
+		expect(result.ok).toBe(true);
+		expect(result.subscriptionOnly).toBe(false);
+		expect(result.status).toBe('APPROVED');
+		expect(result.reference).toBe('DIN-2026-0001');
+		expect(result.authorization).toBe('AUTH-123456');
+		expect(result.token).toBe('tok_garantia_12345678');
+		expect(result.tokenStatus).toBe('ACTIVO');
+		expect(result.cardBrand).toBe('VISA');
+		expect(result.cardLast4).toBe('4242');
+	});
+});
+
 describe('collectPaymentWithToken — errores de validación', () => {
 	const pedido = {
 		token: 'tok_real_9f8e7d6c',
