@@ -219,9 +219,12 @@
 	let tokenNotice = $state(readTokenNotice());
 
 	$effect(() => {
+		// Solo se retiran los parámetros que consume el aviso: `reserva` acompaña a
+		// `token` y por sí solo no aporta nada. replaceState no reejecuta el load ni
+		// navega, así que el banner no parpadea; al quedar la URL limpia, la guardia
+		// corta en la siguiente pasada y no hay bucle.
 		const params = page.url.searchParams;
-		if (!params.has('token') && !params.has('detalle') && !params.has('reserva')) return;
-		// Sin los tres parámetros no queda query que conservar: basta la ruta limpia.
+		if (!params.has('token') && !params.has('detalle')) return;
 		replaceState(resolve('/admin/reservas'), page.state);
 	});
 
@@ -286,24 +289,13 @@
 				description: collectDescription
 			});
 			if (ok) {
-				cardReservation.depositCharges = [
-					{
-						id: data.charge?.id ?? `local-${Date.now()}`,
-						amount: data.charge?.amount ?? collectAmount,
-						concept: data.charge?.concept ?? collectConcept,
-						description: collectDescription || null,
-						status: 'APROBADO',
-						transactionId: data.charge?.authorization ?? null,
-						p2pStatusMessage: null,
-						executedBy: 'ADMIN',
-						createdAt: data.charge?.createdAt ?? new Date().toISOString()
-					},
-					...(cardReservation.depositCharges ?? [])
-				];
 				actionMessage = {
 					type: 'success',
 					text: `Cobro aprobado por la pasarela. Autorización: ${data.charge?.authorization || '—'}.`
 				};
+				// La fila y el historial se releen de la base: un cargo armado en el cliente
+				// con id inventado no actualizaba la tabla y desaparecía al recargar.
+				await refreshCardReservation();
 			} else {
 				actionMessage = {
 					type: 'error',
@@ -351,12 +343,23 @@
 		}
 	}
 
-	/** Trae de la base el estado real de la reserva abierta (token y cargos). */
+	/**
+	 * Relee desde la base la reserva abierta (token y cargos) y la reengancha al
+	 * modal: invalidateAll reemplaza los objetos del load, no la copia del modal.
+	 */
 	async function refreshCardReservation() {
-		await invalidateAll();
 		const id = cardReservation?.id;
 		if (!id) return;
-		cardReservation = reservations.find((r) => r.id === id) ?? cardReservation;
+		try {
+			await invalidateAll();
+		} catch {
+			// Sin recarga se conserva lo que el modal ya está mostrando.
+			return;
+		}
+		// El modal pudo cerrarse o cambiar de reserva mientras recargaba.
+		if (cardReservation?.id === id) {
+			cardReservation = reservations.find((r) => r.id === id) ?? cardReservation;
+		}
 	}
 
 	async function submitCancellation() {
@@ -377,12 +380,9 @@
 					type: 'success',
 					text: data.message || 'Suscripción cancelada y token invalidado correctamente.'
 				};
-				// La fila y el propio modal deben reflejar el token ya cancelado.
-				try {
-					await refreshCardReservation();
-				} catch {
-					// Sin recarga: se queda el estado optimista hasta la próxima visita.
-				}
+				// El modal ya muestra el token cancelado; la recarga confirma desde la base
+				// y, si falla, queda ese estado optimista hasta la próxima visita.
+				await refreshCardReservation();
 			} else {
 				actionMessage = {
 					type: 'error',
