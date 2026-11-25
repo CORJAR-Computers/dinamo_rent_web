@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { invalidateAll, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { isTokenExpired } from '#lib/utils/tokenValidity.js';
 
@@ -195,7 +196,9 @@
 	let retokenizing = $state(false);
 
 	// Resultado de la sesión de tokenización sin cobro (retorno desde PlacetoPay).
-	let tokenNotice = $derived.by(() => {
+	// Se lee una sola vez al montar y la URL se limpia enseguida: recargar o volver
+	// al panel no debe repetir un aviso de una operación ya cerrada.
+	function readTokenNotice() {
 		const outcome = page.url.searchParams.get('token');
 		if (!outcome) return null;
 		if (outcome === 'actualizado') {
@@ -211,6 +214,15 @@
 				page.url.searchParams.get('detalle') ||
 				'No se pudo completar la tokenización del medio de pago.'
 		};
+	}
+
+	let tokenNotice = $state(readTokenNotice());
+
+	$effect(() => {
+		const params = page.url.searchParams;
+		if (!params.has('token') && !params.has('detalle') && !params.has('reserva')) return;
+		// Sin los tres parámetros no queda query que conservar: basta la ruta limpia.
+		replaceState(resolve('/admin/reservas'), page.state);
 	});
 
 	let cardPayment = $derived(cardReservation?.payment ?? null);
@@ -339,6 +351,14 @@
 		}
 	}
 
+	/** Trae de la base el estado real de la reserva abierta (token y cargos). */
+	async function refreshCardReservation() {
+		await invalidateAll();
+		const id = cardReservation?.id;
+		if (!id) return;
+		cardReservation = reservations.find((r) => r.id === id) ?? cardReservation;
+	}
+
 	async function submitCancellation() {
 		if (!cardReservation) return;
 		submitting = true;
@@ -357,6 +377,12 @@
 					type: 'success',
 					text: data.message || 'Suscripción cancelada y token invalidado correctamente.'
 				};
+				// La fila y el propio modal deben reflejar el token ya cancelado.
+				try {
+					await refreshCardReservation();
+				} catch {
+					// Sin recarga: se queda el estado optimista hasta la próxima visita.
+				}
 			} else {
 				actionMessage = {
 					type: 'error',
