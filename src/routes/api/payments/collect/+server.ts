@@ -69,8 +69,9 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     const reference = `COL-${reservation.code}-${Date.now().toString(36).toUpperCase()}`;
     // La pasarela valida `payment.description` con caracteres y longitud
     // restringidos. Se normaliza aquí (ASCII, sin saltos de línea, máx. 200)
-    // antes de enviarla a Collect; el texto original del administrador se
-    // conserva en DepositCharge para auditoría.
+    // antes de enviarla a Collect. El texto libre del administrador no se
+    // persiste: en DepositCharge queda esta misma versión saneada, que es la
+    // que se envió a la pasarela y la que sirve de auditoría del cargo.
     const cleanConcept = sanitizeGatewayText(concept, 30).toUpperCase() || 'OTRO';
     const detail = sanitizeGatewayText(description, 120);
     const cleanDescription = sanitizeGatewayText(

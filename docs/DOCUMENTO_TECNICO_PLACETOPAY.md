@@ -258,7 +258,7 @@ Evertec entrega en la respuesta la confirmación del canon y los datos del instr
 Dinamo Rent: {CONCEPTO} - {detalle del administrador} (Reserva {CODIGO})
 ```
 
-El texto original del administrador se conserva en `deposit_charges.description` para auditoría; a la pasarela viaja siempre la versión saneada. Esto corrige el error de validación reportado por Evertec al probar los distintos conceptos de cargo.
+La versión saneada es la única que existe: es la que viaja a la pasarela y la que se persiste en `deposit_charges.description` para auditoría del cargo. El texto libre original con tildes, guiones tipográficos o caracteres no garantizados **no** se almacena en ningún campo (evita duplicar datos y conservar valores que la pasarela nunca recibió). Para reconstruir lo ocurrido basta el propio registro: concepto, detalle saneado, monto, estado, `p2pRequestId` y mensaje de la pasarela. Esto corrige el error de validación reportado por Evertec al probar los distintos conceptos de cargo.
 
 **Respuestas del cobro.** `APPROVED` → **200**. Rechazo del emisor (`REJECTED`) → **402** con `attempts` y `tokenInvalidation`. Sin veredicto de la pasarela (timeout, error de red o credenciales ausentes) → **502** con `status: "PENDING"`, el cargo queda `PENDIENTE` y el token **no** se toca: esos fallos no cuentan como intentos para la invalidación automática, para no desvincular la tarjeta del cliente por una caída propia.
 

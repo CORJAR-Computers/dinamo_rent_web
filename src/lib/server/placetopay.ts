@@ -235,7 +235,9 @@ function sanitizePhone(val: string): string {
  * saltos de línea o las tildes pueden provocar un error de validación en
  * `/api/collect` (el campo viajaba antes tal cual desde el panel de
  * administración). Aquí se convierte a ASCII imprimible, se colapsan espacios
- * y se acota la longitud; el texto original se conserva en la base local.
+ * y se acota la longitud. La versión saneada es la que se envía y la que se
+ * persiste en `deposit_charges.description` para auditoría del cargo: el texto
+ * original del panel no se guarda en ningún campo.
  */
 export function sanitizeGatewayText(val: unknown, maxLength = 200): string {
   return String(val ?? '')
