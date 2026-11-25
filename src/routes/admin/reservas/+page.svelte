@@ -124,16 +124,37 @@
 	/** Estado del pago en la tabla: el badge no puede ser verde por defecto. */
 	function paymentStatusBadge(status?: string | null): {
 		text: string;
+		short: string;
 		icon: string;
 		tone: string;
 	} {
 		if (status === 'APROBADO')
-			return { text: 'Pagado Place to Pay', icon: 'fa-circle-check', tone: 'text-emerald-400' };
+			return {
+				text: 'Pagado Place to Pay',
+				short: 'Pagado',
+				icon: 'fa-circle-check',
+				tone: 'text-emerald-400'
+			};
 		if (status === 'RECHAZADO')
-			return { text: 'Pago rechazado', icon: 'fa-circle-xmark', tone: 'text-rose-400' };
+			return {
+				text: 'Pago rechazado',
+				short: 'Rechazado',
+				icon: 'fa-circle-xmark',
+				tone: 'text-rose-400'
+			};
 		if (status === 'PENDIENTE')
-			return { text: 'Pago pendiente', icon: 'fa-clock', tone: 'text-amber-400' };
-		return { text: 'Sin pago registrado', icon: 'fa-circle-minus', tone: 'text-slate-400' };
+			return {
+				text: 'Pago pendiente',
+				short: 'Pendiente',
+				icon: 'fa-clock',
+				tone: 'text-amber-400'
+			};
+		return {
+			text: 'Sin pago registrado',
+			short: 'Sin pago',
+			icon: 'fa-circle-minus',
+			tone: 'text-slate-400'
+		};
 	}
 
 	function buildWhatsAppLink(r: ReservationItem): string {
@@ -443,8 +464,14 @@
 						<tr class="hover:bg-slate-800/30 transition-colors">
 							<!-- Código + Fecha Registro -->
 							<td class="py-3.5 px-4">
-								<span class="font-black text-orange-400 font-mono text-sm">{r.code}</span>
+								<span class="font-black text-orange-400 font-mono text-sm whitespace-nowrap">{r.code}</span>
 								<p class="text-[11px] text-slate-500 mt-0.5">{formatDate(r.createdAt)}</p>
+								<!-- En móvil el estado del pago vive en la columna "Total Pagado", fuera de la
+								     vista: se repite aquí para que se lea sin desplazar la tabla. -->
+								<span class="sm:hidden flex items-start gap-1 text-[10px] font-bold mt-1 {pay.tone}">
+									<i class="fa-solid {pay.icon} text-[9px] mt-0.5"></i>
+									<span>{pay.short}</span>
+								</span>
 							</td>
 
 							<!-- Cliente -->
