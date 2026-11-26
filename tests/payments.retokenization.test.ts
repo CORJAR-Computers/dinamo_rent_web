@@ -15,7 +15,8 @@ const state = vi.hoisted(() => ({
 	syncLogs: [] as Obj[],
 	session: null as { requestId: string; createdAt: Date } | null,
 	payment: { id: 'pay_1', token: null as string | null, updatedAt: new Date(0) },
-	queried: [] as string[]
+	queried: [] as string[],
+	sessions: null as Array<{ requestId: string; createdAt: Date }> | null
 }));
 
 vi.mock('#lib/server/adminAuth.js', () => ({
@@ -46,6 +47,28 @@ vi.mock('#lib/server/db.js', () => ({
 			}
 		},
 		syncLog: {
+			findMany: async (args: Obj) => {
+				const where = args?.where as { AND?: Obj[] } | undefined;
+				const and = Array.isArray(where?.AND) ? where.AND : [];
+				const idFilter = and.find((entry) => {
+					const payload = entry?.payload as { path?: unknown } | undefined;
+					return Array.isArray(payload?.path) && payload.path[0] === 'requestId';
+				});
+				const idPayload = idFilter?.payload as { equals?: unknown } | undefined;
+				const wanted = typeof idPayload?.equals === 'string' ? idPayload.equals : undefined;
+				const list = (state.sessions ?? (state.session ? [state.session] : [])).filter(
+					(session) => !wanted || session.requestId === wanted
+				);
+				const take = typeof args?.take === 'number' ? args.take : list.length;
+				return list.slice(0, take).map((session) => ({
+					createdAt: session.createdAt,
+					payload: {
+						purpose: 'RETOKENIZACION',
+						reservationCode: 'DIN-2026-0001',
+						requestId: session.requestId
+					}
+				}));
+			},
 			findFirst: async () =>
 				state.session
 					? {
@@ -101,6 +124,7 @@ beforeEach(() => {
 	state.upserts.length = 0;
 	state.syncLogs.length = 0;
 	state.queried.length = 0;
+	state.sessions = null;
 	state.session = { requestId: '555', createdAt: new Date() };
 	state.payment = { id: 'pay_1', token: null, updatedAt: new Date(0) };
 	state.query = {
@@ -221,4 +245,36 @@ describe('GET /api/payments/token/resubscribe/return', () => {
 		expect(state.upserts).toHaveLength(0);
 		expect(state.syncLogs).toHaveLength(0);
 	});
+
+	it('sin requestId y dos sesiones recientes no adivina cual es: falla cerrado', async () => {
+		// Dos pestañas abiertas para la misma reserva: quedarse con la mas reciente
+		// atribuia el retorno a una tokenizacion ajena (el falso positivo del 26-nov).
+		state.sessions = [
+			{ requestId: '700', createdAt: new Date() },
+			{ requestId: '699', createdAt: new Date(Date.now() - 5 * 60 * 1000) }
+		];
+
+		const redirect = await callAndCatch('reservationId=res_1');
+
+		expect(redirect.status).toBe(303);
+		expect(redirect.location).toContain('token=error');
+		expect(decodeURIComponent(redirect.location ?? '')).toMatch(/m[aá]s de una tokenizaci[oó]n/i);
+		expect(state.queried).toHaveLength(0);
+		expect(state.upserts).toHaveLength(0);
+		expect(state.syncLogs).toHaveLength(0);
+	});
+
+	it('con requestId explicito elige esa sesion aunque haya otra reciente', async () => {
+		state.sessions = [
+			{ requestId: '700', createdAt: new Date() },
+			{ requestId: '699', createdAt: new Date(Date.now() - 5 * 60 * 1000) }
+		];
+
+		const redirect = await callAndCatch('reservationId=res_1&requestId=699');
+
+		expect(redirect.location).toContain('token=actualizado');
+		expect(state.queried).toEqual(['699']);
+		expect(state.upserts).toHaveLength(1);
+	});
 });
+

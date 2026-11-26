@@ -44,15 +44,27 @@ export async function completeResubscribeReturn(input: {
   }
 
   const requestedId = (input.requestId || '').trim();
-  const session = await findSession(reservation.code, requestedId || undefined);
+  const sessions = await findSessions(reservation.code, requestedId || undefined);
 
-  if (!session) {
+  if (!sessions.length) {
     return errorPath(
       requestedId
         ? 'La sesión de tokenización no corresponde a esta reserva o ya expiró.'
         : 'No se pudo identificar la sesión de tokenización. Vuelve a registrar la tarjeta de garantía.'
     );
   }
+
+  // Sin `requestId` no hay forma de saber de qué pestaña viene el retorno. Con dos
+  // sesiones abiertas para la misma reserva, quedarse con la más reciente atribuía
+  // el retorno a una tokenización ajena: el falso positivo era un «aún no confirma»
+  // con la tarjeta ya guardada, o el instrumento de la otra pestaña. Se falla cerrado.
+  if (sessions.length > 1) {
+    return errorPath(
+      'Hay más de una tokenización reciente para esta reserva y el retorno llegó sin su identificador. Abre de nuevo el panel para verificar el medio de pago; si la tarjeta no aparece actualizada, vuelve a registrarla.'
+    );
+  }
+
+  const session = sessions[0];
 
   const query = await querySessionWithRetry(session.requestId);
 
@@ -134,16 +146,18 @@ function errorPath(detail: string): string {
 }
 
 /**
- * Sesión de tokenización de la reserva dentro de la ventana de retorno. Solo
- * cuentan los logs de **creación** de sesión: los de cierre también guardan un
- * `requestId` y reutilizarlos reescribiría una tarjeta anterior.
+ * Sesiones de tokenización de la reserva dentro de la ventana de retorno, la más
+ * reciente primero. Solo cuentan los logs de **creación** de sesión: los de cierre
+ * también guardan un `requestId` y reutilizarlos reescribiría una tarjeta anterior.
  *
- * Si llega un `requestId`, además tiene que coincidir con el de esa reserva.
+ * Si llega un `requestId`, además tiene que coincidir con el de esa reserva y se
+ * pide una sola fila. Sin él se piden dos: sirven para detectar que el retorno es
+ * ambiguo en lugar de elegir a ciegas la sesión más nueva.
  */
-async function findSession(
+async function findSessions(
   reservationCode: string,
   requestId?: string
-): Promise<SessionRef | null> {
+): Promise<SessionRef[]> {
   const filters: Prisma.SyncLogWhereInput[] = [
     {
       OR: [
@@ -159,19 +173,21 @@ async function findSession(
     filters.push({ payload: { path: ['requestId'], equals: requestId } });
   }
 
-  const log = await db.syncLog.findFirst({
+  const logs = await db.syncLog.findMany({
     where: {
       entity: 'PAYMENT',
       createdAt: { gte: new Date(Date.now() - RETURN_WINDOW_MS) },
       AND: filters,
     },
     orderBy: { createdAt: 'desc' },
+    take: requestId ? 1 : 2,
   });
 
-  const payload = log?.payload as { requestId?: unknown } | null;
-  const recordedId = typeof payload?.requestId === 'string' ? payload.requestId.trim() : '';
-
-  return log && recordedId ? { requestId: recordedId, createdAt: log.createdAt } : null;
+  return logs.flatMap((log) => {
+    const payload = log.payload as { requestId?: unknown } | null;
+    const recordedId = typeof payload?.requestId === 'string' ? payload.requestId.trim() : '';
+    return recordedId ? [{ requestId: recordedId, createdAt: log.createdAt }] : [];
+  });
 }
 
 /**
