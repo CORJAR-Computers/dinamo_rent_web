@@ -10,7 +10,9 @@ import { createSubscriptionSession } from '#lib/server/placetopay.js';
  * los Collect posteriores.
  *
  * Requiere sesión de administrador. La pasarela devuelve al retorno
- * `/api/payments/token/resubscribe/return`, que guarda el token en la reserva.
+ * `/api/payments/token/resubscribe/return/[reservationId]`, que guarda el token
+ * en la reserva. La reserva va en la ruta porque el checkout SPA puede
+ * devolver el `returnUrl` sin query.
  */
 export const POST: RequestHandler = async ({ request, url, cookies, getClientAddress }) => {
   if (!isUserAdmin(cookies)) {
@@ -48,10 +50,9 @@ export const POST: RequestHandler = async ({ request, url, cookies, getClientAdd
       request.headers.get('user-agent') || 'DinamoRentAdmin/1.0 Admin-Tokenization';
 
     const returnUrl = new URL(
-      '/api/payments/token/resubscribe/return',
+      `/api/payments/token/resubscribe/return/${reservation.id}`,
       url.origin
     );
-    returnUrl.searchParams.set('reservationId', reservation.id);
 
     const session = await createSubscriptionSession({
       reference: reservation.code,
@@ -90,6 +91,7 @@ export const POST: RequestHandler = async ({ request, url, cookies, getClientAdd
           reservationCode: reservation.code,
           requestId: session.requestId,
           purpose: 'RETOKENIZACION',
+          event: 'SESSION_CREATED',
         },
       },
     });

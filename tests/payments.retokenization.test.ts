@@ -12,7 +12,10 @@ const state = vi.hoisted(() => ({
 	isAdmin: false,
 	query: {} as Obj,
 	upserts: [] as Obj[],
-	syncLogs: [] as Obj[]
+	syncLogs: [] as Obj[],
+	session: null as { requestId: string; createdAt: Date } | null,
+	payment: { id: 'pay_1', token: null as string | null, updatedAt: new Date(0) },
+	queried: [] as string[]
 }));
 
 vi.mock('#lib/server/adminAuth.js', () => ({
@@ -20,7 +23,10 @@ vi.mock('#lib/server/adminAuth.js', () => ({
 }));
 
 vi.mock('#lib/server/placetopay.js', () => ({
-	queryPaymentSession: async (requestId: string) => ({ requestId, ...state.query })
+	queryPaymentSession: async (requestId: string) => {
+		state.queried.push(requestId);
+		return { requestId, ...state.query };
+	}
 }));
 
 vi.mock('#lib/server/db.js', () => ({
@@ -30,7 +36,7 @@ vi.mock('#lib/server/db.js', () => ({
 				id: 'res_1',
 				code: 'DIN-2026-0001',
 				totalAmount: 190400,
-				payment: { id: 'pay_1' }
+				payment: state.payment
 			})
 		},
 		payment: {
@@ -40,6 +46,17 @@ vi.mock('#lib/server/db.js', () => ({
 			}
 		},
 		syncLog: {
+			findFirst: async () =>
+				state.session
+					? {
+							createdAt: state.session.createdAt,
+							payload: {
+								purpose: 'RETOKENIZACION',
+								reservationCode: 'DIN-2026-0001',
+								requestId: state.session.requestId
+							}
+					  }
+					: null,
 			create: async (args: Obj) => {
 				state.syncLogs.push(args);
 				return args;
@@ -50,6 +67,9 @@ vi.mock('#lib/server/db.js', () => ({
 
 const { GET } = await import(
 	'../src/routes/api/payments/token/resubscribe/return/+server.js'
+);
+const { GET: GET_BY_PATH } = await import(
+	'../src/routes/api/payments/token/resubscribe/return/[reservationId]/+server.js'
 );
 
 function call(query: string): Promise<{ status: number; location: string }> {
@@ -80,6 +100,9 @@ beforeEach(() => {
 	state.isAdmin = true;
 	state.upserts.length = 0;
 	state.syncLogs.length = 0;
+	state.queried.length = 0;
+	state.session = { requestId: '555', createdAt: new Date() };
+	state.payment = { id: 'pay_1', token: null, updatedAt: new Date(0) };
 	state.query = {
 		ok: true,
 		status: 'APPROVED',
@@ -141,11 +164,61 @@ describe('GET /api/payments/token/resubscribe/return', () => {
 		expect(state.syncLogs).toHaveLength(0);
 	});
 
-	it('sin reservationId o requestId no consulta ni escribe', async () => {
+	it('sin requestId usa el último registrado al crear la sesión', async () => {
+		state.session = { requestId: '777', createdAt: new Date() };
+
+		const redirect = await callAndCatch('reservationId=res_1');
+
+		expect(redirect.status).toBe(303);
+		expect(redirect.location).toContain('token=actualizado');
+		expect(state.queried).toEqual(['777']);
+		expect(state.upserts).toHaveLength(1);
+	});
+
+	it('sin requestId ni sesión registrada redirige con error y no escribe', async () => {
+		state.session = null;
+
+		const redirect = await callAndCatch('reservationId=res_1');
+
+		expect(redirect.status).toBe(303);
+		expect(redirect.location).toContain('token=error');
+		expect(state.queried).toHaveLength(0);
+		expect(state.upserts).toHaveLength(0);
+	});
+
+	it('la ruta con reservationId en el path guarda el token sin query de sesión', async () => {
+		state.session = { requestId: '888', createdAt: new Date() };
+
+		try {
+			await GET_BY_PATH({
+				params: { reservationId: 'res_1' },
+				url: new URL('http://localhost/api/payments/token/resubscribe/return/res_1'),
+				cookies: { get: vi.fn() }
+			} as unknown as Parameters<typeof GET_BY_PATH>[0]);
+			throw new Error('La ruta debía redirigir y no lo hizo');
+		} catch (err) {
+			const redirect = err as { status?: number; location?: string };
+			expect(redirect.status).toBe(303);
+			expect(redirect.location).toContain('token=actualizado');
+		}
+
+		expect(state.queried).toEqual(['888']);
+		expect(state.upserts).toHaveLength(1);
+	});
+
+	it('un retorno viejo no revierte una tarjeta guardada después', async () => {
+		state.session = { requestId: '555', createdAt: new Date(Date.now() - 10 * 60 * 1000) };
+		state.payment = {
+			id: 'pay_1',
+			token: 'tok_anterior_99999999',
+			updatedAt: new Date()
+		};
+
 		const redirect = await callAndCatch('reservationId=res_1');
 
 		expect(redirect.status).toBe(303);
 		expect(redirect.location).toContain('token=error');
 		expect(state.upserts).toHaveLength(0);
+		expect(state.syncLogs).toHaveLength(0);
 	});
 });
