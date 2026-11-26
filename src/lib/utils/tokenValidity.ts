@@ -1,5 +1,5 @@
 /**
- * Indica si la vigencia informada por la pasarela (`valid_until`) ya pasó.
+ * Indica si la vigencia informada por la pasarela (`validUntil`) ya pasó.
  *
  * PlacetoPay devuelve normalmente solo la fecha (p. ej. `2029-12-31`): en ese
  * caso el token vale hasta el final de ese día en UTC. Si llega con hora y sin

@@ -551,16 +551,18 @@ export async function queryPaymentSession(
     let tokenStatus: string | undefined;
     let tokenValidUntil: string | undefined;
     let tokenFranchise: string | undefined;
+    const instruments = data?.subscription?.instrument;
 
     if (data?.subscription) {
       const subStatus = data.subscription.status?.status;
       tokenStatus = subStatus === 'APPROVED' ? 'ACTIVO' : subStatus;
-      const instruments = data.subscription.instrument;
 
       token =
         extractInstrumentValue(instruments, 'token') ||
         data.subscription.instrument?.token?.token;
-      tokenValidUntil = extractInstrumentValue(instruments, 'valid_until');
+      // PlacetoPay devuelve `lastDigits`/`validUntil` en camelCase (verificado
+      // contra checkout-test en tokenización y en pago con suscripción).
+      tokenValidUntil = extractInstrumentValue(instruments, 'validUntil');
       tokenFranchise =
         extractInstrumentValue(instruments, 'franchise') ||
         firstPayment?.franchise;
@@ -568,11 +570,12 @@ export async function queryPaymentSession(
 
     const cardBrand =
       tokenFranchise || firstPayment?.paymentMethodName || firstPayment?.franchise || 'TARJETA';
-    const lastDigitsProcessor = extractInstrumentValue(firstPayment?.processorFields, 'lastDigits');
+    // En un pago normal el instrumento no viaja en `subscription`: los últimos
+    // 4 están en `processorFields`.
     const cardLast4 =
-      extractInstrumentValue(data?.subscription?.instrument, 'last_digits') ||
+      extractInstrumentValue(instruments, 'lastDigits') ||
+      extractInstrumentValue(firstPayment?.processorFields, 'lastDigits') ||
       firstPayment?.lastDigits ||
-      lastDigitsProcessor ||
       '0000';
 
     return {
