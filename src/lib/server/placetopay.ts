@@ -125,6 +125,36 @@ interface P2PEnvConfig {
 }
 
 /**
+ * Entorno de la pasarela (`P2P_ENV`).
+ *
+ * En producción la variable es **obligatoria**: un despliegue sin ella no
+ * puede caer al sandbox, porque aprobaría pagos sin cobrar y sin avisar. Un
+ * valor desconocido también es error, para que una errata (`production`,
+ * `produccion`) no termine en el entorno equivocado. Fuera de producción la
+ * ausencia sigue significando `test`, para no romper el desarrollo local.
+ */
+function resolveP2PEnv(): 'prod' | 'test' | { error: string } {
+  const raw = (process.env.P2P_ENV || '').trim().toLowerCase();
+
+  if (!raw) {
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        error:
+          'Configuración de pasarela incompleta: P2P_ENV es obligatoria cuando NODE_ENV=production (valores admitidos: test, prod)',
+      };
+    }
+    return 'test';
+  }
+
+  if (raw === 'prod' || raw === 'production') return 'prod';
+  if (raw === 'test' || raw === 'sandbox') return 'test';
+
+  return {
+    error: `Configuración de pasarela inválida: P2P_ENV="${process.env.P2P_ENV}" (valores admitidos: test, prod)`,
+  };
+}
+
+/**
  * Configuración de la pasarela.
  *
  * En producción (`P2P_ENV=prod`) no hay credenciales por defecto: si falta
@@ -132,7 +162,10 @@ interface P2PEnvConfig {
  * falle cerrado, en lugar de enviar peticiones con credenciales de sandbox.
  */
 function getEnvConfig(): P2PEnvConfig | { error: string } {
-  const isProd = (process.env.P2P_ENV || 'test') === 'prod';
+  const env = resolveP2PEnv();
+  if (typeof env !== 'string') return env;
+
+  const isProd = env === 'prod';
 
   let login = process.env.P2P_LOGIN;
   let tranKey = process.env.P2P_TRAN_KEY;
