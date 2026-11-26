@@ -92,7 +92,33 @@ jobs:
           # lineal, que es lo que se hacía a mano con fast-forward; requiere que el
           # repo mantenga activo "Allow rebase merging".
           # --match-head-commit evita colar un push que llegó después del check.
-          gh pr merge "$number" --rebase --match-head-commit "$head"
+          #
+          # GitHub puede tardar unos segundos en recalcular la mergeabilidad
+          # después de que el check termine ("not mergeable" / "base branch
+          # policy"); se reintenta solo ese caso y se falla rápido ante cualquier
+          # otro error.
+          merged=no
+          for attempt in 1 2 3 4 5 6; do
+            if out=$(gh pr merge "$number" --rebase --match-head-commit "$head" 2>&1); then
+              echo "$out"
+              merged=si
+              break
+            fi
+            echo "$out"
+            case "$out" in
+              *"not mergeable"*|*"base branch policy"*)
+                echo "::notice::GitHub aún no da el PR por mergeable (intento $attempt); reintento en 10 s."
+                sleep 10
+                ;;
+              *)
+                exit 1
+                ;;
+            esac
+          done
+          if [ "$merged" != "si" ]; then
+            echo "::error::No se pudo mergear el PR #$number tras varios intentos."
+            exit 1
+          fi
           echo "merged=si" >> "$GITHUB_OUTPUT"
 
       # Los push hechos con GITHUB_TOKEN no disparan workflows, así que el run de

@@ -22,8 +22,13 @@
 # bloquee los merges con errores.
 name: Check
 
+# `push` se limita a main: en una rama de PR el run de `pull_request` ya cubre
+# el contexto requerido. Un segundo run con el mismo nombre puede quedar
+# pendiente cuando Automerge intenta mergear y GitHub rechaza el merge por
+# "base branch policy" (le pasó al PR #6).
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
