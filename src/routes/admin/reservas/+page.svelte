@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { invalidateAll, replaceState } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { isTokenExpired } from '#lib/utils/tokenValidity.js';
 
@@ -218,14 +219,13 @@
 
 	let tokenNotice = $state(readTokenNotice());
 
-	$effect(() => {
-		// Solo se retiran los parámetros que consume el aviso: `reserva` acompaña a
-		// `token` y por sí solo no aporta nada. replaceState no reejecuta el load ni
-		// navega, así que el banner no parpadea; al quedar la URL limpia, la guardia
-		// corta en la siguiente pasada y no hay bucle.
+	// La URL se limpia una sola vez al montar. `goto` shallow + replace reescribe el
+	// historial sin reejecutar el load ni repintar el banner, pero no actualiza
+	// `page.url`; dentro de un `$effect` la guardia nunca se apagaría y habría bucle.
+	onMount(() => {
 		const params = page.url.searchParams;
 		if (!params.has('token') && !params.has('detalle')) return;
-		replaceState(resolve('/admin/reservas'), page.state);
+		void goto(resolve('/admin/reservas'), { state: page.state, shallow: true, replace: true });
 	});
 
 	let cardPayment = $derived(cardReservation?.payment ?? null);
