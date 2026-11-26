@@ -15,7 +15,7 @@
 **Tipo de Integración:** Checkout Redirección Seguro (Hosted Payment Page) con Tokenización de Tarjetas (`subscription`) y Cobros Posteriores Server-to-Server (`/api/collect`)  
 **Nivel de Cumplimiento PCI-DSS:** SAQ A (Servidores de Dinamo Rent 100% exentos de datos de tarjetahabientes)  
 **Fecha de Elaboración:** Septiembre 2026  
-**Última actualización:** 23 de noviembre de 2026 (IVA 19%, solo tarjetas internacionales, cuenta de recaudo)  
+**Última actualización:** 26 de noviembre de 2026 (retorno de la tokenización por ruta y mapeo del instrumento; evidencia de los escenarios de token. Antes, 23-nov: IVA 19%, solo tarjetas internacionales, cuenta de recaudo)  
 **Versión del Documento:** 1.3.0 (Webhook SHA-256, idempotencia y configuración fail-closed)
 
 ---
@@ -304,7 +304,7 @@ Requisito de certificación: registrar o reemplazar la tarjeta de garantía sin 
     "description": "Tokenizacion tarjeta de garantia - Reserva DIN-189201-4412"
   },
   "expiration": "2026-09-21T19:00:00.000Z",
-  "returnUrl": "https://dinamo-rent-a-car.vercel.app/api/payments/token/resubscribe/return?reservationId=...",
+  "returnUrl": "https://dinamo-rent-a-car.vercel.app/api/payments/token/resubscribe/return/<id-de-la-reserva>",
   "ipAddress": "190.131.x.x",
   "userAgent": "Mozilla/5.0 DinamoRent/1.0 Admin-Tokenization"
 }
@@ -314,7 +314,7 @@ Requisito de certificación: registrar o reemplazar la tarjeta de garantía sin 
 * **Webhook:** si la notificación corresponde a una sesión de tokenización pura (`subscription` sin arreglo `payment`), `queryPaymentSession` devuelve `subscriptionOnly: true` y el webhook solo actualiza el instrumento. Nunca marca la reserva como `PAGADA`.
 * **Ciclo completo certificable:** tokenizar sin cobro → ejecutar Collect con el token → provocar rechazo recuperable (hasta 3 intentos) → provocar rechazo no recuperable (invalidación inmediata) → confirmar que el token invalidado no permite nuevos cobros.
 * **El token anterior no se revoca al reemplazar la tarjeta:** el retorno sobrescribe `payments.token`, pero no llama a `/api/instrument/invalidate` sobre el token previo. Si se quiere que la tarjeta anterior quede inutilizable, hay que invalidarla antes con `POST /api/payments/token/invalidate`. Para certificación no influye: cada escenario se ejecuta sobre una reserva y un token nuevos.
-* **Estado frente a Evertec (25-nov-2026):** este flujo y la normalización de `description` son la respuesta a los dos puntos pendientes del analista. La respuesta lista el request final enmascarado, los cinco escenarios certificables y la evidencia en `main` @ `8aa31f1` (suite, `npm run check` y build en verde en el check requerido). Queda pendiente la confirmación de Evertec y las tarjetas de prueba de rechazo recuperable y no recuperable.
+* **Estado frente a Evertec (25-nov-2026):** este flujo y la normalización de `description` son la respuesta a los dos puntos pendientes del analista. La respuesta lista el request final enmascarado, los cinco escenarios certificables y la evidencia enviada el 25-nov-2026 sobre `main` @ `8aa31f1` (suite, `npm run check` y build en verde en el check requerido). La versión publicada hoy es `main` @ `7b7c643`, que incorpora el retorno por ruta (`d0ea067`), el guardado de últimos 4 y vigencia (`5d91164`), el ajuste de CI (`8aa31f1`) y la documentación (`7b7c643`). Queda pendiente la confirmación de Evertec y las tarjetas de prueba de rechazo recuperable y no recuperable.
 
 ### 5.5 Impuestos (IVA 19%) y consistencia del monto
 

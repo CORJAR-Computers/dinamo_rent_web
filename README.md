@@ -21,7 +21,7 @@ Plataforma web oficial de reservas en línea para **Dinamo Rent a Car** en Carta
   2. **Registro del Conductor**: Captura validada de nombres, documento de identidad (CC, CE, Pasaporte), WhatsApp, email y licencia.
   3. **Canvas de Firma Digital Táctil**: Lienzo interactivo para que el usuario firme con su dedo desde cualquier teléfono inteligente o mouse en PC (conforme a la Ley 527 de 1999 de comercio electrónico en Colombia).
   4. **Voucher Digital & WhatsApp Directo**: Generación de código único de pre-reserva (`DIN-2026-XXXX`) con botón de enlace directo que envía todos los datos formateados al asesor de mostrador.
-- 🛡️ **Políticas Claras de Garantía**: Información didáctica sobre la retención/bloqueo temporal en tarjeta de crédito (pre-autorización bancaria).
+- 🛡️ **Políticas Claras de Garantía**: Explicación de la tarjeta vinculada por tokenización como respaldo del contrato, sin retención de cupo ni cobro anticipado del depósito.
 
 ---
 
