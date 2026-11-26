@@ -25,7 +25,7 @@ Consecuencia: cualquier intento de push directo a `main` falla, y un PR en rojo 
 
 ## 2. El check `Check` (lo que tiene que estar verde)
 
-El workflow `Check` (`check.yml`) corre en cada `push`, `pull_request` y a mano (`workflow_dispatch`), con permisos de **solo lectura** (`contents: read`):
+El workflow `Check` (`check.yml`) corre en `push` a `main`, en cada `pull_request` y a mano (`workflow_dispatch`), con permisos de **solo lectura** (`contents: read`). El `push` de una rama de PR no genera run: así el contexto requerido no queda duplicado y pendiente cuando el automerge intenta mergear:
 
 1. `npm ci` con la versión de Node de `.nvmrc`
 2. `prisma generate` + migraciones contra un Postgres de servicio
@@ -56,6 +56,7 @@ Si el run no trae PR asociado, sale sin hacer nada (no busca un PR por SHA: podr
 - `--match-head-commit` impide colar un push que llegó después del check.
 - El merge lo hace `app/github-actions` con el `GITHUB_TOKEN`: no depende de OAuth Apps ni de aprobaciones de la organización.
 - La protección de rama sigue mandando: si el check requerido no está verde sobre ese head, GitHub rechaza el merge aunque el token tenga `contents: write`.
+- Si GitHub aún no da el PR por mergeable ("not mergeable" o "base branch policy"), reintenta el merge hasta 6 veces cada 10 s; cualquier otro error falla de inmediato.
 
 ### Dos detalles que explican rarezas
 
