@@ -216,6 +216,111 @@ describe('PlaceToPay en producción: nunca simula', () => {
 
 		expect(fetchSpy).not.toHaveBeenCalled();
 	});
+
+	it('exige P2P_ENV en producción: sin la variable falla cerrado y no cae al sandbox', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('P2P_ENV', '');
+		// Credenciales presentes: el fallo debe venir de P2P_ENV, no de ellas.
+		vi.stubEnv('P2P_LOGIN', 'comercio-real');
+		vi.stubEnv('P2P_TRAN_KEY', 'clave-transaccional-real');
+		const fetchSpy = vi.fn();
+		vi.stubGlobal('fetch', fetchSpy);
+
+		const session = await createPaymentSession(sessionRequest());
+		expect(session.ok).toBe(false);
+		expect(session.processUrl).toBeUndefined();
+		expect(session.error).toMatch(/P2P_ENV es obligatoria/);
+
+		const status = await queryPaymentSession('123456');
+		expect(status.ok).toBe(false);
+		expect(status.message).toMatch(/P2P_ENV es obligatoria/);
+
+		const collected = await collectPaymentWithToken({
+			token: 'tok_real_123',
+			reference: 'DIN-2026-9001',
+			description: 'Cobro de garantía',
+			amountCOP: 50000,
+			customer: {
+				names: 'Juan',
+				lastnames: 'Pérez',
+				email: 'juan@example.com',
+				phone: '3001234567',
+				docType: 'CC',
+				docNumber: '1047412345'
+			}
+		});
+		// Sin configuración no hay veredicto: PENDING, nunca un rechazo que gaste intentos.
+		expect(collected.ok).toBe(false);
+		expect(collected.status).toBe('PENDING');
+		expect(collected.message).toMatch(/P2P_ENV es obligatoria/);
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+
+	it('rechaza un P2P_ENV desconocido en lugar de asumir sandbox', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('P2P_ENV', 'produccion');
+		vi.stubEnv('P2P_LOGIN', 'comercio-real');
+		vi.stubEnv('P2P_TRAN_KEY', 'clave-transaccional-real');
+		const fetchSpy = vi.fn();
+		vi.stubGlobal('fetch', fetchSpy);
+
+		const session = await createPaymentSession(sessionRequest());
+		expect(session.ok).toBe(false);
+		expect(session.error).toMatch(/P2P_ENV="produccion"/);
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+
+	it('acepta P2P_ENV=test explícito en producción y usa el sandbox', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('P2P_ENV', 'test');
+		vi.stubEnv('P2P_LOGIN', 'comercio-sandbox');
+		vi.stubEnv('P2P_TRAN_KEY', 'clave-sandbox');
+		const fetchSpy = vi.fn(async () =>
+			new Response(
+				JSON.stringify({
+					status: { status: 'OK', message: 'Sesión creada' },
+					requestId: '3971301',
+					processUrl: 'https://checkout-test.placetopay.com/session/3971301'
+				}),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			)
+		);
+		vi.stubGlobal('fetch', fetchSpy);
+
+		const session = await createPaymentSession(sessionRequest());
+		expect(session.ok).toBe(true);
+		expect(fetchSpy).toHaveBeenCalledWith(
+			'https://checkout-test.placetopay.com/api/session',
+			expect.anything()
+		);
+	});
+
+	it('fuera de producción, sin P2P_ENV sigue usando el sandbox', async () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		vi.stubEnv('P2P_ENV', '');
+		vi.stubEnv('P2P_LOGIN', '');
+		vi.stubEnv('P2P_TRAN_KEY', '');
+		vi.stubEnv('P2P_MOCK', 'false');
+		const fetchSpy = vi.fn(async () =>
+			new Response(
+				JSON.stringify({
+					status: { status: 'OK', message: 'Sesión creada' },
+					requestId: '3971302',
+					processUrl: 'https://checkout-test.placetopay.com/session/3971302'
+				}),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			)
+		);
+		vi.stubGlobal('fetch', fetchSpy);
+
+		const session = await createPaymentSession(sessionRequest());
+		expect(session.ok).toBe(true);
+		expect(fetchSpy).toHaveBeenCalledWith(
+			'https://checkout-test.placetopay.com/api/session',
+			expect.anything()
+		);
+	});
 });
 
 describe('modo simulado: solo desarrollo con flag explícito', () => {
