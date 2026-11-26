@@ -1,6 +1,7 @@
 import type { Vehicle } from '#lib/data/fleet.js';
 import { PICKUP_LOCATIONS } from '#lib/data/fleet.js';
 import { calcTaxes } from '#lib/utils/taxes.js';
+import { calcRentalDays } from '#lib/utils/rentalDays.js';
 import { SvelteDate } from 'svelte/reactivity';
 
 export interface DriverData {
@@ -103,13 +104,18 @@ class BookingStore {
         this.returnDate = toISO(returnD);
     }
 
+    /**
+     * Días facturables en periodos de 24 horas desde la hora de entrega.
+     * Antes se contaban solo las fechas: devolver a las 18:00 lo recogido a las
+     * 10:00 tres días antes (80 horas) se cobraba como 3 días en vez de 4.
+     */
     get rentalDays(): number {
-        if (!this.pickupDate || !this.returnDate) return 1;
-        const d1 = new Date(this.pickupDate);
-        const d2 = new Date(this.returnDate);
-        const diff = d2.getTime() - d1.getTime();
-        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-        return days < 1 ? 1 : days;
+        return calcRentalDays(
+            this.pickupDate,
+            this.pickupTime,
+            this.returnDate,
+            this.returnTime
+        );
     }
 
     get baseVehicleTotal(): number {

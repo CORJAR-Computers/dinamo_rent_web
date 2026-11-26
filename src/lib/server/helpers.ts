@@ -2,6 +2,7 @@
 // planes de seguro y extras. Sincronizados con el bookingStore del frontend.
 
 import type { InsurancePlan } from '@prisma/client';
+import { calcRentalDays, rentalWindow } from '#lib/utils/rentalDays.js';
 
 export function formatCOP(value: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -29,11 +30,24 @@ export function formatDate(date: Date | string): string {
   }).format(d);
 }
 
-export function daysBetween(start: Date | string, end: Date | string): number {
-  const s = typeof start === 'string' ? new Date(start) : start;
-  const e = typeof end === 'string' ? new Date(end) : end;
-  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e <= s) return 0;
-  return Math.max(1, Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
+/**
+ * Días de alquiler en periodos de 24 horas desde la hora de entrega.
+ * Sin horas se mantiene el cálculo por fecha (mínimo 1 día); con horas, la
+ * duración real manda: 10:00 → 18:00 tres días después son 4 periodos.
+ */
+export function daysBetween(
+  start: Date | string,
+  end: Date | string,
+  pickupTime?: string,
+  returnTime?: string
+): number {
+  const s = typeof start === 'string' ? start : start.toISOString();
+  const e = typeof end === 'string' ? end : end.toISOString();
+  if (Number.isNaN(new Date(s).getTime()) || Number.isNaN(new Date(e).getTime())) return 0;
+
+  const toDate = (value: string) => value.slice(0, 10);
+  if (!rentalWindow(toDate(s), pickupTime, toDate(e), returnTime)) return 0;
+  return calcRentalDays(toDate(s), pickupTime, toDate(e), returnTime);
 }
 
 // Genera código DIN-2026-XXXX
