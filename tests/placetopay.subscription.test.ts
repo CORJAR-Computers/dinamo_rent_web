@@ -6,8 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * con token: un fallo así no puede contar como rechazo de la tarjeta.
  */
 
-const { createSubscriptionSession, queryPaymentSession, collectPaymentWithToken, sanitizeGatewayText } =
-	await import('../src/lib/server/placetopay.js');
+const {
+	createSubscriptionSession,
+	queryPaymentSession,
+	collectPaymentWithToken,
+	classifyTokenRejection,
+	sanitizeGatewayText
+} = await import('../src/lib/server/placetopay.js');
 
 const customer = {
 	names: 'Ana',
@@ -295,5 +300,41 @@ describe('collectPaymentWithToken — errores de validación', () => {
 
 		expect(result.status).toBe('PENDING');
 		expect(result.error).toBe('Solicitud rechazada por validación de la pasarela');
+	});
+
+	it('usa el veredicto del emisor en payment[].status, no el global XN', async () => {
+		// Respuesta real de checkout-test con la tarjeta bloqueada de Evertec:
+		// el status global solo dice «Se ha rechazado la petición»; el motivo
+		// definitivo (37) viene en el pago.
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							status: { status: 'REJECTED', reason: 'XN', message: 'Se ha rechazado la petición' },
+							payment: [
+								{
+									reference: 'COL-DIN-2026-0001-ABC',
+									status: {
+										status: 'REJECTED',
+										reason: '37',
+										message: 'Negada, Tarjtea bloqueada retener/capturar'
+									}
+								}
+							],
+							requestId: 3971780
+						}),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await collectPaymentWithToken(pedido);
+
+		expect(result.status).toBe('REJECTED');
+		expect(result.message).toBe('Negada, Tarjtea bloqueada retener/capturar');
+		expect(classifyTokenRejection(result.message)).toMatchObject({ immediate: true });
 	});
 });

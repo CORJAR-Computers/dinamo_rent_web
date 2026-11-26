@@ -710,12 +710,23 @@ export async function collectPaymentWithToken(
     const rawBody = await res.text();
     let data: {
       status?: { status?: string; message?: string; reason?: string };
-      payment?: {
-        authorization?: string;
-        receipt?: string;
-        franchise?: string;
-        lastDigits?: string;
-      };
+      payment?:
+        | {
+            reference?: string;
+            authorization?: string;
+            receipt?: string;
+            franchise?: string;
+            lastDigits?: string;
+            status?: { status?: string; message?: string; reason?: string };
+          }
+        | Array<{
+            reference?: string;
+            authorization?: string;
+            receipt?: string;
+            franchise?: string;
+            lastDigits?: string;
+            status?: { status?: string; message?: string; reason?: string };
+          }>;
       requestId?: string | number;
     } | null = null;
     try {
@@ -742,12 +753,25 @@ export async function collectPaymentWithToken(
       };
     }
 
-    const p2pStatus = data?.status?.status;
+    // Evertec devuelve dos veredictos: el global (`status`, que en un rechazo
+    // suele ser `XN` con «Se ha rechazado la petición») y el del emisor en
+    // `payment[].status` (p. ej. `37`, «Negada, Tarjeta bloqueada»). La regla
+    // de rechazos definitivos se apoya en ese texto: quedarse con el global
+    // dejaba en ACTIVO el token de una tarjeta bloqueada.
+    const paymentEntry = Array.isArray(data?.payment)
+      ? (data.payment.find((p) => p.reference === payload.payment.reference) ?? data.payment[0])
+      : data?.payment;
+    const detailStatus = paymentEntry?.status;
+
+    const p2pStatus = detailStatus?.status ?? data?.status?.status;
     let status: 'APPROVED' | 'REJECTED' | 'PENDING' = 'PENDING';
     if (p2pStatus === 'APPROVED') status = 'APPROVED';
     else if (p2pStatus === 'REJECTED') status = 'REJECTED';
 
-    const message = data?.status?.message || 'Procesado por pasarela';
+    const message =
+      (detailStatus?.message && detailStatus.message.trim()) ||
+      data?.status?.message ||
+      'Procesado por pasarela';
 
     // Un error de validación del request (por ejemplo el antiguo `description`)
     // tampoco es un rechazo de la tarjeta: no debe consumir intentos.
@@ -764,7 +788,7 @@ export async function collectPaymentWithToken(
       };
     }
 
-    const paymentInfo = data?.payment;
+    const paymentInfo = paymentEntry;
 
     return {
       ok: status === 'APPROVED',
