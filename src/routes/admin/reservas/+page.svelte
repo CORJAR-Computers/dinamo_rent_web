@@ -471,7 +471,7 @@
 						<th class="py-3.5 px-4">Cliente (Documento)</th>
 						<th class="py-3.5 px-4">Vehículo</th>
 						<th class="py-3.5 px-4">Fechas Alquiler</th>
-						<th class="py-3.5 px-4">Total Pagado</th>
+						<th class="py-3.5 px-4">Total / Pago</th>
 						<th class="py-3.5 px-4 text-center">ERP Mostrador</th>
 						<th class="py-3.5 px-4 text-right">Acciones</th>
 					</tr>
@@ -492,7 +492,7 @@
 							<td class="py-3.5 px-4">
 								<span class="font-black text-orange-400 font-mono text-sm whitespace-nowrap">{r.code}</span>
 								<p class="text-[11px] text-slate-500 mt-0.5">{formatDate(r.createdAt)}</p>
-								<!-- En móvil el estado del pago vive en la columna "Total Pagado", fuera de la
+								<!-- En móvil el estado del pago vive en la columna "Total / Pago", fuera de la
 								     vista: se repite aquí para que se lea sin desplazar la tabla. Es una copia
 								     visual del badge de escritorio, así que se oculta a lectores de pantalla. -->
 								<span
