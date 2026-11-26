@@ -2,6 +2,7 @@
   import type { Vehicle } from '#lib/data/fleet.js';
   import { booking } from '#lib/stores/bookingStore.svelte.js';
   import { formatCurrency } from '#lib/utils/formatters.js';
+  import { calcTaxes } from '#lib/utils/taxes.js';
 
   interface Props {
     vehicle: Vehicle;
@@ -9,7 +10,10 @@
 
   let { vehicle }: Props = $props();
 
-  let totalEstimated = $derived(vehicle.priceCOP * booking.rentalDays);
+  // Las tarifas publicadas no incluyen IVA: la tarjeta mostraba el subtotal como
+  // "Total", y el modal/checkout lo subían un 19% al pagar.
+  let subtotalEstimated = $derived(vehicle.priceCOP * booking.rentalDays);
+  let totalEstimated = $derived(calcTaxes(subtotalEstimated).total);
 </script>
 
 <div class="group relative rounded-3xl bg-slate-900/80 border border-slate-800 hover:border-orange-500/50 transition-all duration-300 flex flex-col overflow-hidden hover:shadow-2xl hover:shadow-orange-500/10 hover:-translate-y-1">
@@ -100,7 +104,12 @@
         </div>
         
         <div class="text-[11px] text-slate-400 mt-0.5">
-          Total {booking.rentalDays} día{booking.rentalDays > 1 ? 's' : ''}: 
+          Subtotal {booking.rentalDays} día{booking.rentalDays > 1 ? 's' : ''}: 
+          <strong class="text-slate-200 font-semibold">{formatCurrency(subtotalEstimated, booking.currency, booking.usdRate)}</strong>
+        </div>
+
+        <div class="text-[11px] text-slate-400">
+          Total con IVA 19%: 
           <strong class="text-orange-400 font-semibold">{formatCurrency(totalEstimated, booking.currency, booking.usdRate)}</strong>
         </div>
 

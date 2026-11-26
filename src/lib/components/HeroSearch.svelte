@@ -295,7 +295,7 @@
             Garantía Protegida
           </h4>
           <p class="text-[11px] text-slate-400">
-            Bloqueo bancario transparente
+            Tarjeta vinculada sin retención
           </p>
         </div>
       </div>
