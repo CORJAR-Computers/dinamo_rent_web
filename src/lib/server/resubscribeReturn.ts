@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { db } from '#lib/server/db.js';
 import { queryPaymentSession } from '#lib/server/placetopay.js';
+import { revokeReplacedToken } from '#lib/server/tokenReplacement.js';
 
 /** Vida de una sesión de PlacetoPay (25 min) más margen para el retorno. */
 const RETURN_WINDOW_MS = 40 * 60 * 1000;
@@ -117,6 +118,18 @@ export async function completeResubscribeReturn(input: {
       tokenFranchise: tokenFranchise ?? undefined,
       p2pStatusMessage: 'Tarjeta de garantía actualizada mediante tokenización sin cobro',
     },
+  });
+
+  // Guardar el token nuevo no invalida el anterior en la pasarela: sin esta
+  // revocación quedaban dos instrumentos vivos sobre la misma tarjeta. Va
+  // después de persistir el nuevo para que un fallo de la pasarela no deje a la
+  // reserva sin instrumento utilizable.
+  await revokeReplacedToken({
+    paymentId: reservation.payment?.id || reservation.id,
+    reservationCode: reservation.code,
+    previousToken: previous?.token,
+    newToken: token,
+    source: 'RETORNO',
   });
 
   await db.syncLog.create({
