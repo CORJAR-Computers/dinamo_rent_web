@@ -20,6 +20,7 @@ import {
   PUBLIC_LOOKUP_RATE_LIMIT,
 } from '#lib/server/reservationView.js';
 import { calcTaxes } from '#lib/utils/taxes.js';
+import { rentalWindow } from '#lib/utils/rentalDays.js';
 
 export const GET: RequestHandler = async ({ url, cookies, getClientAddress }) => {
   try {
@@ -166,6 +167,12 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       return Response.json({ ok: false, error: 'Faltan campos obligatorios para la reserva' }, { status: 400 });
     }
 
+    // Horas de entrega y devolución: formato HH:MM. Un valor inválido cae al
+    // horario por defecto en lugar de guardarse tal cual en la base.
+    const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const cleanPickupTime = TIME_PATTERN.test(String(pickupTime)) ? String(pickupTime) : '10:00';
+    const cleanReturnTime = TIME_PATTERN.test(String(returnTime)) ? String(returnTime) : '10:00';
+
     // === VALIDACIÓN ESTRICTA DE DOCUMENTO SEGÚN PLACETOPAY ===
     const cleanDocType = normalizeDocType(customerIdType);
     const docValidation = validateDocumentNumber(cleanDocType, String(customerIdNumber));
@@ -205,8 +212,17 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 
     const start = new Date(pickupDate);
     const end = new Date(returnDate);
-    if (end <= start) {
-      return Response.json({ ok: false, error: 'La fecha de devolución debe ser posterior a la fecha de entrega' }, { status: 400 });
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return Response.json({ ok: false, error: 'Las fechas de entrega y devolución no son válidas' }, { status: 400 });
+    }
+
+    // La devolución debe ser posterior a la entrega considerando las horas:
+    // un mismo día es válido si se devuelve más tarde de lo que se recogió.
+    if (!rentalWindow(String(pickupDate), cleanPickupTime, String(returnDate), cleanReturnTime)) {
+      return Response.json(
+        { ok: false, error: 'La fecha y hora de devolución deben ser posteriores a las de entrega' },
+        { status: 400 }
+      );
     }
 
     // Verificación de solapamiento de fechas y unidades disponibles en PostgreSQL
@@ -261,7 +277,10 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       },
     });
 
-    const days = Math.max(1, daysBetween(start, end));
+    const days = Math.max(
+      1,
+      daysBetween(start, end, cleanPickupTime, cleanReturnTime)
+    );
     const baseAmount = vehicle.pricePerDay * days;
     const plan: InsurancePlan = insurancePlan === 'BASICO' ? 'BASICO' : 'TOTAL';
     const insCfg = INSURANCE_CONFIG[plan];
@@ -298,8 +317,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
           customerLicenseExp: customer.licenseExp,
           pickupDate: start,
           returnDate: end,
-          pickupTime,
-          returnTime,
+          pickupTime: cleanPickupTime,
+          returnTime: cleanReturnTime,
           pickupLocation: resolvedPickup,
           returnLocation: resolvedReturn,
           days,
