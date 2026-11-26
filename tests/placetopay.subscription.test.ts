@@ -121,7 +121,9 @@ describe('queryPaymentSession — tokenización sin cobro', () => {
 								status: { status: 'APPROVED' },
 								instrument: [
 									{ keyword: 'token', value: 'tok_nuevo_12345678' },
-									{ keyword: 'last_digits', value: '1111' }
+									{ keyword: 'franchise', value: 'visa' },
+									{ keyword: 'lastDigits', value: '0008' },
+									{ keyword: 'validUntil', value: '2030-12-31' }
 								]
 							}
 						}),
@@ -136,6 +138,59 @@ describe('queryPaymentSession — tokenización sin cobro', () => {
 		expect(result.subscriptionOnly).toBe(true);
 		expect(result.token).toBe('tok_nuevo_12345678');
 		expect(result.tokenStatus).toBe('ACTIVO');
+		// Regresión: la pasarela usa camelCase; antes se guardaba 0000.
+		expect(result.cardLast4).toBe('0008');
+		expect(result.tokenValidUntil).toBe('2030-12-31');
+	});
+});
+
+describe('queryPaymentSession — pago sin suscripción', () => {
+	it('toma los últimos 4 de processorFields cuando no hay instrumento', async () => {
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							status: { status: 'APPROVED', message: 'Pago aprobado' },
+							payment: [
+								{
+									reference: 'DIN-2026-0002',
+									status: { status: 'APPROVED' },
+									processorFields: [{ keyword: 'lastDigits', value: '1111' }]
+								}
+							]
+						}),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await queryPaymentSession('888');
+
+		expect(result.ok).toBe(true);
+		expect(result.token).toBeUndefined();
+		expect(result.cardLast4).toBe('1111');
+	});
+
+	it('cae en 0000 si la pasarela no informa los últimos 4', async () => {
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({ status: { status: 'PENDING', message: 'Pendiente' } }),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await queryPaymentSession('999');
+
+		expect(result.ok).toBe(true);
+		expect(result.cardLast4).toBe('0000');
 	});
 });
 
@@ -162,7 +217,8 @@ describe('queryPaymentSession — sesión normal de pago con suscripción', () =
 								status: { status: 'APPROVED' },
 								instrument: [
 									{ keyword: 'token', value: 'tok_garantia_12345678' },
-									{ keyword: 'last_digits', value: '4242' },
+									{ keyword: 'lastDigits', value: '4242' },
+									{ keyword: 'validUntil', value: '2030-12-31' },
 									{ keyword: 'franchise', value: 'VISA' }
 								]
 							}
@@ -186,6 +242,7 @@ describe('queryPaymentSession — sesión normal de pago con suscripción', () =
 		expect(result.tokenStatus).toBe('ACTIVO');
 		expect(result.cardBrand).toBe('VISA');
 		expect(result.cardLast4).toBe('4242');
+		expect(result.tokenValidUntil).toBe('2030-12-31');
 	});
 });
 
