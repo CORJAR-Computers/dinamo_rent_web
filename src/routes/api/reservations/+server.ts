@@ -292,11 +292,23 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
     const totalAmount = taxes.total;
     const blockingAmount = calcBlockingAmount(baseAmount, extrasAmount, insuranceAmount);
 
+    // Código único: los intentos están acotados para que un año con las 9.000
+    // combinaciones ocupadas no deje el endpoint en un bucle infinito.
     let code = genReservationCode();
-    let exists = await db.reservation.findUnique({ where: { code } });
-    while (exists) {
-      code = genReservationCode();
-      exists = await db.reservation.findUnique({ where: { code } });
+    let codeTaken = true;
+    for (let attempt = 0; attempt < 20 && codeTaken; attempt++) {
+      const existing = await db.reservation.findUnique({
+        where: { code },
+        select: { id: true },
+      });
+      codeTaken = Boolean(existing);
+      if (codeTaken) code = genReservationCode();
+    }
+    if (codeTaken) {
+      return Response.json(
+        { ok: false, error: 'No fue posible asignar un código único de reserva. Intenta de nuevo.' },
+        { status: 409 }
+      );
     }
 
     const blockCode = genBlockCode();

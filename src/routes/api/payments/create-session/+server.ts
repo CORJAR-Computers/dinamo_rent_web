@@ -60,6 +60,15 @@ export const POST: RequestHandler = async ({ request, url, getClientAddress }) =
       return Response.json({ ok: false, error: 'La reserva ya fue pagada con anterioridad' }, { status: 400 });
     }
 
+    // Una reserva cancelada o ya finalizada no debe generar sesiones de pago:
+    // el cobro quedaría asociado a un contrato que no existe.
+    if (reservation.status === 'CANCELADA' || reservation.status === 'FINALIZADA') {
+      return Response.json(
+        { ok: false, error: `La reserva ${reservation.code} está ${reservation.status.toLowerCase()} y no admite pagos.` },
+        { status: 400 }
+      );
+    }
+
     // Control de doble pago (Guía de Suscripción §6.3.3): si ya existe una operación
     // en estado PENDIENTE, se bloquea un nuevo intento y se informa la referencia,
     // la fecha y los datos de contacto del establecimiento.

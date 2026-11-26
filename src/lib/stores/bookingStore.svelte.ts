@@ -72,6 +72,8 @@ class BookingStore {
     // Reservation persisted
     reservationId = $state<string>('');
     persistedReservation = $state<ReservationResult | null>(null);
+    /** Huella de lo cotizado al crear la reserva: evita duplicarla al volver atrás. */
+    private persistedFingerprint = $state<string>('');
     submitting = $state<boolean>(false);
     errorMessage = $state<string>('');
     paymentRedirectUrl = $state<string | null>(null);
@@ -169,6 +171,7 @@ class BookingStore {
         this.modalStep = 1;
         this.isModalOpen = true;
         this.persistedReservation = null;
+        this.persistedFingerprint = '';
         this.errorMessage = '';
         this.paymentRedirectUrl = null;
         this.pendingTransaction = null;
@@ -221,9 +224,41 @@ class BookingStore {
 
     // === INTEGRACIÓN CON BACKEND ===
 
+    /**
+     * Huella de lo que se cotizó al crear la reserva (sin firma ni fotos, que
+     * son datos pesados y no cambian el precio). Sirve para no insertar dos
+     * reservas cuando el cliente vuelve atrás y avanza de nuevo sin cambios, y
+     * para rehacerla si modifica fechas, coberturas o adicionales.
+     */
+    private quoteFingerprint(): string {
+        return JSON.stringify({
+            vehicleId: this.selectedVehicle?.id ?? '',
+            pickupDate: this.pickupDate,
+            pickupTime: this.pickupTime,
+            returnDate: this.returnDate,
+            returnTime: this.returnTime,
+            driver: this.driver,
+            insuranceCoverage: this.insuranceCoverage,
+            extras: {
+                babySeat: this.extraBabySeat,
+                secondDriver: this.extraSecondDriver,
+                fullTank: this.extraFullTank
+            }
+        });
+    }
+
     // Crea la reserva en PostgreSQL (llamada al avanzar de paso 3 firma)
     async createReservation(): Promise<boolean> {
         if (!this.selectedVehicle) return false;
+
+        // Volver atrás y avanzar otra vez sin cambiar nada no debe crear una
+        // segunda reserva PENDIENTE en la base ni consumir otro intento.
+        const fingerprint = this.quoteFingerprint();
+        if (this.persistedReservation && this.persistedFingerprint === fingerprint) {
+            this.errorMessage = '';
+            return true;
+        }
+
         this.submitting = true;
         this.errorMessage = '';
         try {
@@ -273,6 +308,7 @@ class BookingStore {
                 desktopRef: data.reservation.desktopRef
             };
             this.reservationId = data.reservation.code;
+            this.persistedFingerprint = fingerprint;
             return true;
         } catch (e) {
             this.errorMessage = (e as Error).message;
