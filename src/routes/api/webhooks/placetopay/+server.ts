@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import crypto from 'node:crypto';
 import { db } from '#lib/server/db.js';
 import { queryPaymentSession } from '#lib/server/placetopay.js';
+import { revokeReplacedToken } from '#lib/server/tokenReplacement.js';
 
 /**
  * Webhook de Notificación para Evertec PlacetoPay.
@@ -144,6 +145,8 @@ export const POST: RequestHandler = async ({ request }) => {
         });
       }
 
+      const previousToken = payment.token;
+
       await db.payment.update({
         where: { id: payment.id },
         data: {
@@ -155,6 +158,17 @@ export const POST: RequestHandler = async ({ request }) => {
           cardLast4: query.cardLast4 || payment.cardLast4,
           p2pStatusMessage: 'Tarjeta de garantía actualizada mediante tokenización sin cobro',
         },
+      });
+
+      // El token anterior no puede quedar vivo en la pasarela: el webhook puede
+      // llegar antes que el retorno y, si no se revoca aquí, la tarjeta
+      // reemplazada seguiría admitiendo cobros.
+      await revokeReplacedToken({
+        paymentId: payment.id,
+        reservationCode: payment.reservation.code,
+        previousToken,
+        newToken: query.token,
+        source: 'WEBHOOK',
       });
 
       await db.syncLog.create({

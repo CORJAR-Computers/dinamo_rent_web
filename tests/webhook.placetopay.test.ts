@@ -7,7 +7,8 @@ const queryState = vi.hoisted(() => ({
 }));
 
 vi.mock('#lib/server/placetopay.js', () => ({
-	queryPaymentSession: async (requestId: string) => ({ requestId, ...queryState.result })
+	queryPaymentSession: async (requestId: string) => ({ requestId, ...queryState.result }),
+	invalidateToken: async () => ({ ok: true, message: 'Token invalidado' })
 }));
 
 /** Estado que sustituye a Prisma: registra cada escritura. */

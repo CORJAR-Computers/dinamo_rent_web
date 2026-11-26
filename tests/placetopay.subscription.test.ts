@@ -14,6 +14,22 @@ const {
 	sanitizeGatewayText
 } = await import('../src/lib/server/placetopay.js');
 
+/** `SyncLog` de la revocación: sustituye a Prisma en las pruebas de re-tokenización. */
+const dbLog = vi.hoisted(() => ({ entries: [] as unknown[] }));
+
+vi.mock('#lib/server/db.js', () => ({
+	db: {
+		syncLog: {
+			create: async (args: unknown) => {
+				dbLog.entries.push(args);
+				return args;
+			}
+		}
+	}
+}));
+
+const { revokeReplacedToken } = await import('../src/lib/server/tokenReplacement.js');
+
 const customer = {
 	names: 'Ana',
 	lastnames: 'Pérez',
@@ -378,5 +394,106 @@ describe('collectPaymentWithToken — errores de validación', () => {
 		expect(result.status).toBe('REJECTED');
 		expect(result.message).toBe('Negada, Tarjtea bloqueada retener/capturar');
 		expect(classifyTokenRejection(result.message)).toMatchObject({ immediate: true });
+	});
+});
+
+describe('revokeReplacedToken — el token reemplazado no puede quedar vivo', () => {
+	// Regresión: la re-tokenización guardaba el token nuevo sin invalidar el
+	// anterior, así que quedaban dos instrumentos vivos sobre la misma tarjeta.
+	const pago = {
+		paymentId: 'pay_1',
+		reservationCode: 'DIN-2026-0001',
+		source: 'RETORNO' as const
+	};
+
+	beforeEach(() => {
+		dbLog.entries.length = 0;
+	});
+
+	it('invalida en la pasarela el token que se reemplaza', async () => {
+		productionEnv();
+		let enviado: Record<string, unknown> | null = null;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_url: string, init: RequestInit) => {
+				enviado = JSON.parse(String(init.body)) as Record<string, unknown>;
+				return new Response(
+					JSON.stringify({ status: { status: 'APPROVED', message: 'Token invalidado' } }),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			})
+		);
+
+		const outcome = await revokeReplacedToken({
+			...pago,
+			previousToken: 'tok_anterior_12345678',
+			newToken: 'tok_nuevo_12345678'
+		});
+
+		expect(outcome).toBe('REVOKED');
+		const cuerpo = enviado as unknown as { instrument?: { token?: { token?: string } } };
+		expect(cuerpo.instrument?.token?.token).toBe('tok_anterior_12345678');
+
+		const log = (dbLog.entries[0] as { data?: Record<string, unknown> })?.data as {
+			status?: string;
+			message?: string;
+			payload?: Record<string, unknown>;
+		};
+		expect(log.status).toBe('PENDING');
+		expect(String(log.message)).toContain('Token anterior invalidado');
+		expect(log.payload).toMatchObject({
+			event: 'PREVIOUS_TOKEN_REVOKED',
+			invalidated: true,
+			source: 'RETORNO',
+			previousTokenPrefix: 'tok_ante'
+		});
+	});
+
+	it('no toca la pasarela si no había token previo o es el mismo', async () => {
+		productionEnv();
+		const fetchSpy = vi.fn();
+		vi.stubGlobal('fetch', fetchSpy);
+
+		await expect(
+			revokeReplacedToken({ ...pago, previousToken: null, newToken: 'tok_nuevo_12345678' })
+		).resolves.toBe('SKIPPED');
+		await expect(
+			revokeReplacedToken({
+				...pago,
+				previousToken: 'tok_nuevo_12345678',
+				newToken: 'tok_nuevo_12345678'
+			})
+		).resolves.toBe('SKIPPED');
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(dbLog.entries).toHaveLength(0);
+	});
+
+	it('si la pasarela no confirma, lo registra como fallo sin romper el retorno', async () => {
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({ status: { status: 'REJECTED', message: 'No autorizado' } }),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const outcome = await revokeReplacedToken({
+			...pago,
+			previousToken: 'tok_anterior_12345678',
+			newToken: 'tok_nuevo_12345678'
+		});
+
+		expect(outcome).toBe('FAILED');
+		const log = (dbLog.entries[0] as { data?: Record<string, unknown> })?.data as {
+			status?: string;
+			message?: string;
+		};
+		expect(log.status).toBe('FAILED');
+		expect(String(log.message)).toContain('No fue posible invalidar el token anterior');
 	});
 });
