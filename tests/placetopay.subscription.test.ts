@@ -199,6 +199,48 @@ describe('queryPaymentSession — pago sin suscripción', () => {
 	});
 });
 
+describe('queryPaymentSession — veredicto del emisor', () => {
+	it('usa el motivo de payment[].status en lugar del global XN', async () => {
+		// Respuesta real de checkout-test con la tarjeta bloqueada de Evertec: el
+		// status global solo dice «Se ha rechazado la petición» y el webhook, la
+		// sonda y el SyncLog guardaban ese texto genérico en vez del motivo (37).
+		productionEnv();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							requestId: 3971780,
+							status: {
+								status: 'REJECTED',
+								reason: 'XN',
+								message: 'Se ha rechazado la petición'
+							},
+							payment: [
+								{
+									reference: 'DIN-2026-6438',
+									status: {
+										status: 'REJECTED',
+										reason: '37',
+										message: 'Negada, Tarjtea bloqueada retener/capturar'
+									}
+								}
+							]
+						}),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					)
+			)
+		);
+
+		const result = await queryPaymentSession('3971780');
+
+		expect(result.status).toBe('REJECTED');
+		expect(result.message).toBe('Negada, Tarjtea bloqueada retener/capturar');
+		expect(classifyTokenRejection(result.message)).toMatchObject({ immediate: true });
+	});
+});
+
 describe('queryPaymentSession — sesión normal de pago con suscripción', () => {
 	it('no marca subscriptionOnly cuando la sesión trae payment y subscription', async () => {
 		productionEnv();

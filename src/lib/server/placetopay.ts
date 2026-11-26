@@ -535,12 +535,24 @@ export async function queryPaymentSession(
     });
 
     const data = await res.json();
-    const p2pStatus = data?.status?.status;
+
+    // Igual que en el Collect: Evertec devuelve dos veredictos. El global
+    // (`status`) en un rechazo suele ser `XN` con «Se ha rechazado la petición»,
+    // y el motivo real (p. ej. `37`, «Negada, Tarjeta bloqueada») viaja en
+    // `payment[].status`. El webhook, la sonda y el SyncLog persisten este
+    // mensaje, así que quedarse con el global borraba el motivo del emisor.
+    const firstPayment = Array.isArray(data?.payment) ? data.payment[0] : data?.payment;
+    const detailStatus = firstPayment?.status;
+
+    const p2pStatus = detailStatus?.status ?? data?.status?.status;
     let status: 'APPROVED' | 'REJECTED' | 'PENDING' = 'PENDING';
     if (p2pStatus === 'APPROVED') status = 'APPROVED';
     else if (p2pStatus === 'REJECTED') status = 'REJECTED';
 
-    const firstPayment = data?.payment?.[0];
+    const message =
+      (detailStatus?.message && detailStatus.message.trim()) ||
+      data?.status?.message ||
+      'Estado consultado';
     // Sesión de tokenización pura: hay `subscription` pero ningún pago asociado.
     const subscriptionOnly =
       Boolean(data?.subscription) &&
@@ -582,7 +594,7 @@ export async function queryPaymentSession(
       ok: true,
       requestId,
       status,
-      message: data?.status?.message || 'Estado consultado',
+      message,
       reference: firstPayment?.reference || data?.request?.payment?.reference,
       cardBrand,
       cardLast4,
