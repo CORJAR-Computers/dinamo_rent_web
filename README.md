@@ -158,5 +158,3 @@ npm run build
 
 Desarrollado por **CORJAR Computers** para **Dinamo Rent a Car** (Cartagena de Indias, Colombia).  
 Todos los derechos reservados © 2026.
-
-<!-- Smoke test del workflow Automerge (PR de prueba). Se puede borrar. -->
