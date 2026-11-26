@@ -15,7 +15,7 @@ Se ha completado con éxito la construcción y verificación en vivo de la plata
   2. *Paso 2*: Formulario validado de check-in del conductor titular.
   3. *Paso 3*: Canvas táctil de firma digital con trazado fluido y cláusula de pre-reserva (Ley 527 de 1999).
   4. *Paso 4*: Voucher digital con código único (`DIN-2026-XXXX`), desglose itemizado y enlace directo a WhatsApp para el mostrador.
-- [x] **Garantías y Transparencia**: Explicación clara de pre-autorización/retención temporal de cupo en tarjeta de crédito.
+- [x] **Garantías y Transparencia**: Explicación de la tarjeta vinculada por tokenización como respaldo del contrato, sin retención de cupo ni cobro anticipado del depósito.
 
 ---
 
