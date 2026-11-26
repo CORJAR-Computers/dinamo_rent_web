@@ -61,9 +61,13 @@ const { GET: cron } = (await import(
 	GET: (ctx: { request: Request; url: URL }) => Promise<Response>;
 };
 
-function run(): Promise<Response> {
-	const url = new URL('http://localhost/api/cron/p2p-check-pending');
-	return cron({ request: new Request(url), url });
+function run(query = '?test=true', init?: RequestInit): Promise<Response> {
+	const url = new URL(`http://localhost/api/cron/p2p-check-pending${query}`);
+	return cron({ request: new Request(url, init), url });
+}
+
+function bearer(secret: string): RequestInit {
+	return { headers: { authorization: `Bearer ${secret}` } };
 }
 
 function payment(overrides: Obj): Obj {
@@ -79,6 +83,9 @@ function payment(overrides: Obj): Obj {
 
 describe('cron diario — vigencia de tokens de garantía', () => {
 	beforeEach(() => {
+		vi.unstubAllEnvs();
+		// Entorno no productivo: `?test=true` es el atajo de prueba local.
+		vi.stubEnv('NODE_ENV', 'test');
 		state.candidates = [];
 		state.findManyArgs = [];
 		state.paymentUpdates = [];
@@ -149,5 +156,83 @@ describe('cron diario — vigencia de tokens de garantía', () => {
 		expect(res.status).toBe(200);
 		expect(body.expiredTokenCount).toBe(0);
 		expect(state.paymentUpdates).toHaveLength(0);
+	});
+});
+
+describe('cron diario — autorización de la sonda', () => {
+	beforeEach(() => {
+		vi.unstubAllEnvs();
+		state.candidates = [];
+		state.findManyArgs = [];
+		state.paymentUpdates = [];
+		state.syncLogs = [];
+		state.queryCalls = [];
+	});
+
+	it('en producción exige autorización aunque llegue ?test=true', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('CRON_SECRET', 'secreto-real');
+
+		const res = await run('?test=true');
+
+		expect(res.status).toBe(401);
+		// No se tocó la base: la petición muere antes de la sonda.
+		expect(state.findManyArgs).toHaveLength(0);
+	});
+
+	it('no acepta el token por defecto ni ?token= en la URL', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('CRON_SECRET', 'secreto-real');
+
+		const porQuery = await run('?token=dinamo-cert-2026');
+		expect(porQuery.status).toBe(401);
+
+		const porHeader = await run('', bearer('dinamo-cert-2026'));
+		expect(porHeader.status).toBe(401);
+	});
+
+	it('no autoriza por el User-Agent de Vercel Cron', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('CRON_SECRET', 'secreto-real');
+
+		const res = await run('', { headers: { 'user-agent': 'vercel-cron/1.0' } });
+
+		expect(res.status).toBe(401);
+	});
+
+	it('sin CRON_SECRET en producción no autoriza ningún bearer', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('CRON_SECRET', '');
+
+		const res = await run('', bearer('dinamo-cert-2026'));
+
+		expect(res.status).toBe(401);
+	});
+
+	it('autoriza con el bearer correcto', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		vi.stubEnv('CRON_SECRET', 'secreto-real');
+
+		const res = await run('', bearer('secreto-real'));
+
+		expect(res.status).toBe(200);
+	});
+
+	it('acepta ?test=true fuera de producción', async () => {
+		vi.stubEnv('NODE_ENV', 'test');
+		vi.stubEnv('CRON_SECRET', '');
+
+		const res = await run('?test=true');
+
+		expect(res.status).toBe(200);
+	});
+
+	it('fuera de producción, sin atajo, también exige autorización', async () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		vi.stubEnv('CRON_SECRET', '');
+
+		const res = await run('');
+
+		expect(res.status).toBe(401);
 	});
 });
