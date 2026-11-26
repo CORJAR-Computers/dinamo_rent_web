@@ -235,12 +235,6 @@
 	let tokenExpired = $derived(
 		isTokenExpired(cardPayment?.tokenValidUntil) && cardPayment?.tokenStatus !== 'CANCELADO'
 	);
-	let tokenActive = $derived(
-		Boolean(cardPayment?.token) &&
-			cardPayment?.tokenStatus !== 'CANCELADO' &&
-			cardPayment?.tokenStatus !== 'EXPIRADO' &&
-			!tokenExpired
-	);
 	let tokenStatusLabel = $derived(
 		cardPayment?.tokenStatus === 'CANCELADO'
 			? 'CANCELADA'
@@ -248,6 +242,10 @@
 				? 'EXPIRADA'
 				: 'ACTIVA'
 	);
+	// Un token utilizable es exactamente el que el badge muestra como ACTIVA:
+	// con una sola fuente de verdad, el estado visible y las acciones del modal
+	// no pueden contradecirse.
+	let tokenActive = $derived(Boolean(cardPayment?.token) && tokenStatusLabel === 'ACTIVA');
 
 	function openCardModal(r: ReservationItem, mode: 'collect' | 'manage') {
 		cardReservation = r;
@@ -301,6 +299,10 @@
 					type: 'error',
 					text: data?.error || `La pasarela rechazó el cobro (HTTP ${status}).`
 				};
+				// Un rechazo definitivo (o el tercero consecutivo) invalida el token
+				// en el servidor: sin esta relectura el modal seguiría mostrando
+				// ACTIVA y el botón de cobro sobre un token ya cancelado.
+				await refreshCardReservation();
 			}
 		} catch (err) {
 			actionMessage = {
@@ -921,7 +923,7 @@
 					>
 						Cerrar
 					</button>
-					{#if cardMode === 'collect'}
+					{#if cardMode === 'collect' && tokenActive}
 						<button
 							type="button"
 							onclick={submitCollect}
