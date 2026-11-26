@@ -20,7 +20,8 @@ Evertec consulte sus registros en el sandbox.
 | 3 | Sandbox real | Banner del checkout | «Modo de pruebas. No habrá afectación monetaria» |
 | 4 | Panel limpio | `/admin/reservas` | Las reservas de la sesión son las únicas PENDIENTES recientes |
 | 5 | Capturas listas | Carpeta `docs/evidencia/` y ZIP del 26-nov a mano | `capturas-evidencia-evertec.zip` (8 PNG) |
-| 6 | Credenciales | Clave admin temporal y `P2P_TRAN_KEY` en el gestor, no en el repo | Se rotan al cierre |
+| 6 | Credenciales | Clave admin temporal, `P2P_TRAN_KEY` y `CRON_SECRET` en el gestor, no en el repo | Se rotan al cierre |
+| 7 | Sonda autenticada | `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" https://dinamo-rent-a-car.vercel.app/api/cron/p2p-check-pending` | **200**; sin cabecera responde **401** — en producción `?test=true` ya no autoriza |
 
 Límites del entorno que condicionan el ritmo (contador compartido en base de
 datos, ventana fija desde el primer intento): **8 sesiones de pago por IP cada 10
@@ -223,6 +224,7 @@ difuminan igual que en el paquete del 26-nov). Nombre de archivo
 | El escenario 3 no invalida en el primer intento | El mensaje no se clasificó como definitivo | «Reviso el mensaje que devolvió el emisor y el `SyncLog`; si la política no se aplicó, lo reporto como hallazgo y no lo maquillo.» |
 | El escenario 5 ofrece el icono de cobro | El token no está `CANCELADO` | Se muestra el estado del instrumento en el panel y se reporta como hallazgo. |
 | Falla el login del panel | Clave incorrecta → 401; 5 intentos por IP en 15 min → 429; `ADMIN_PASSWORD`/`ADMIN_SECRET` ausentes en producción → 503 | «El acceso está bloqueado por intentos; uso la sesión ya abierta y reviso la configuración de entorno.» |
+| La sonda responde `401` | Se llamó sin `Authorization: Bearer $CRON_SECRET`; el atajo `?test=true` solo existe fuera de producción | «La sonda exige el secreto; la disparo con la cabecera y te muestro el 200.» |
 | Se cae la conexión o el navegador | — | Se retoma con el `requestId` ya anotado; el estado se consulta, no se reconstruye de memoria. |
 
 **Qué no se dice nunca.** «Ya quedó», «debe estar», «en mi máquina funciona».
@@ -247,6 +249,7 @@ Si no está en pantalla o en un `requestId` verificable, no existe para el acta.
 - Las notificaciones `REJECTED` del webhook actualizan el pago pero **no**
   escriben `SyncLog`; solo `APROBADO` y «reserva cancelada» lo hacen. No es un
   fallo de la sesión.
+- `GET /api/cron/p2p-check-pending` exige `Authorization: Bearer $CRON_SECRET` en todos los entornos; Vercel Cron añade la cabecera sola cuando el secreto existe. `?test=true` solo se acepta con `NODE_ENV` distinto de `production`.
 - Una notificación de re-tokenización no se puede asociar al pago: el `Payment`
   no guarda el `requestId` de esa sesión hasta que existe `create-session`. La
   trazabilidad de esas sesiones vive en el `SyncLog`.

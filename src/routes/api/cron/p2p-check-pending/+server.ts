@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db.js';
 import { isTokenExpired, queryPaymentSession } from '#lib/server/placetopay.js';
@@ -10,27 +11,48 @@ import { verifySyncToken } from '#lib/server/adminAuth.js';
  *  que quedaron en estado PENDIENTE en la base de datos."
  * Frecuencia: Cada 10 minutos en certificación / Cada 24 horas en producción.
  */
+/** Comparación en tiempo constante para el bearer de la sonda. */
+function safeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, 'utf-8');
+  const bBuf = Buffer.from(b, 'utf-8');
+  if (aBuf.length !== bBuf.length) {
+    // Comparación dummy: no filtrar la longitud por diferencia de tiempos.
+    crypto.timingSafeEqual(bBuf, bBuf);
+    return false;
+  }
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
 export const GET: RequestHandler = async ({ request, url }) => {
   try {
-    // Control de seguridad de la sonda:
-    const authHeader = request.headers.get('authorization');
-    const userAgent = request.headers.get('user-agent') || '';
-    const cronSecret = process.env.CRON_SECRET;
-    const isVercelCron = userAgent.includes('vercel-cron');
-    const isAuthorizedCron = Boolean(cronSecret && authHeader === `Bearer ${cronSecret}`);
+    // Control de seguridad de la sonda: **siempre** hay que autorizar.
+    //
+    // Vía principal: `Authorization: Bearer $CRON_SECRET`. Vercel Cron añade
+    // esa cabecera por sí solo cuando CRON_SECRET existe en el proyecto, y es
+    // también la forma de dispararla a mano. `DESKTOP_SYNC_TOKEN` sigue
+    // valiendo para el mostrador.
+    //
+    // No se acepta el User-Agent `vercel-cron` (se puede falsificar), ni un
+    // token por defecto cuando falta el secreto, ni `?token=` en la URL (acaba
+    // en logs). Única excepción: `?test=true` fuera de producción, para probar
+    // la sonda en local sin configurar el secreto.
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cronSecret = process.env.CRON_SECRET?.trim() || '';
+    const providedBearer = (request.headers.get('authorization') || '')
+      .replace(/^Bearer\s+/i, '')
+      .trim();
+    const isAuthorizedCron = Boolean(
+      cronSecret && providedBearer && safeEqual(providedBearer, cronSecret)
+    );
     const isSyncToken = verifySyncToken(request);
-    const isTest =
-      url.searchParams.get('test') === 'true' ||
-      url.searchParams.get('token') === (cronSecret || 'dinamo-cert-2026');
+    const isLocalTestShortcut = !isProduction && url.searchParams.get('test') === 'true';
 
-    if (
-      process.env.NODE_ENV === 'production' &&
-      cronSecret &&
-      !isAuthorizedCron &&
-      !isVercelCron &&
-      !isSyncToken &&
-      !isTest
-    ) {
+    if (!isAuthorizedCron && !isSyncToken && !isLocalTestShortcut) {
+      if (isProduction && !cronSecret) {
+        console.error(
+          '[Sonda P2P] CRON_SECRET no está configurada: ejecución rechazada (fail closed).'
+        );
+      }
       return Response.json(
         { ok: false, error: 'No autorizado para ejecutar la sonda.' },
         { status: 401 }
