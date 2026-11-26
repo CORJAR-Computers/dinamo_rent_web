@@ -8,6 +8,9 @@ dist
 .vercel
 *.log
 *.zip
+# Excepción: el ZIP con las capturas de la certificación acompaña a la corrida
+# porque es el paquete exacto que se envía a Evertec.
+!docs/evidencia/capturas-evidencia-evertec.zip
 .DS_Store
 Thumbs.db
 
