@@ -17,6 +17,31 @@ el `.txt` y nada más.
 | Asunto | Certificación PlacetoPay — validación del 26-nov, evidencia de los cinco escenarios y ajustes posteriores |
 | Firma | Marcador `[COMPLETAR ANTES DE ENVIAR: nombre y apellido del firmante]` en el `.txt`. El repo no registra el nombre de quien firma, así que no se rellena con un dato inventado |
 
+## Correo intermedio, antes del definitivo
+
+Se envía **primero** un correo corto, sin adjuntos, que informa que el último
+pendiente de Julián quedó resuelto y pide su visto bueno. El correo definitivo
+—acta en PDF y ZIP de capturas— sale solo después de esa confirmación.
+
+- **Fuente:** `docs/RESPUESTA_EVERTEC_INTERMEDIA.txt` (texto plano pegable, no
+  versionado). Mismo remitente, destinatario y copia que el definitivo.
+- **Qué afirma:** el `requestId` del `Collect` queda en `DepositCharge.p2pRequestId`,
+  en el `SyncLog` del cobro y en la respuesta del endpoint, incluido el caso sin
+  veredicto (`c4f57df`, PR #28). Es el pendiente #4 del acta, resuelto el 27-nov.
+- **Qué no lleva:** ni acta, ni ZIP, ni fechas, ni cifras nuevas. Solo anuncia que
+  ese paquete existe y está listo.
+- **Por qué así:** el correo definitivo pide revisar acta y ocho capturas. Si el
+  punto técnico no estuviera cerrado, ese trabajo se repetiría; el intermedio
+  convierte esa duda en una pregunta de una línea.
+- **Riesgo asumido:** son dos mensajes en el mismo hilo y el intermedio puede
+  quedar sin respuesta. Si no contesta en unos días, el recordatorio debe citar
+  este correo y no reenviar el definitivo: el visto bueno sigue siendo la
+  condición para mandar el paquete.
+- [ ] Sustituir el marcador del firmante en el `.txt` intermedio.
+- [ ] Enviarlo desde la cuenta del hilo abierto con Evertec.
+- [ ] Con el visto bueno, revisar que el acta siga siendo la versión de `main`
+  (regenerar el PDF con `npm run docs:pdf`) y solo entonces enviar el definitivo.
+
 ## Por qué el `.txt` y no el Markdown
 
 El correo se envía como texto plano: el Markdown se cuela con `**` y tablas de
