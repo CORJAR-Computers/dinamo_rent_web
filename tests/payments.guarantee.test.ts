@@ -22,7 +22,9 @@ const state = vi.hoisted(() => ({
 	invalidateCalls: [] as Array<{ token: string; reason?: string }>,
 	reservation: null as Obj | null,
 	recentCharges: [] as Array<{ status: string }>,
+	chargedAmounts: [] as Array<{ amount: number }>,
 	chargeCreates: [] as Obj[],
+	chargeUpdates: [] as Obj[],
 	findManyArgs: [] as Obj[],
 	paymentUpdates: [] as Obj[],
 	syncLogs: [] as Obj[]
@@ -51,35 +53,50 @@ vi.mock('#lib/server/db.js', () => {
 	// Prisma devuelve la fila escrita, no los argumentos de la llamada.
 	const written = (args: Obj, id: string) => ({ id, ...(args.data as Obj) });
 
-	return {
-		db: {
-			reservation: { findUnique: async () => state.reservation },
-			depositCharge: {
-				create: async (args: Obj) => {
-					state.chargeCreates.push(args);
-					return { ...written(args, 'chg_nuevo'), createdAt: new Date('2026-11-24T12:00:00Z') };
-				},
-				findMany: async (args: Obj) => {
-					state.findManyArgs.push(args);
-					return state.recentCharges;
-				}
+	const db = {
+		reservation: { findUnique: async () => state.reservation },
+		depositCharge: {
+			create: async (args: Obj) => {
+				state.chargeCreates.push(args);
+				return { ...written(args, 'chg_nuevo'), createdAt: new Date('2026-11-24T12:00:00Z') };
 			},
-			payment: {
-				update: async (args: Obj) => {
-					state.paymentUpdates.push(args);
-					return written(args, 'pay_1');
-				}
+			update: async (args: Obj) => {
+				state.chargeUpdates.push(args);
+				const id = String((args.where as Obj)?.id ?? 'chg_nuevo');
+				return {
+					...written(args, id),
+					createdAt: new Date('2026-11-24T12:00:00Z')
+				};
 			},
-			syncLog: {
-				create: async (args: Obj) => {
-					state.syncLogs.push(args);
-					return written(args, 'log_1');
-				}
-			},
-			// Igual que Prisma con un array de operaciones: se resuelven juntas.
-			$transaction: async (ops: Array<Promise<unknown>>) => Promise.all(ops)
-		}
+			// Sin cargos previos: el cobro de estos casos no está bloqueado.
+			findFirst: async () => null,
+			findMany: async (args: Obj) => {
+				// La consulta del acumulado pide solo `amount`; la de rechazos, el estado.
+				if ((args.select as Obj | undefined)?.amount) return state.chargedAmounts;
+				state.findManyArgs.push(args);
+				return state.recentCharges;
+			}
+		},
+		payment: {
+			update: async (args: Obj) => {
+				state.paymentUpdates.push(args);
+				return written(args, 'pay_1');
+			}
+		},
+		syncLog: {
+			create: async (args: Obj) => {
+				state.syncLogs.push(args);
+				return written(args, 'log_1');
+			}
+		},
+		// Lock asesor de la transacción: no devuelve filas ni escribe nada.
+		$executeRaw: async () => 0,
+		// Prisma acepta un array de operaciones o un callback transaccional.
+		$transaction: async (arg: unknown) =>
+			typeof arg === 'function' ? (arg as (txn: unknown) => Promise<unknown>)(db) : Promise.all(arg as Array<Promise<unknown>>)
 	};
+
+	return { db };
 });
 
 const { POST: collect } = (await import('../src/routes/api/payments/collect/+server.js')) as unknown as {
@@ -160,6 +177,11 @@ function reservationFixture(overrides: Obj = {}): Obj {
 		customerPhone: '3001234567',
 		customerIdType: 'CC',
 		customerIdNumber: '1234567890',
+		blockingAmount: 2000000,
+		termsVersion: '2026-11-23',
+		termsHash: 'a'.repeat(64),
+		termsAcceptedAt: new Date('2026-11-23T10:00:00Z'),
+		termsAcceptedIp: '10.0.0.20',
 		payment: { id: 'pay_1', token: 'tok_real_9f8e7d6c', tokenStatus: 'ACTIVO' },
 		vehicle: { name: 'Kia Picanto' },
 		...overrides
@@ -171,10 +193,12 @@ beforeEach(() => {
 	state.collectCalls.length = 0;
 	state.invalidateCalls.length = 0;
 	state.chargeCreates.length = 0;
+	state.chargeUpdates.length = 0;
 	state.findManyArgs.length = 0;
 	state.paymentUpdates.length = 0;
 	state.syncLogs.length = 0;
 	state.recentCharges = [];
+	state.chargedAmounts = [];
 	state.reservation = reservationFixture();
 	state.collectResult = { ok: true, status: 'APPROVED', message: 'Aprobado' };
 	state.invalidateResult = { ok: true, message: 'Token invalidado correctamente' };
@@ -205,9 +229,16 @@ describe('POST /api/payments/collect — 402 con intentos', () => {
 		expect(state.invalidateCalls).toHaveLength(0);
 		expect(state.paymentUpdates).toHaveLength(0);
 
-		// El cargo queda registrado como RECHAZADO y el conteo es sobre los más
-		// recientes: si se pierde el orderBy, "consecutivos" deja de significar nada.
-		expect(state.chargeCreates[0]).toMatchObject({ data: { status: 'RECHAZADO', amount: 50000 } });
+		// El cargo se crea PENDIENTE antes de llamar a la pasarela y se completa con
+		// el veredicto: el conteo es sobre los más recientes, así que si se pierde
+		// el orderBy, "consecutivos" deja de significar nada.
+		expect(state.chargeCreates[0]).toMatchObject({
+			data: { status: 'PENDIENTE', amount: 50000, reference: expect.stringContaining('COL-DIN-2026-0001-') }
+		});
+		expect(state.chargeUpdates[0]).toMatchObject({
+			where: { id: 'chg_nuevo' },
+			data: { status: 'RECHAZADO' }
+		});
 		expect(state.findManyArgs[0]).toMatchObject({
 			where: { reservationId: 'res_1' },
 			orderBy: { createdAt: 'desc' }

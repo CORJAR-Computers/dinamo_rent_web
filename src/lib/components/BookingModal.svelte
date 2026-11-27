@@ -199,7 +199,7 @@
                 return;
             }
             // Crea la reserva en PostgreSQL al avanzar de la firma
-            const ok = await booking.createReservation();
+            const ok = await booking.createReservation(termsAccepted);
             if (!ok) {
                 formError =
                     booking.errorMessage ||

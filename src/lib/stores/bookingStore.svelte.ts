@@ -248,7 +248,7 @@ class BookingStore {
     }
 
     // Crea la reserva en PostgreSQL (llamada al avanzar de paso 3 firma)
-    async createReservation(): Promise<boolean> {
+    async createReservation(termsAccepted = false): Promise<boolean> {
         if (!this.selectedVehicle) return false;
 
         // Volver atrás y avanzar otra vez sin cambiar nada no debe crear una
@@ -291,6 +291,9 @@ class BookingStore {
                     signatureDataUrl: this.signatureDataUrl,
                     docPhotoUrl: this.docPhotoUrl,
                     licensePhotoUrl: this.licensePhotoUrl,
+                    // El servidor guarda versión, hash, fecha e IP del documento
+                    // vigente; aquí solo viaja la declaración de aceptación.
+                    termsAccepted,
                     notes: ''
                 })
             });
