@@ -52,6 +52,12 @@ export const load: PageServerLoad = async () => {
 						transactionId: true,
 						p2pStatusMessage: true,
 						executedBy: true,
+						reference: true,
+						consentVersion: true,
+						consentHash: true,
+						resolution: true,
+						resolutionNote: true,
+						resolvedAt: true,
 						createdAt: true,
 					},
 					orderBy: { createdAt: 'desc' }

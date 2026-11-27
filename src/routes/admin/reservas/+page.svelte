@@ -4,6 +4,8 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { isTokenExpired } from '#lib/utils/tokenValidity.js';
+	import { COLLECT_CONCEPTS } from '#lib/data/depositCharges.js';
+	import { MANUAL_CONSENT_MIN } from '#lib/data/terms.js';
 
 	interface ReservationItem {
 		id: string;
@@ -14,6 +16,14 @@
 		insuranceAmount: number;
 		extrasAmount: number;
 		blockingAmount: number;
+		termsVersion?: string | null;
+		termsHash?: string | null;
+		termsAcceptedAt?: string | null;
+		termsAcceptedIp?: string | null;
+		// Con valor: el consentimiento lo registró ese administrador (reserva
+		// anterior al control). Sin valor: lo aceptó el cliente en el checkout.
+		termsAcceptedBy?: string | null;
+		termsAcceptanceNote?: string | null;
 		days: number;
 		pickupDate: string;
 		returnDate: string;
@@ -68,6 +78,12 @@
 			transactionId: string | null;
 			p2pStatusMessage?: string | null;
 			executedBy?: string | null;
+			reference?: string | null;
+			consentVersion?: string | null;
+			consentHash?: string | null;
+			resolution?: string | null;
+			resolutionNote?: string | null;
+			resolvedAt?: string | null;
 			createdAt: string;
 		}>;
 	}
@@ -176,13 +192,6 @@
 		'Tarjeta reemplazada por un nuevo instrumento tokenizado',
 		'Rechazo definitivo de la tarjeta (bloqueada, vencida, robada o de uso restringido)'
 	];
-	const COLLECT_CONCEPTS = [
-		{ value: 'DEDUCIBLE', label: 'Deducible por Siniestro o Daños Menores' },
-		{ value: 'GASOLINA', label: 'Combustible / Gasolina Faltante' },
-		{ value: 'DIAS_EXTRA', label: 'Día(s) u Horas Adicionales de Retraso' },
-		{ value: 'MULTA', label: 'Infracción o Fotomulta de Tránsito' },
-		{ value: 'OTRO', label: 'Otro Cargo Justificado en Contrato' }
-	];
 
 	let cardModalOpen = $state(false);
 	let cardReservation = $state<ReservationItem | null>(null);
@@ -195,6 +204,18 @@
 	let collectDescription = $state('');
 	let cancelReason = $state<string>(CANCEL_REASONS[0]);
 	let retokenizing = $state(false);
+
+	// Cierre manual de un cobro PENDIENTE: la autorización es obligatoria para
+	// declararlo ejecutado y el motivo lo es para declararlo no ejecutado.
+	let resolutionAuthorization = $state('');
+	let resolutionNote = $state('');
+	let resolving = $state(false);
+
+	// Registro manual del consentimiento para reservas anteriores al control:
+	// responsable y soporte son obligatorios y quedan auditados.
+	let consentRegisteredBy = $state('');
+	let consentNote = $state('');
+	let registeringConsent = $state(false);
 
 	// Resultado de la sesión de tokenización sin cobro (retorno desde PlacetoPay).
 	// Se lee una sola vez al montar y la URL se limpia enseguida: recargar o volver
@@ -247,14 +268,37 @@
 	// no pueden contradecirse.
 	let tokenActive = $derived(Boolean(cardPayment?.token) && tokenStatusLabel === 'ACTIVA');
 
+	// Un cargo sin veredicto bloquea cualquier cobro nuevo de la reserva hasta
+	// que se cierre: mientras exista, el modal no ofrece el botón de cobro.
+	// Tope contractual del cobro: el bloqueo de garantía de la propia reserva
+	// (misma fuente que valida el servidor en `#lib/server/collectLimits.js`).
+	let collectCap = $derived(cardReservation?.blockingAmount ?? 0);
+	// Acumulado: aprobados + pendientes, igual que el cálculo del servidor.
+	let chargedTotal = $derived(
+		(cardReservation?.depositCharges || [])
+			.filter((ch) => ch.status === 'APROBADO' || ch.status === 'PENDIENTE')
+			.reduce((sum, ch) => sum + ch.amount, 0)
+	);
+	let collectRemaining = $derived(Math.max(0, collectCap - chargedTotal));
+
+	let pendingCharge = $derived(
+		(cardReservation?.depositCharges || []).find(
+			(ch) => ch.status === 'PENDIENTE' && !ch.resolution
+		) ?? null
+	);
+
 	function openCardModal(r: ReservationItem, mode: 'collect' | 'manage') {
 		cardReservation = r;
 		cardMode = mode;
 		actionMessage = null;
-		collectAmount = r.blockingAmount > 0 ? r.blockingAmount : 150000;
+		collectAmount = r.blockingAmount > 0 ? r.blockingAmount : 0;
 		collectConcept = 'DEDUCIBLE';
 		collectDescription = '';
 		cancelReason = CANCEL_REASONS[0];
+		resolutionAuthorization = '';
+		resolutionNote = '';
+		consentRegisteredBy = '';
+		consentNote = '';
 		cardModalOpen = true;
 	}
 
@@ -311,6 +355,82 @@
 			};
 		} finally {
 			submitting = false;
+		}
+	}
+
+	/**
+	 * Cierra el cobro PENDIENTE de la reserva tras verificarlo en PlacetoPay.
+	 * No ejecuta ni revierte nada en la pasarela: registra la decisión.
+	 */
+	async function resolvePendingCharge(resolution: 'EJECUTADO' | 'NO_EJECUTADO') {
+		if (!pendingCharge) return;
+		resolving = true;
+		actionMessage = null;
+		try {
+			const { ok, data } = await postJson(`/api/payments/collect/${pendingCharge.id}/resolve`, {
+				resolution,
+				authorization: resolution === 'EJECUTADO' ? resolutionAuthorization : undefined,
+				note: resolutionNote
+			});
+			if (ok) {
+				actionMessage = {
+					type: 'success',
+					text: data?.message || 'Cobro cerrado y conciliado.'
+				};
+				resolutionAuthorization = '';
+				resolutionNote = '';
+			} else {
+				actionMessage = {
+					type: 'error',
+					text: data?.error || 'No se pudo cerrar el cobro pendiente.'
+				};
+			}
+			await refreshCardReservation();
+		} catch (err) {
+			actionMessage = {
+				type: 'error',
+				text: (err as Error).message || 'Error de conexión con el servidor.'
+			};
+		} finally {
+			resolving = false;
+		}
+	}
+
+	/**
+	 * Registra el consentimiento de una reserva previa al control.
+	 * La versión y el hash los pone el servidor; aquí solo viajan el responsable
+	 * y el soporte que justifica el registro.
+	 */
+	async function registerConsent() {
+		if (!cardReservation) return;
+		registeringConsent = true;
+		actionMessage = null;
+		try {
+			const { ok, data } = await postJson(
+				`/api/reservations/${cardReservation.id}/terms-consent`,
+				{ registeredBy: consentRegisteredBy, note: consentNote }
+			);
+			if (ok) {
+				actionMessage = {
+					type: 'success',
+					text: data?.message || 'Consentimiento registrado y auditado.'
+				};
+				consentRegisteredBy = '';
+				consentNote = '';
+			} else {
+				actionMessage = {
+					type: 'error',
+					text: data?.error || 'No se pudo registrar el consentimiento.'
+				};
+			}
+			await refreshCardReservation();
+		} catch (err) {
+			actionMessage = {
+				type: 'error',
+				text: (err as Error).message || 'Error de conexión con el servidor.'
+			};
+		} finally {
+			registeringConsent = false;
 		}
 	}
 
@@ -780,7 +900,71 @@
 						</div>
 					{/if}
 
-					{#if cardMode === 'collect' && tokenActive}
+					{#if pendingCharge}
+						<!-- Cobro sin veredicto: se concilia antes de permitir otro cargo -->
+						<div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+							<p class="text-[11px] font-semibold text-amber-200 flex items-center gap-1.5">
+								<i class="fa-solid fa-hourglass-half"></i>
+								Cobro sin veredicto: requiere conciliación
+							</p>
+							<p class="text-[11px] text-amber-100/80">
+								{pendingCharge.concept} · {formatCOP(pendingCharge.amount)} ·
+								{formatDateTime(pendingCharge.createdAt)}
+								{#if pendingCharge.reference}
+									<span class="block font-mono text-[10px] text-amber-300/80 mt-0.5">
+										Referencia: {pendingCharge.reference}
+									</span>
+								{/if}
+							</p>
+							<p class="text-[10px] text-amber-200/70 leading-relaxed">
+								Busca esta referencia en el panel de PlacetoPay. Mientras el cargo no se cierre, el
+								sistema bloquea cualquier cobro nuevo de la reserva para no cobrar dos veces.
+							</p>
+							<div>
+								<label for="resolve-auth-input" class="block text-[10px] font-semibold text-slate-300 mb-1">
+									Autorización del movimiento (solo si se ejecutó)
+								</label>
+								<input
+									id="resolve-auth-input"
+									type="text"
+									bind:value={resolutionAuthorization}
+									placeholder="Ej. 123456789"
+									class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
+								/>
+							</div>
+							<div>
+								<label for="resolve-note-input" class="block text-[10px] font-semibold text-slate-300 mb-1">
+									Motivo del cierre
+								</label>
+								<input
+									id="resolve-note-input"
+									type="text"
+									bind:value={resolutionNote}
+									placeholder="Ej. Timeout de red; no aparece el movimiento en PlacetoPay"
+									class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-amber-500"
+								/>
+							</div>
+							<div class="flex flex-wrap gap-2 pt-1">
+								<button
+									type="button"
+									onclick={() => resolvePendingCharge('EJECUTADO')}
+									disabled={resolving || !resolutionAuthorization.trim()}
+									class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition cursor-pointer disabled:opacity-50"
+								>
+									{#if resolving}<i class="fa-solid fa-circle-notch fa-spin"></i>{/if}
+									Marcar como ejecutado
+								</button>
+								<button
+									type="button"
+									onclick={() => resolvePendingCharge('NO_EJECUTADO')}
+									disabled={resolving || resolutionNote.trim().length < 5}
+									class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-slate-700 hover:bg-slate-600 transition cursor-pointer disabled:opacity-50"
+								>
+									Marcar como no ejecutado
+								</button>
+							</div>
+						</div>
+					{:else if cardMode === 'collect' && tokenActive}
 						<!-- Cobro con el token activo -->
 						<div class="space-y-3">
 							<div>
@@ -809,11 +993,16 @@
 										type="number"
 										step="1000"
 										bind:value={collectAmount}
+										max={collectRemaining}
 										class="w-full pl-7 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono font-bold text-sm focus:outline-none focus:border-orange-500"
-										placeholder="150000"
+										placeholder="0"
 									/>
 								</div>
 								<span class="text-[10px] text-slate-500 mt-1 block">Equivalente a {formatCOP(collectAmount || 0)}</span>
+								<p class="text-[10px] text-slate-500 mt-1">
+									Tope contractual (garantía): {formatCOP(collectCap)} · Cobrado: {formatCOP(chargedTotal)} ·
+									Disponible: {formatCOP(collectRemaining)}
+								</p>
 							</div>
 
 							<div>
@@ -873,6 +1062,76 @@
 
 					<!-- Historial de cargos: evidencia de rechazos recuperables y no recuperables -->
 					<div class="pt-2 border-t border-slate-800">
+						<!-- Evidencia del consentimiento que autoriza estos cobros -->
+						{#if cardReservation.termsHash}
+							{@const manual = Boolean(cardReservation.termsAcceptedBy)}
+							<div class="mb-2 rounded-lg bg-slate-950/60 border border-slate-800/80 px-3 py-2">
+								<p class="text-[10px] text-slate-400">
+									Consentimiento Términos
+									<span class="text-slate-200 font-semibold">v{cardReservation.termsVersion}</span>
+									{#if cardReservation.termsAcceptedAt}
+										· {manual ? 'Registrado el' : 'Aceptado el'}
+										{formatDateTime(cardReservation.termsAcceptedAt)}
+									{/if}
+									{#if cardReservation.termsAcceptedIp}
+										· IP {manual ? 'del registro' : 'del cliente'} {cardReservation.termsAcceptedIp}
+									{/if}
+									{#if manual}· Por {cardReservation.termsAcceptedBy}{/if}
+								</p>
+								<p class="text-[9px] font-mono text-slate-500 mt-0.5 break-all">
+									SHA-256 {cardReservation.termsHash}
+								</p>
+								{#if manual}
+									<p class="text-[9px] text-amber-400/90 mt-0.5 leading-snug">
+										Registro manual (no capturado en el checkout){cardReservation.termsAcceptanceNote
+											? ` · Soporte: ${cardReservation.termsAcceptanceNote}`
+											: ''}
+									</p>
+								{/if}
+							</div>
+						{:else}
+							<div class="mb-2 rounded-lg bg-rose-500/5 border border-rose-500/20 px-3 py-2">
+								<p class="text-[10px] text-rose-300">
+									Sin evidencia de aceptación de términos: esta reserva no admite cobros con token.
+								</p>
+								<div class="mt-2 space-y-1.5">
+									<input
+										type="text"
+										bind:value={consentRegisteredBy}
+										placeholder="Quién registra (nombre o usuario)"
+										aria-label="Responsable del registro de consentimiento"
+										class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white text-[11px] placeholder-slate-500 focus:outline-none focus:border-rose-500"
+									/>
+									<input
+										type="text"
+										bind:value={consentNote}
+										placeholder="Soporte: contrato firmado, mensaje del cliente…"
+										aria-label="Soporte del consentimiento registrado"
+										class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white text-[11px] placeholder-slate-500 focus:outline-none focus:border-rose-500"
+									/>
+									<button
+										type="button"
+										onclick={registerConsent}
+										disabled={registeringConsent ||
+												consentRegisteredBy.trim().length < MANUAL_CONSENT_MIN.registeredBy ||
+												consentNote.trim().length < MANUAL_CONSENT_MIN.note}
+										class="w-full px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-500 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+									>
+										{#if registeringConsent}
+											<i class="fa-solid fa-circle-notch fa-spin"></i>
+											<span>Registrando...</span>
+										{:else}
+											<i class="fa-solid fa-file-signature"></i>
+											<span>Registrar consentimiento</span>
+										{/if}
+									</button>
+									<p class="text-[9px] text-slate-500 leading-relaxed">
+										Se guarda la versión y el hash vigentes, la fecha, la IP del registro y el
+										responsable. No sobrescribe un consentimiento existente.
+									</p>
+								</div>
+							</div>
+						{/if}
 						<span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold block mb-1.5">
 							Cargos aplicados al token
 						</span>
@@ -900,6 +1159,11 @@
 										{#if ch.p2pStatusMessage}
 											<p class="text-[10px] text-slate-400 mt-0.5">{ch.p2pStatusMessage}</p>
 										{/if}
+										{#if ch.consentHash}
+											<p class="text-[9px] font-mono text-slate-500 mt-0.5">
+												Consentimiento v{ch.consentVersion} · {ch.consentHash.slice(0, 12)}…
+											</p>
+										{/if}
 									</div>
 								{/each}
 							</div>
@@ -923,11 +1187,18 @@
 					>
 						Cerrar
 					</button>
-					{#if cardMode === 'collect' && tokenActive}
+					{#if cardMode === 'collect' && tokenActive && !pendingCharge}
 						<button
 							type="button"
 							onclick={submitCollect}
-							disabled={submitting || !collectAmount || collectAmount <= 0}
+							disabled={submitting ||
+								!cardReservation.termsHash ||
+								!collectAmount ||
+								collectAmount <= 0 ||
+								collectAmount > collectRemaining}
+							title={!cardReservation.termsHash
+								? 'Registra el consentimiento de Términos antes de cobrar'
+								: undefined}
 							class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-400 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
 						>
 							{#if submitting}
