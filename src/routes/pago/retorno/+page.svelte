@@ -78,9 +78,13 @@
         setTimeout(() => (copiedCode = false), 2000);
     }
 
-    // Lee los parámetros que envía la pasarela al regresar o el panel administrativo
-    let reference = $derived(page.url.searchParams.get("reference") || "");
-    let requestId = $derived(page.url.searchParams.get("requestId") || "");
+    // Parámetros que envía la pasarela al regresar o el panel administrativo.
+    // Se leen durante el render del componente, no en un `$derived`: tras un HMR
+    // el `$derived` se reevalúa fuera del contexto de la petición y SvelteKit 3
+    // lanza `state_read_outside_render`.
+    const returnParams = page.url.searchParams;
+    const reference = returnParams.get("reference") || "";
+    const requestId = returnParams.get("requestId") || "";
 
     // Fecha y hora reales de la transacción: instante en que la pasarela resolvió el pago
     // (webhook / sonda) y no el momento en que el usuario abre esta pantalla.
