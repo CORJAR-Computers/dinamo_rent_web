@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '#generated/client.js';
 
 /**
  * Vista pública de una reserva: lo justo para consultar el comprobante con el

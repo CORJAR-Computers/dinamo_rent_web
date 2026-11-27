@@ -1,4 +1,6 @@
 node_modules
+# Cliente generado por `prisma generate` (Prisma 7 lo emite en el árbol fuente)
+src/generated/
 .svelte-kit
 build
 dist

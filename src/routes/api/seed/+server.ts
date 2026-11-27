@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db.js';
 import { FLEET_DATABASE } from '#lib/data/fleet.js';
-import type { VehicleCategory, Transmission, FuelType } from '@prisma/client';
+import type { VehicleCategory, Transmission, FuelType } from '#generated/client.js';
 import { isUserAdmin } from '#lib/server/adminAuth.js';
 import { NODE_ENV } from '$app/env/private';
 
