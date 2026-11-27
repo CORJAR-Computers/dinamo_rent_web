@@ -3,9 +3,11 @@
 > **Estado: propuesta, no ejecutada.** Nada de este documento se ha corrido contra la base ni
 > contra PlacetoPay. El objetivo es que el día del corte solo haya que ejecutar, no decidir.
 >
-> Entorno de partida: `https://dinamo-rent-a-car.vercel.app`, `P2P_ENV=test`, checkout en
-> `checkout-test.placetopay.com`. La certificación con Evertec sigue en curso; el estado vive en
-> `docs/HANDOFF_CERTIFICACION_Y_ESTADO.md`.
+> Entorno de partida: `https://dinamorentacar.com` (dominio propio ya adjunto y verificado en el
+> proyecto del team `Dinamo-Corjar`), `P2P_ENV=test`, checkout en `checkout-test.placetopay.com`.
+> La certificación con Evertec sigue en curso; el estado vive en
+> `docs/HANDOFF_CERTIFICACION_Y_ESTADO.md`. El traspaso de cuenta y lo que queda de él se resumen en
+> §0.1 y, con detalle, en el §6 de ese handoff.
 
 ---
 
@@ -16,6 +18,25 @@ El corte es un cambio de variables de entorno, pero su consecuencia no es revers
 existen**. La reserva sigue en la base con su tarjeta «activa» en pantalla y, sin embargo, no se
 puede cobrar contra ella. Por eso el corte se planifica como una operación con inventario,
 re-tokenización y prueba de dinero real, no como un redeploy.
+
+---
+
+## 0.1 Traspaso de cuenta y dominio (27-nov-2026)
+
+El proyecto ya vive en la cuenta de Dinamo (**team `Dinamo-Corjar`, plan pro**) con el dominio propio `https://dinamorentacar.com`. Detalle completo en `docs/HANDOFF_CERTIFICACION_Y_ESTADO.md` §6.
+
+**Ya verificado** (no hay que repetirlo el día del corte):
+
+- Proyecto, dominio `dinamorentacar.com` + `www` (adjuntos y verificados) y alias al despliegue productivo vigente.
+- Link de Git (`CORJAR-Computers/dinamo_rent_web`, `main`) y cron `/api/cron/p2p-check-pending` `0 8 * * *` intactos tras la transferencia.
+- `CRON_SECRET` creado en Production y sonda verificada: 401 sin cabecera, **200** con `Authorization: Bearer …`.
+
+**Pendiente y bloqueante para T0:**
+
+- [ ] **GitHub App de Vercel en la org `CORJAR-Computers`**: la instalación no se hereda con la transferencia. Sin ella un `push` no despliega; el redeploy del corte habría que hacerlo a mano (`vercel deploy` / `vercel redeploy`). Verificar en *Settings → Git* y con un push de prueba.
+- [ ] **DNS de Hostinger apuntando a Vercel**: apex `A 216.198.79.1` y `A 64.29.17.1`; `www CNAME e3afc53ed41a68b1.vercel-dns-017.com`; sin tocar NS, MX ni SPF. Mientras el DNS siga en Hostinger, el `returnUrl` del checkout se arma con el origen de la petición y saldría `*.vercel.app`, no el dominio del comercio. Guía detallada de la edición en Hostinger, verificación y rollback: [`RUNBOOK_CAMBIO_DNS_HOSTINGER_VERCEL.md`](RUNBOOK_CAMBIO_DNS_HOSTINGER_VERCEL.md).
+- [ ] **URL de notificación registrada en la cuenta de producción de Evertec**: `https://dinamorentacar.com/api/webhooks/placetopay`.
+- [ ] `P2P_ENV=prod` + credenciales productivas: es el propio corte (§4).
 
 ---
 
@@ -85,6 +106,10 @@ mostrador.
 **Preliminares (T-7 a T-2)**
 - [ ] Credenciales de producción de Evertec en mano (`P2P_LOGIN`, `P2P_TRAN_KEY`) y confirmación de
       que la cuenta de comercio está habilitada en producción.
+- [ ] Dominio y accesos listos (§0.1): DNS de `dinamorentacar.com` resolviendo a Vercel, URL de
+      notificación `https://dinamorentacar.com/api/webhooks/placetopay` registrada en la cuenta de
+      producción de Evertec y GitHub App de Vercel autorizada en la org (o decidido que el redeploy
+      del corte se hace a mano).
 - [ ] Monto mínimo aceptado por la pasarela y tarjeta propia para el cobro de prueba.
 - [ ] Inventario de §7 ejecutado y firmado, con la lista A cerrada (es la que se toca el día del corte).
 - [ ] Aviso al mostrador: guion, quién re-tokeniza y en qué orden.
@@ -107,8 +132,8 @@ mostrador.
    del paso 5 confirma que las tres quedaron bien cargadas.
 4. **Redeploy** con las tres variables. Aquí empieza el corte efectivo.
 5. **Humo sin dinero** (5 minutos):
-   - `/` responde 200 y el checkout ya no muestra el aviso «No habrá afectación monetaria»
-     (texto del propio checkout de PlacetoPay).
+   - `/` responde 200 en el dominio productivo `https://dinamorentacar.com` y el checkout ya no
+     muestra el aviso «No habrá afectación monetaria» (texto del propio checkout de PlacetoPay).
    - Login admin 200 (`dinamo_admin_session`).
    - Reserva desechable creada en el momento → escudo → «Registrar tarjeta de garantía» con tarjeta
      propia → token `ACTIVO`, `cardLast4` correcto, `tokenValidUntil` poblado.

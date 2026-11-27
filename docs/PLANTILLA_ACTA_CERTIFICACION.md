@@ -32,7 +32,7 @@ Estados admitidos en cada ficha:
 | Escriba | |
 | Comercio | DINAMO RENTA CAR S.A.S. — NIT 900694866-3 |
 | Entorno | `checkout-test.placetopay.com` (sandbox, «No habrá afectación monetaria») |
-| URL del comercio | `https://dinamo-rent-a-car.vercel.app` |
+| URL del comercio | `https://dinamorentacar.com` |
 | Build certificado (`sha` completo) | |
 | Deployment de Production (`sha` corto) | |
 | `P2P_ENV` en el despliegue | `test` |
