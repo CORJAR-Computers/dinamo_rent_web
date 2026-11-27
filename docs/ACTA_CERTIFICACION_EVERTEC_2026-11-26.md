@@ -25,7 +25,7 @@ verificable, no existe para el acta.**
 | Simulador local | `P2P_MOCK` sin definir: el tráfico fue **al sandbox real**, no a un mock |
 | Cliente usado | Dev server local `127.0.0.1:5199` (no el deployment de Vercel) |
 | Build | Build de desarrollo sobre `ea8bd85` (el código certificado no corresponde a un deployment) |
-| Capturas | **Ninguna.** La evidencia es de base de datos (`SyncLog`), no hay ZIP ni `SHA-256` |
+| Capturas | **Ninguna de esta corrida.** La evidencia de estos tres pasos es de base de datos (`SyncLog`) y no hay capturas ni `SHA-256` propios. Las ocho capturas que acompañan al correo son de la corrida de la matriz de escenarios del mismo día (`docs/evidencia/`, escenarios 1, 2, 3, 4a, 4b y 5) |
 | Reserva usada | `DIN-2026-9107` · `cmwxypjf60002jn0847klowx0` · cliente `Ensayo Certificacion Evertec` (CC 1010101010) · Renault Logan, 15–18 dic 2026 · total 624.750 COP · garantía 131.250 COP · nota «ENSAYO E2E certificacion Evertec - borra» |
 
 **Nota de estado posterior (27-nov-2026).** El código con el que se ejecutó esta
@@ -102,7 +102,7 @@ La reserva es de prueba, por eso el soporte lo dice.
 | Snapshot de consentimiento en el cargo | v`2026-11-23` · `c05c732cbdb9…` (copiado de la reserva al crear el cargo) |
 | Audiencia | `SyncLog` `cmwyd08hv0008mng0r1spv9cs`: «Cobro de garantía procesado con token … DEDUCIBLE por 1000 COP (APPROVED)», payload con `reference` y `authorization` |
 | Verificación en el panel | Fila `DEDUCIBLE · $ 1.000 · APROBADO · Autorización 482566` y `Cobrado: $ 1.000 · Disponible: $ 130.250` |
-| `requestId` del Collect | **No disponible en este registro**: la fila se eliminó en la limpieza y el `SyncLog` del cobro no lo incluye. La trazabilidad que queda es la referencia `COL-DIN-2026-9107-MWYD04L9` (y, del lado de Evertec, los registros de la sesión `3972115`). Desde el 27-nov-2026 el endpoint sí lo persiste en el cargo y en el `SyncLog` (pendiente #5, resuelto), así que los cobros nuevos quedan cruzables por ese id. |
+| `requestId` del Collect | **No disponible en este registro**: la fila se eliminó en la limpieza y el `SyncLog` del cobro no lo incluye. La trazabilidad que queda es la referencia `COL-DIN-2026-9107-MWYD04L9` (y, del lado de Evertec, los registros de la sesión `3972115`). Desde el 27-nov-2026 el endpoint sí lo persiste en el cargo y en el `SyncLog` (pendiente #4, resuelto), así que los cobros nuevos quedan cruzables por ese id. |
 | Estado | `CUMPLE` |
 
 ---
@@ -151,11 +151,10 @@ solo en sandbox (sin afectación monetaria); no se anuló.
 |---|---|---|
 | 1 | Sesión asistida con el analista de Evertec | No se ha agendado; esta corrida fue local |
 | 2 | Escenarios 2, 4a, 4b, 5 y webhook de la matriz | No se ejecutaron en esta corrida |
-| 3 | Capturas de pantalla y ZIP con `SHA-256` | No se tomaron; la evidencia es solo de base de datos |
-| 4 | Certificar el **build desplegado**, no el dev server | El código verificado quedó en `main` (`5a5396d`), pero lo certificado fue la corrida sobre el dev server: el build desplegado no es ese commit |
-| 5 | ~~Conservar el `requestId` del Collect en la evidencia~~ **Resuelto (27-nov-2026)** | Antes era un dato derivado que se perdía con la fila borrada; ahora queda en `DepositCharge.p2pRequestId`, en el `SyncLog` del cobro y en la respuesta del endpoint (incluido el caso sin veredicto de la pasarela) |
-| 6 | Limitación del webhook en la cuenta sandbox | Depende de Evertec |
-| 7 | Rotación de `ADMIN_PASSWORD`, `SYNC_TOKEN` y `P2P_TRAN_KEY` | Higiene de credenciales tras la sesión |
+| 3 | Certificar el **build desplegado**, no el dev server | El código verificado quedó en `main` (`5a5396d`), pero lo certificado fue la corrida sobre el dev server: el build desplegado no es ese commit |
+| 4 | Conservar el `requestId` del Collect en la evidencia — **resuelto el 27-nov-2026** | Antes era un dato derivado que se perdía con la fila borrada; ahora queda en `DepositCharge.p2pRequestId`, en el `SyncLog` del cobro y en la respuesta del endpoint (incluido el caso sin veredicto de la pasarela) |
+| 5 | Limitación del webhook en la cuenta sandbox | Depende de Evertec |
+| 6 | Rotación de `ADMIN_PASSWORD`, `SYNC_TOKEN` y `P2P_TRAN_KEY` | Higiene de credenciales tras la sesión |
 
 ---
 
