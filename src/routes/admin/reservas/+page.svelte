@@ -1082,10 +1082,9 @@
 									SHA-256 {cardReservation.termsHash}
 								</p>
 								{#if manual}
+									{@const soporte = cardReservation.termsAcceptanceNote?.trim()}
 									<p class="text-[9px] text-amber-400/90 mt-0.5 leading-snug">
-										Registro manual (no capturado en el checkout){cardReservation.termsAcceptanceNote
-											? ` · Soporte: ${cardReservation.termsAcceptanceNote}`
-											: ''}
+										Registro manual (no capturado en el checkout){soporte ? ` · Soporte: ${soporte}` : ''}
 									</p>
 								{/if}
 							</div>
