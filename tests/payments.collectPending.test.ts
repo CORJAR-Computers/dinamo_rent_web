@@ -227,6 +227,27 @@ describe('POST /api/payments/collect — persistencia previa y bloqueo', () => {
 		});
 	});
 
+	it('guarda el requestId del Collect en el cargo y en el SyncLog del cobro', async () => {
+		state.collectResult = {
+			ok: true,
+			status: 'APPROVED',
+			message: 'Aprobada -',
+			authorization: 'AUTH-1',
+			requestId: '4825661'
+		};
+
+		await cobrar();
+
+		// Con este id se busca el Collect en el panel de PlacetoPay aunque el cargo
+		// se haya borrado con la reserva.
+		expect(state.chargeUpdates[0]).toMatchObject({
+			where: { id: 'chg_nuevo' },
+			data: { p2pRequestId: '4825661' }
+		});
+		const log = state.syncLogs[0].data as Obj;
+		expect(log.payload).toMatchObject({ requestId: '4825661' });
+	});
+
 	it('bloquea un segundo cobro mientras el anterior siga PENDIENTE', async () => {
 		state.pendingCharge = pendingChargeFixture();
 
@@ -250,15 +271,27 @@ describe('POST /api/payments/collect — persistencia previa y bloqueo', () => {
 		expect(state.chargeCreates).toHaveLength(0);
 	});
 
-	it('un cobro sin veredicto deja la referencia en la respuesta para conciliarlo', async () => {
-		state.collectResult = { ok: false, status: 'PENDING', message: 'fetch failed' };
+	it('un cobro sin veredicto deja la referencia y el requestId para conciliarlo', async () => {
+		state.collectResult = {
+			ok: false,
+			status: 'PENDING',
+			message: 'fetch failed',
+			requestId: '3972999'
+		};
 
 		const res = await cobrar();
-		const body = (await res.json()) as { code?: string; reference?: string; chargeId?: string; error?: string };
+		const body = (await res.json()) as {
+			code?: string;
+			reference?: string;
+			requestId?: string | null;
+			chargeId?: string;
+			error?: string;
+		};
 
 		expect(res.status).toBe(502);
 		expect(body.code).toBe('UNCONFIRMED_CHARGE');
 		expect(body.reference).toMatch(/^COL-DIN-2026-0001-/);
+		expect(body.requestId).toBe('3972999');
 		expect(body.chargeId).toBe('chg_nuevo');
 		expect(body.error).toContain('bloquea nuevos cobros');
 		// El cargo sigue PENDIENTE (es lo que impide el reintento a ciegas) y solo
@@ -266,6 +299,9 @@ describe('POST /api/payments/collect — persistencia previa y bloqueo', () => {
 		expect(state.chargeUpdates).toHaveLength(1);
 		expect((state.chargeUpdates[0].data as Obj).status).toBeUndefined();
 		expect((state.chargeUpdates[0].data as Obj).p2pStatusMessage).toBe('fetch failed');
+		expect((state.chargeUpdates[0].data as Obj).p2pRequestId).toBe('3972999');
+		const log = state.syncLogs[0].data as Obj;
+		expect(log.payload).toMatchObject({ requestId: '3972999', status: 'PENDING' });
 	});
 
 	it('un rechazo por validación no deja la reserva bloqueada', async () => {

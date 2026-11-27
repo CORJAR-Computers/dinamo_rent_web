@@ -314,6 +314,11 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     // fue rechazado por el emisor: queda PENDIENTE y no cuenta como intento.
     const unconfirmed = !isApproved && result.status === 'PENDING';
 
+    // Identificador del Collect en PlacetoPay. Se guarda en el cargo, en la
+    // bitácora y en la respuesta para poder localizar la transacción allá aunque
+    // la fila se haya borrado con la reserva.
+    const gatewayRequestId = result.requestId || null;
+
     // 6. Registrar en el log de sincronización
     await db.syncLog.create({
       data: {
@@ -330,6 +335,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
           amount: numericAmount,
           status: result.status,
           authorization: result.authorization,
+          requestId: gatewayRequestId,
         },
       },
     });
@@ -357,7 +363,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
           : // Sin veredicto: el cargo sigue PENDIENTE (bloquea el reintento) y solo
             // se guarda el rastro de la pasarela para quien vaya a conciliarlo.
             {
-              p2pRequestId: result.requestId || null,
+              p2pRequestId: gatewayRequestId,
               p2pStatusMessage: result.message,
             },
       });
@@ -375,6 +381,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
             : `No fue posible confirmar el cobro con la pasarela (${result.message}). El cargo quedó PENDIENTE y bloquea nuevos cobros.${referenceNote} El token de la tarjeta no se modificó.`,
           status: 'PENDING',
           reference,
+          requestId: gatewayRequestId,
           chargeId: chargeRecord.id,
           attempts: 0,
           tokenInvalidation: null,
@@ -389,7 +396,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
       data: {
         status: isApproved ? 'APROBADO' : 'RECHAZADO',
         transactionId: result.authorization || result.receipt || null,
-        p2pRequestId: result.requestId || null,
+        p2pRequestId: gatewayRequestId,
         p2pStatusMessage: result.message,
       },
     });
@@ -490,6 +497,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
         amount: settled.amount,
         concept: settled.concept,
         authorization: settled.transactionId,
+        requestId: gatewayRequestId,
         createdAt: settled.createdAt,
       },
       attempts: 0,
