@@ -28,6 +28,12 @@ verificable, no existe para el acta.**
 | Capturas | **Ninguna.** La evidencia es de base de datos (`SyncLog`), no hay ZIP ni `SHA-256` |
 | Reserva usada | `DIN-2026-9107` · `cmwxypjf60002jn0847klowx0` · cliente `Ensayo Certificacion Evertec` (CC 1010101010) · Renault Logan, 15–18 dic 2026 · total 624.750 COP · garantía 131.250 COP · nota «ENSAYO E2E certificacion Evertec - borra» |
 
+**Nota de estado posterior (27-nov-2026).** El código con el que se ejecutó esta
+corrida —`ea8bd85` más los cambios que entonces estaban sin commitear— ya está
+versionado en `main`: la tanda que lo contiene son los ocho commits de
+`c8902ba` a `5a5396d`, con `5a5396d` como punta. No cambia el alcance de esta
+acta: lo verificado fue el dev server local, no un deployment certificado.
+
 ---
 
 ## 2. Lo ejecutado, en orden
@@ -147,7 +153,7 @@ solo en sandbox (sin afectación monetaria); no se anuló.
 | 2 | Escenarios 2, 4a, 4b, 5 y webhook de la matriz | No se ejecutaron en esta corrida |
 | 3 | Capturas de pantalla y ZIP con `SHA-256` | No se tomaron; la evidencia es solo de base de datos |
 | 4 | Certificar el **build desplegado**, no el dev server | El código verificado no está desplegado (`ea8bd85` + cambios sin commitear) |
-| 5 | Conservar el `requestId` del Collect en la evidencia | La fila se borró con la reserva de ensayo y el `SyncLog` no guarda ese dato |
+| 5 | ~~Conservar el `requestId` del Collect en la evidencia~~ **Resuelto (27-nov-2026)** | Antes era un dato derivado que se perdía con la fila borrada; ahora queda en `DepositCharge.p2pRequestId`, en el `SyncLog` del cobro y en la respuesta del endpoint (incluido el caso sin veredicto de la pasarela) |
 | 6 | Limitación del webhook en la cuenta sandbox | Depende de Evertec |
 | 7 | Rotación de `ADMIN_PASSWORD`, `SYNC_TOKEN` y `P2P_TRAN_KEY` | Higiene de credenciales tras la sesión |
 
