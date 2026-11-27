@@ -34,6 +34,10 @@ correo enviado, que queda en la cuenta de correo, y guardar aquí una copia
 «lista para enviar» daría a entender que el repo registra lo que se mandó. El
 repo conserva las decisiones (este archivo) y la evidencia (acta y capturas).
 
+El **PDF del acta tampoco se versiona**: se genera desde el `.md` con
+`Chrome --headless --print-to-pdf` y se adjunta al correo. Versionarlo invitaría
+a enviar una copia vieja mientras el `.md` sigue cambiando.
+
 ## Adjuntos
 
 | Adjunto | Archivo | Estado |
@@ -45,13 +49,14 @@ Lo que **no** existe y hay que decidir antes de enviar:
 
 - **PDF del acta.** Va en Markdown; si su proceso solo acepta PDF, hay que
   exportarla. Exportar **después** de cerrar el texto: el acta cambió tres veces
-  el 27-nov (nota de estado posterior, pendiente #5 resuelto y la fila «Build»),
+  el 27-nov (nota de estado posterior, pendiente #4 resuelto, la fila «Build»
+  y la de «Capturas»),
   y cualquier copia anterior lleva el texto viejo.
 - **Acta firmada.** La tabla de firmas de §7 está vacía a propósito: el correo la
   presenta como anexo técnico parcial, no como documento firmado.
 - **Evidencia del webhook.** No hay: es lo que se pide en el punto 5.
 - **Certificado del build desplegado.** La corrida fue contra el dev server; el
-  código quedó en `main`, pero no hay deployment certificado (pendiente #4).
+  código quedó en `main`, pero no hay deployment certificado (pendiente #3).
 
 ## Lo que sostiene cada afirmación del correo
 
