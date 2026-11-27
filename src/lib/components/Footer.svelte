@@ -98,7 +98,7 @@
           {/each}
           <p class="flex items-center gap-2">
             <i class="fa-solid fa-envelope text-cyan-400"></i>
-            <span>reservas@dinamorent.com</span>
+            <span>reservas@dinamorentacar.com</span>
           </p>
           <p class="flex items-center gap-2">
             <i class="fa-solid fa-clock text-emerald-400"></i>
