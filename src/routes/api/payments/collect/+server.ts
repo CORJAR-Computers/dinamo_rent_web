@@ -1,6 +1,9 @@
 import { type RequestEvent } from '@sveltejs/kit';
 import { db } from '#lib/server/db.js';
 import { isUserAdmin } from '#lib/server/adminAuth.js';
+import { COLLECT_CONCEPT_VALUES } from '#lib/data/depositCharges.js';
+import { checkCollectAmount, contractCapCOP } from '#lib/server/collectLimits.js';
+import { requestIp } from '#lib/server/clientIp.js';
 import {
   collectPaymentWithToken,
   classifyTokenRejection,
@@ -29,7 +32,29 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     }
 
     if (!concept) {
-      return Response.json({ ok: false, error: 'El concepto del cobro es obligatorio (ej. DEDUCIBLE, GASOLINA, DIAS_EXTRA, MULTA)' }, { status: 400 });
+      return Response.json(
+        {
+          ok: false,
+          code: 'INVALID_CONCEPT',
+          error: `El concepto del cobro es obligatorio. Valores permitidos: ${COLLECT_CONCEPT_VALUES.join(', ')}.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Allowlist de conceptos: el texto libre no llega a la pasarela ni a la
+    // auditoría. La lista vive en `#lib/data/depositCharges.js` y la comparte
+    // el selector del panel, así que no pueden desincronizarse.
+    const cleanConcept = sanitizeGatewayText(concept, 30).toUpperCase();
+    if (!COLLECT_CONCEPT_VALUES.includes(cleanConcept)) {
+      return Response.json(
+        {
+          ok: false,
+          code: 'INVALID_CONCEPT',
+          error: `Concepto no admitido: "${cleanConcept}". Valores permitidos: ${COLLECT_CONCEPT_VALUES.join(', ')}.`,
+        },
+        { status: 400 }
+      );
     }
 
     // 2. Obtener reserva y verificar disponibilidad del token de garantía
@@ -43,6 +68,21 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
 
     if (!reservation) {
       return Response.json({ ok: false, error: 'Reserva no encontrada' }, { status: 404 });
+    }
+
+    // 2.a Sin evidencia de aceptación de términos no hay consentimiento que
+    // autorice el cargo. Se rechaza antes de tocar la pasarela y antes de crear
+    // el cargo, para no dejar un pendiente que luego no se pueda justificar.
+    if (!reservation.termsVersion || !reservation.termsHash || !reservation.termsAcceptedAt) {
+      return Response.json(
+        {
+          ok: false,
+          code: 'NO_CONSENT',
+          error:
+            'La reserva no tiene registrada la aceptación de Términos y Condiciones (versión, hash, fecha e IP). Sin ese consentimiento no se puede ejecutar el cobro: un administrador puede registrarlo desde el panel de reservas.',
+        },
+        { status: 400 }
+      );
     }
 
     const { payment } = reservation;
@@ -113,25 +153,145 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     // antes de enviarla a Collect. El texto libre del administrador no se
     // persiste: en DepositCharge queda esta misma versión saneada, que es la
     // que se envió a la pasarela y la que sirve de auditoría del cargo.
-    const cleanConcept = sanitizeGatewayText(concept, 30).toUpperCase() || 'OTRO';
     const detail = sanitizeGatewayText(description, 120);
     const cleanDescription = sanitizeGatewayText(
       `Dinamo Rent: ${cleanConcept} - ${detail || 'Cargos segun contrato'} (Reserva ${reservation.code})`,
       200
     );
 
-    let clientIp = '127.0.0.1';
-    try {
-      clientIp = getClientAddress();
-    } catch {
-      clientIp =
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
-    }
+    const clientIp = requestIp({ request, getClientAddress });
     // Guía de Suscripción §10.2: IP y agente de navegación reales del usuario que origina el cobro.
     const userAgent =
       request.headers.get('user-agent') || 'DinamoRentAdmin/1.0 Server-Collect';
 
-    // 4. Ejecutar cobro Server-to-Server directo vía Place to Pay
+    // 4. Persistir la intención ANTES de llamar a la pasarela.
+    //
+    // El cargo nace PENDIENTE con su referencia: si la respuesta del Collect se
+    // pierde (timeout, error de red, función cortada a mitad), la fila queda como
+    // el único rastro de que hubo un intento y con qué referencia buscarlo en
+    // PlacetoPay. Desde ese momento bloquea nuevos cobros de la reserva hasta que
+    // una persona lo cierre como ejecutado o no ejecutado.
+    //
+    // El lock asesor (por reserva) serializa dos cobros simultáneos del mismo
+    // contrato: el segundo espera al primero y, al releer, ve su cargo en vez de
+    // colarse entre la comprobación y la inserción. Es un lock de transacción y
+    // no escribe ninguna fila: tocar `payments.updatedAt` aquí alargaría la
+    // ventana de pago pendiente que usa create-session.
+    const chargeOutcome = await db.$transaction(async (txn) => {
+      await txn.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${reservation.id}))`;
+
+      const unresolved = await txn.depositCharge.findFirst({
+        where: { reservationId: reservation.id, status: 'PENDIENTE', resolution: null },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (unresolved) return { blocked: unresolved } as const;
+
+      // Tope contractual: `Reservation.blockingAmount` (ver collectLimits.ts).
+      // Sin garantía no hay límite contra el que validar, así que no se cobra.
+      const cap = contractCapCOP(reservation.blockingAmount);
+      if (cap === null) {
+        return {
+          rejected: {
+            code: 'NO_GUARANTEE',
+            status: 400,
+            error:
+              'La reserva no tiene monto de garantía (blockingAmount), así que no hay tope contractual contra el que validar el cobro. Revisa la reserva antes de cobrar.',
+            limits: null,
+          },
+        } as const;
+      }
+
+      // Acumulado de la reserva: lo aprobado más lo pendiente sin resolver. Se
+      // lee dentro de la transacción, con el lock asesor tomado, para que dos
+      // cobros simultáneos no sumen su importe contra el mismo saldo.
+      const charged = await txn.depositCharge.findMany({
+        where: {
+          reservationId: reservation.id,
+          status: { in: ['APROBADO', 'PENDIENTE'] },
+        },
+        select: { amount: true },
+      });
+      const alreadyCharged = charged.reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
+
+      const limit = checkCollectAmount({ amount: numericAmount, cap, alreadyCharged });
+      if (!limit.ok) {
+        return {
+          rejected: {
+            code: limit.code,
+            status: 400,
+            error: limit.error,
+            limits: {
+              cap: limit.cap,
+              alreadyCharged: limit.alreadyCharged,
+              remaining: limit.remaining,
+            },
+          },
+        } as const;
+      }
+
+      const created = await txn.depositCharge.create({
+        data: {
+          reservationId: reservation.id,
+          amount: numericAmount,
+          concept: cleanConcept,
+          description: cleanDescription,
+          status: 'PENDIENTE',
+          reference,
+          executedBy: 'ADMIN',
+          consentVersion: reservation.termsVersion,
+          consentHash: reservation.termsHash,
+        },
+      });
+
+      return { charge: created } as const;
+    });
+
+    const blocked = 'blocked' in chargeOutcome ? chargeOutcome.blocked : undefined;
+
+    if (blocked) {
+      const pending = blocked;
+      return Response.json(
+        {
+          ok: false,
+          code: 'PENDING_CHARGE',
+          error: `Esta reserva tiene un cobro PENDIENTE sin resolver (${pending.concept} por ${pending.amount} COP, referencia ${pending.reference ?? 'sin referencia'}). Ciérralo como ejecutado o no ejecutado antes de iniciar otro cobro.`,
+          pending: {
+            id: pending.id,
+            reference: pending.reference,
+            amount: pending.amount,
+            concept: pending.concept,
+            createdAt: pending.createdAt,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
+    const rejected = 'rejected' in chargeOutcome ? chargeOutcome.rejected : undefined;
+
+    if (rejected) {
+      return Response.json(
+        {
+          ok: false,
+          code: rejected.code,
+          error: rejected.error,
+          ...(rejected.limits ? { limits: rejected.limits } : {}),
+        },
+        { status: rejected.status }
+      );
+    }
+
+    const chargeRecord = 'charge' in chargeOutcome ? chargeOutcome.charge : undefined;
+
+    if (!chargeRecord) {
+      return Response.json(
+        { ok: false, error: 'No se pudo registrar el intento de cobro. No se llamó a la pasarela.' },
+        { status: 500 }
+      );
+    }
+
+    // 5. Ejecutar cobro Server-to-Server directo vía Place to Pay
     const result = await collectPaymentWithToken({
       token: payment.token,
       reference,
@@ -154,21 +314,6 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
     // fue rechazado por el emisor: queda PENDIENTE y no cuenta como intento.
     const unconfirmed = !isApproved && result.status === 'PENDING';
 
-    // 5. Registrar en auditoría de cobros de garantía (DepositCharge)
-    const chargeRecord = await db.depositCharge.create({
-      data: {
-        reservationId: reservation.id,
-        amount: numericAmount,
-        concept: cleanConcept,
-        description: cleanDescription,
-        status: isApproved ? 'APROBADO' : unconfirmed ? 'PENDIENTE' : 'RECHAZADO',
-        transactionId: result.authorization || result.receipt || null,
-        p2pRequestId: result.requestId || null,
-        p2pStatusMessage: result.message,
-        executedBy: 'ADMIN',
-      },
-    });
-
     // 6. Registrar en el log de sincronización
     await db.syncLog.create({
       data: {
@@ -179,6 +324,7 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
         message: `Cobro de garantía procesado con token para reserva ${reservation.code}: ${cleanConcept} por ${numericAmount} COP (${result.status})`,
         payload: {
           chargeId: chargeRecord.id,
+          reference,
           reservationCode: reservation.code,
           concept: cleanConcept,
           amount: numericAmount,
@@ -188,20 +334,48 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
       },
     });
 
-    // 6.b La pasarela no confirmó el cobro: se responde 502 sin tocar el token.
+    // 7. La pasarela no confirmó el cobro: se responde 502 sin tocar el token.
     // Invalidarlo aquí desvincularía la tarjeta del cliente por un fallo de
     // comunicación nuestro, no por un rechazo del emisor.
     if (unconfirmed) {
       // Un error de validación del request no deja cargo en la pasarela: el
-      // mensaje se lo dice al administrador para que corrija el dato.
+      // mensaje se lo dice al administrador para que corrija el dato. En ese caso
+      // no hay nada que conciliar, así que el cargo se retira de la lista de
+      // pendientes en vez de bloquear la reserva para siempre.
       const validationFailure = result.error === 'Solicitud rechazada por validación de la pasarela';
+
+      await db.depositCharge.update({
+        where: { id: chargeRecord.id },
+        data: validationFailure
+          ? {
+              status: 'RECHAZADO',
+              resolution: 'NO_EJECUTADO',
+              resolutionNote: 'Rechazado por validación de la pasarela: el cobro no se ejecutó.',
+              resolvedAt: new Date(),
+              p2pStatusMessage: result.message,
+            }
+          : // Sin veredicto: el cargo sigue PENDIENTE (bloquea el reintento) y solo
+            // se guarda el rastro de la pasarela para quien vaya a conciliarlo.
+            {
+              p2pRequestId: result.requestId || null,
+              p2pStatusMessage: result.message,
+            },
+      });
+
+      const referenceNote = validationFailure
+        ? ''
+        : ` El intento quedó registrado con la referencia ${reference}: búscala en el panel de PlacetoPay y ciérralo como ejecutado o no ejecutado en el panel de reservas antes de reintentar.`;
+
       return Response.json(
         {
           ok: false,
+          code: 'UNCONFIRMED_CHARGE',
           error: validationFailure
             ? `${result.message} El cobro no se ejecutó y el token de la tarjeta no se modificó.`
-            : `No fue posible confirmar el cobro con la pasarela (${result.message}). El cargo quedó PENDIENTE: verifícalo en el panel de PlacetoPay antes de reintentar. El token de la tarjeta no se modificó.`,
+            : `No fue posible confirmar el cobro con la pasarela (${result.message}). El cargo quedó PENDIENTE y bloquea nuevos cobros.${referenceNote} El token de la tarjeta no se modificó.`,
           status: 'PENDING',
+          reference,
+          chargeId: chargeRecord.id,
           attempts: 0,
           tokenInvalidation: null,
         },
@@ -209,7 +383,18 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
       );
     }
 
-    // 7. Control de rechazos e invalidación del token (Guía de Suscripción §8)
+    // 8. Completar el cargo con el veredicto de la pasarela
+    const settled = await db.depositCharge.update({
+      where: { id: chargeRecord.id },
+      data: {
+        status: isApproved ? 'APROBADO' : 'RECHAZADO',
+        transactionId: result.authorization || result.receipt || null,
+        p2pRequestId: result.requestId || null,
+        p2pStatusMessage: result.message,
+      },
+    });
+
+    // 9. Control de rechazos e invalidación del token (Guía de Suscripción §8)
     // - Rechazos definitivos (robada, perdida, bloqueada, vencida, inválida, uso restringido) → invalidación inmediata.
     // - Cualquier otro rechazo (ej. fondos insuficientes) → máximo 3 intentos consecutivos antes de invalidar.
     let attempts = 1;
@@ -220,11 +405,14 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
         where: { reservationId: reservation.id },
         orderBy: { createdAt: 'desc' },
         take: 10,
-        select: { status: true },
+        select: { status: true, resolution: true },
       });
 
       attempts = 0;
       for (const charge of recentCharges) {
+        // Un cargo cerrado a mano como NO_EJECUTADO no fue veredicto del emisor:
+        // no suma intento ni corta la racha de rechazos reales.
+        if (charge.resolution === 'NO_EJECUTADO') continue;
         if (charge.status === 'RECHAZADO') attempts += 1;
         else break;
       }
@@ -297,11 +485,12 @@ export const POST = async ({ request, cookies, getClientAddress }: RequestEvent)
       ok: true,
       message: 'Cobro de garantía procesado exitosamente.',
       charge: {
-        id: chargeRecord.id,
-        amount: chargeRecord.amount,
-        concept: chargeRecord.concept,
-        authorization: chargeRecord.transactionId,
-        createdAt: chargeRecord.createdAt,
+        id: settled.id,
+        reference: settled.reference,
+        amount: settled.amount,
+        concept: settled.concept,
+        authorization: settled.transactionId,
+        createdAt: settled.createdAt,
       },
       attempts: 0,
     });
