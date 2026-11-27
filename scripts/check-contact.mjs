@@ -58,7 +58,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const CONTACT_FILE = join('src', 'lib', 'data', 'contact.ts');
 
 const EXTENSIONS = new Set(['.ts', '.svelte', '.js', '.mjs', '.html', '.css', '.json', '.md', '.sql', '.prisma']);
-const SKIP_DIRS = new Set(['node_modules', '.svelte-kit', '.vercel', '.git', 'mejoras', 'dist', 'build']);
+const SKIP_DIRS = new Set(['node_modules', '.svelte-kit', '.vercel', '.git', 'mejoras', 'dist', 'build', 'generated']);
 const SKIP_FILES = new Set(['package-lock.json']);
 
 // ---------------------------------------------------------------------------

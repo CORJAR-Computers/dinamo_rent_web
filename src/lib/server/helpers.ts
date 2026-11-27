@@ -1,7 +1,7 @@
 // Helpers compartidos del backend: formato COP, fechas, códigos, tarjetas,
 // planes de seguro y extras. Sincronizados con el bookingStore del frontend.
 
-import type { InsurancePlan } from '@prisma/client';
+import type { InsurancePlan } from '#generated/client.js';
 import { calcRentalDays, rentalWindow } from '#lib/utils/rentalDays.js';
 
 export function formatCOP(value: number): string {

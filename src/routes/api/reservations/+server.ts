@@ -9,7 +9,7 @@ import {
   calcBlockingAmount,
   type ExtrasSelection,
 } from '#lib/server/helpers.js';
-import type { InsurancePlan } from '@prisma/client';
+import type { InsurancePlan } from '#generated/client.js';
 
 import { isUserAdmin } from '#lib/server/adminAuth.js';
 import { currentTermsConsent } from '#lib/server/termsConsent.js';

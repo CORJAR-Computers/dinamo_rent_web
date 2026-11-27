@@ -14,7 +14,8 @@
  * esa lista para poder aplicarla a la base sin pasar por el endpoint de seed,
  * que está deshabilitado en producción.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client.ts';
 
 // Carga DATABASE_URL desde .env sin imprimir valores (Node >= 20.12).
 try {
@@ -23,7 +24,14 @@ try {
   // Sin .env: se usa la variable de entorno ya presente en la shell.
 }
 
-const prisma = new PrismaClient({ log: ['error'] });
+// Prisma 7 exige driver adapter; `pg` no trae timeout de conexión por defecto.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 10_000,
+  }),
+  log: ['error'],
+});
 
 const APPLY = process.argv.includes('--apply');
 

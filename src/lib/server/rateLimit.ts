@@ -14,7 +14,7 @@
  */
 
 import crypto from 'crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '#generated/client.js';
 import { db } from '#lib/server/db.js';
 
 export interface RateLimitOptions {

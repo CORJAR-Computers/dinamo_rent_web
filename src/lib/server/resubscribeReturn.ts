@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '#generated/client.js';
 import { db } from '#lib/server/db.js';
 import { queryPaymentSession } from '#lib/server/placetopay.js';
 import { revokeReplacedToken } from '#lib/server/tokenReplacement.js';

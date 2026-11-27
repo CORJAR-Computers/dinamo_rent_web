@@ -1,7 +1,7 @@
 import { type RequestHandler } from '@sveltejs/kit';
 import { prisma } from '#lib/server/db.js';
 import { isUserAdmin } from '#lib/server/adminAuth.js';
-import type { VehicleCategory, Transmission, FuelType } from '@prisma/client';
+import type { VehicleCategory, Transmission, FuelType } from '#generated/client.js';
 
 function normalizeCategory(cat: string): VehicleCategory {
 	const c = (cat || '').toUpperCase().trim();

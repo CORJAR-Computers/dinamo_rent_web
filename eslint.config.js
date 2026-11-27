@@ -6,7 +6,7 @@ import svelte from 'eslint-plugin-svelte';
 export default ts.config(
 	{
 		// mejoras/ son páginas borradoras fuera de src/routes: no se compilan ni se sirven.
-		ignores: ['.svelte-kit/**', 'build/**', 'dist/**', '.vercel/**', 'node_modules/**', 'mejoras/**']
+		ignores: ['.svelte-kit/**', 'build/**', 'dist/**', '.vercel/**', 'node_modules/**', 'mejoras/**', 'src/generated/**']
 	},
 	js.configs.recommended,
 	...ts.configs.recommended,
