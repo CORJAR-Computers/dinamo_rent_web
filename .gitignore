@@ -16,9 +16,9 @@ Thumbs.db
 
 .env*
 
-# La respuesta a Evertec no se versiona: el original es el correo enviado. Las
+# Las respuestas a Evertec no se versionan: el original es el correo enviado. Las
 # decisiones de envío quedan en docs/NOTAS_ENVIO_EVERTEC.md.
-docs/RESPUESTA_EVERTEC.txt
+docs/RESPUESTA_EVERTEC*.txt
 
 # El PDF del acta se genera desde el .md y se adjunta; versionarlo invitaría a
 # enviar una copia vieja. Se exporta al enviar.
