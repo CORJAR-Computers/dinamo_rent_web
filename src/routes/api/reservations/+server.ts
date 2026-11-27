@@ -12,6 +12,7 @@ import {
 import type { InsurancePlan } from '@prisma/client';
 
 import { isUserAdmin } from '#lib/server/adminAuth.js';
+import { currentTermsConsent } from '#lib/server/termsConsent.js';
 import { PICKUP_LOCATIONS, normalizePickupLocation } from '#lib/data/fleet.js';
 import { validateDocumentNumber, normalizeDocType } from '#lib/utils/documentValidation.js';
 import { checkRateLimit } from '#lib/server/rateLimit.js';
@@ -160,12 +161,30 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
       insurancePlan = 'TOTAL',
       extras = {},
       signatureDataUrl,
+      termsAccepted,
       notes,
     } = b || {};
 
     if (!vehicleId || !pickupDate || !returnDate || !customerName || !customerEmail || !customerPhone || !customerIdNumber) {
       return Response.json({ ok: false, error: 'Faltan campos obligatorios para la reserva' }, { status: 400 });
     }
+
+    // Sin aceptación no hay consentimiento que guardar: la reserva no se crea.
+    // La versión y el hash los pone el servidor desde el documento vigente; el
+    // cliente solo declara que lo aceptó, nunca qué texto aceptó.
+    if (termsAccepted !== true) {
+      return Response.json(
+        {
+          ok: false,
+          code: 'TERMS_NOT_ACCEPTED',
+          error: 'Debes aceptar los Términos y Condiciones del servicio para completar la reserva.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const termsConsent = currentTermsConsent();
+    const termsAcceptedAt = new Date();
 
     // Horas de entrega y devolución: formato HH:MM. Un valor inválido cae al
     // horario por defecto en lugar de guardarse tal cual en la base.
@@ -346,6 +365,10 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
           docPhotoUrl: docPhotoUrl || null,
           licensePhotoUrl: licensePhotoUrl || null,
           notes: notes || null,
+          termsVersion: termsConsent.version,
+          termsHash: termsConsent.hash,
+          termsAcceptedAt,
+          termsAcceptedIp: clientIp,
         },
         include: {
           vehicle: true,
