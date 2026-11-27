@@ -7,11 +7,11 @@
   import { page } from '$app/state';
 
   let { children } = $props();
-
-  let isAdmin = $derived(page.url.pathname.startsWith('/admin'));
 </script>
 
-{#if isAdmin}
+<!-- Se evalúa durante el render: un `$derived` se lee fuera del contexto de la
+     petición tras un HMR y SvelteKit 3 lanza `state_read_outside_render`. -->
+{#if page.url.pathname.startsWith('/admin')}
   {@render children?.()}
 {:else}
   <div class="flex flex-col min-h-screen bg-slate-950 text-slate-100 selection:bg-orange-500 selection:text-white print:bg-white">
