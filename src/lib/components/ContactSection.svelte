@@ -101,7 +101,7 @@
         <i class="fa-solid fa-location-dot text-orange-400 mr-1.5"></i> Oficina: {OFFICE_ADDRESS_CITY}
       </a>
       <span class="text-slate-700 mx-2">•</span>
-      <i class="fa-solid fa-envelope text-cyan-400 mr-1.5"></i> reservas@dinamorent.com
+      <i class="fa-solid fa-envelope text-cyan-400 mr-1.5"></i> reservas@dinamorentacar.com
       <span class="text-slate-700 mx-2">•</span>
       <i class="fa-solid fa-clock text-emerald-400 mr-1.5"></i> Lunes a Domingo, 24 Horas
     </p>

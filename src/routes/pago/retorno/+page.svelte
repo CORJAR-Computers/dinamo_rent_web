@@ -704,7 +704,7 @@
             <p class="mt-3">
                 Comunícate con la central de reservas: {CONTACT_PHONES.join(
                     " · ",
-                )} · reservas@dinamorent.com
+                )} · reservas@dinamorentacar.com
             </p>
         </article>
     {/if}
@@ -721,7 +721,7 @@
             <p>NIT 900694866-3</p>
             <p>{OFFICE_ADDRESS_CITY}, Colombia</p>
             <p>Tel. {CONTACT_PHONES.join(" · ")}</p>
-            <p>reservas@dinamorent.com</p>
+            <p>reservas@dinamorentacar.com</p>
         </div>
         <div class="text-right">
             <p class="font-heading font-black text-base uppercase">{titulo}</p>
