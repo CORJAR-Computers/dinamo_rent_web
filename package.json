@@ -11,7 +11,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-contact.mjs",
+    "check": "node scripts/check.mjs",
     "check:contact": "node scripts/check-contact.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
