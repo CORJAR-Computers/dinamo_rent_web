@@ -194,6 +194,19 @@ model Reservation {
   licensePhotoUrl  String?           // Foto digitalizada de la Licencia de Conducción
   notes            String?
 
+  // Evidencia de aceptación de los Términos y Condiciones en el checkout web:
+  // versión del documento, SHA-256 del texto aceptado, fecha e IP de la aceptación.
+  termsVersion    String?
+  termsHash       String?
+  termsAcceptedAt DateTime?
+  termsAcceptedIp String?
+  // Rastro de esa evidencia. `termsAcceptedBy` nulo = aceptada por el cliente en
+  // el checkout; con valor = registrada manualmente por ese administrador para
+  // una reserva anterior al control (y en ese caso `termsAcceptedIp` es la IP
+  // del registro, no la del cliente). `termsAcceptanceNote` es su soporte.
+  termsAcceptedBy     String?
+  termsAcceptanceNote String?
+
   // Sincronización con Software de Escritorio (Mostrador)
   synced     Boolean   @default(false)
   syncedAt   DateTime?
@@ -264,9 +277,26 @@ model DepositCharge {
   p2pRequestId     String?
   p2pStatusMessage String?
   executedBy       String        @default("ADMIN")
+
+  // Idempotencia y conciliación del cobro con token.
+  // `reference` se persiste ANTES de llamar a la pasarela: si la respuesta se
+  // pierde, es el único dato con el que el cargo se puede localizar en PlacetoPay.
+  reference        String?       @unique
+  // Cierre manual de un cobro que quedó PENDIENTE sin veredicto:
+  // "EJECUTADO" (el dinero sí salió, con su autorización) o "NO_EJECUTADO".
+  resolution       String?
+  resolutionNote   String?
+  resolvedAt       DateTime?
+  // Snapshot del consentimiento que autorizó este cargo, copiado de la reserva
+  // al crearlo: el cargo queda atado al documento aceptado aunque la reserva
+  // se edite después.
+  consentVersion   String?
+  consentHash      String?
+
   createdAt        DateTime      @default(now())
 
   @@index([reservationId])
+  @@index([reservationId, status])
   @@map("deposit_charges")
 }
 
