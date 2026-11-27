@@ -116,6 +116,11 @@ dinamo_rent_web/
 > `nvm use` / `fnm use` en la raíz del proyecto lee `.nvmrc`; sin gestor de versiones,
 > npm avisa con `EBADENGINE` al instalar.
 
+> 🪟 **En Windows, activa además el Modo para desarrolladores** (Configuración → Sistema →
+> Para desarrolladores). `adapter-vercel` crea symlinks en `.vercel/output` y Windows solo lo
+> permite a un administrador o con esa opción activa: sin ella, `VERCEL=1 npm run build` falla
+> con `EPERM: operation not permitted, symlink`. El CI corre en Ubuntu y no lo necesita.
+
 ### 2. Clonar el Repositorio
 
 ```bash
