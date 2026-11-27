@@ -3,7 +3,7 @@
 
 - **Fecha de corte:** Noviembre 26, 2026
 - **Comercio:** DINAMO RENTA CAR S.A.S. (NIT: 900694866-3)
-- **Dominio productivo Web:** `https://dinamo-rent-a-car.vercel.app/`
+- **Dominio productivo Web:** `https://dinamorentacar.com/` (dominio propio, adjunto y verificado en el proyecto del team `Dinamo-Corjar`; el DNS todavía resuelve a Hostinger — ver §6.2)
 - **Repositorio Web:** `D:\Proyectos\Dinamo_Rent_a_Car WEB` (`CORJAR-Computers/dinamo_rent_web`, rama `main`)
 - **Repositorio Escritorio (ERP Mostrador):** `D:\dinamo_rent_tr` (`CORJAR-Computers/dinamo_rent_tr`, rama `main`)
 - **Stack Tecnológico Web:** SvelteKit 3, Svelte 5 (Runes), TailwindCSS, Prisma ORM, PostgreSQL (Neon Serverless), Vercel.
@@ -60,9 +60,12 @@ Se superaron y blindaron las 4 observaciones principales formuladas por el anali
      }
      ```
      *(Se ejecuta a las 08:00 UTC / 03:00 AM hora de Colombia, en horario de bajo tráfico, cumpliendo con la cuota de Vercel Hobby y con la directriz de producción de Evertec).*
-  - **Sonda manual para sesión de prueba:** Durante la llamada de certificación con Evertec, se puede disparar en vivo vía:
-    `curl -H "Authorization: Bearer $CRON_SECRET" https://dinamo-rent-a-car.vercel.app/api/cron/p2p-check-pending`
-    (la sonda exige el bearer en todos los entornos; `?test=true` solo se acepta fuera de producción).
+     - **Sonda manual para sesión de prueba:** Durante la llamada de certificación con Evertec, se puede disparar en vivo vía:
+     `curl -H "Authorization: Bearer $CRON_SECRET" https://dinamorentacar.com/api/cron/p2p-check-pending`
+
+     > ⚠️ **Mientras el DNS siga en Hostinger, ese comando no funciona:** `dinamorentacar.com` todavía no resuelve a Vercel. Usar el origen `*.vercel.app` del despliegue vigente (`dinamo-rent-a-ajl4et3bw-dinamo-corjar.vercel.app`), p. ej. `curl -H "Authorization: Bearer $CRON_SECRET" https://dinamo-rent-a-ajl4et3bw-dinamo-corjar.vercel.app/api/cron/p2p-check-pending`. El dominio productivo se puede usar en cuanto se aplique el cambio de DNS descrito en §6.2.
+
+     (la sonda exige el bearer en todos los entornos; `?test=true` solo se acepta fuera de producción).
   - **Barrido de tokens vencidos:** la misma ejecución diaria marca `EXPIRADO` todo `payment` con `tokenValidUntil` ya cumplido (excluye los `CANCELADO` y `EXPIRADO`), escribe su `SyncLog` (`purpose: "EXPIRACION"`, `source: "CRON"`) y **no** llama a la pasarela. La respuesta incluye `expiredTokenCount` y `expiredTokens`; con eso el estado no depende de que alguien intente cobrar.
 - **Panel con el token cancelado (26-nov-2026):** en `/admin/reservas`, una reserva cuyo token quedó `CANCELADO` ya no ofrece el botón de cobro: la fila muestra solo «Actualizar medio de pago» (re-tokenización) y el modal del último cargo rechazado cierra con «Cerrar», sin CTA de reintento. El ajuste está integrado en `main` (`3e52a65`, PR #15 `fix/cobro-token-cancelado`): el CTA exige un token `ACTIVO` y, tras un rechazo, la reserva se relee de la base antes de decidir qué ofrecer, de modo que el panel nunca propone un cobro que la pasarela va a rechazar.
 
@@ -185,13 +188,13 @@ El esquema en `prisma/schema.prisma` (PostgreSQL en Neon) incluye:
 | `DATABASE_URL` | Pooler Neon PostgreSQL con SSL | Configurado |
 | `DIRECT_URL` | Conexión directa Neon PostgreSQL | Configurado |
 | `NODE_ENV` | Entorno de ejecución | `production` |
-| `P2P_ENV` | Entorno PlacetoPay (`test` / `prod`); **obligatoria con `NODE_ENV=production`** | `test` (cambiar a `prod` post-certificación) |
+| `P2P_ENV` | Entorno PlacetoPay (`test` / `prod`); **obligatoria con `NODE_ENV=production`** | `test` — verificado el 27-nov-2026 leyendo el valor real del proyecto (cambiar a `prod` post-certificación, §6.2) |
 | `P2P_LOGIN` | Identificador de comercio Evertec | Credencial oficial Dinamo Rent |
 | `P2P_TRAN_KEY` | Llave transaccional secreta Evertec | Credencial oficial Dinamo Rent |
 | `P2P_MOCK` | Simulador local de la pasarela (solo desarrollo/test) | `false` / ausente: en producción el simulador está deshabilitado aunque el flag llegue a `true` |
 | `P2P_RETURN_URL` | **No la lee el código**: el `returnUrl` se arma con el origen de la petición (`create-session` y `resubscribe`) | Puede seguir en Vercel sin efecto; el valor real es el del dominio que atiende la reserva |
-| `P2P_NOTIFICATION_URL` | **No la lee el código**: la URL de notificación se registra en el panel de Evertec (ver §2.2 y el documento técnico §5.6) | `https://dinamo-rent-a-car.vercel.app/api/webhooks/placetopay` — confirmar que esté registrada en la cuenta de sandbox |
-| `CRON_SECRET` | Secreto de la sonda (`Authorization: Bearer …`); **obligatorio**: sin él la sonda responde 401 (fail closed) | Debe estar configurado en Vercel; Vercel Cron envía la cabecera sola. `?test=true` solo se acepta fuera de producción |
+| `P2P_NOTIFICATION_URL` | **No la lee el código**: la URL de notificación se registra en el panel de Evertec (ver §2.2 y el documento técnico §5.6) | `https://dinamorentacar.com/api/webhooks/placetopay` — falta confirmar que esté registrada en la cuenta de **producción** de Evertec (la de sandbox ya no aplica al corte, §6.2) |
+| `CRON_SECRET` | Secreto de la sonda (`Authorization: Bearer …`); **obligatorio**: sin él la sonda responde 401 (fail closed) | **Configurado en Production el 27-nov-2026** (32 bytes aleatorios, cargado por stdin, tipo Secret, valor no versionado). Verificado por HTTP: 401 sin cabecera y **200** con Bearer. Vercel Cron envía la cabecera sola. `?test=true` solo se acepta fuera de producción. Evidencia: `docs/evidencias/SONDA_200_PRODUCCION_2026-11-27.txt` |
 | `ADMIN_PASSWORD` | Contraseña acceso `/admin` | Clave **temporal de certificación**, rotada al cierre (valor solo en Vercel y en el correo a Evertec) |
 | `ADMIN_SECRET` | Llave secreta HMAC firma de cookies admin | Configurado |
 | `DESKTOP_SYNC_TOKEN` | Token para sincronización de escritorio | Configurado |
@@ -202,7 +205,36 @@ El esquema en `prisma/schema.prisma` (PostgreSQL en Neon) incluye:
 
 ---
 
-## 6. Procedimiento para la Salida a Producción (Checklist Final)
+## 6. Traspaso de la cuenta, dominio y accesos (27-nov-2026)
+
+**Motivo:** Vercel Hobby prohíbe el uso comercial y el proyecto vivía en la cuenta de agencia (`corjar`). Antes del go-live, el proyecto se transfirió a la cuenta de Dinamo para que facturación, credenciales, datos y dominio queden en cuentas del comercio. La lista de comprobación es el checklist final de §7.
+
+### 6.1 Verificado tras la transferencia
+
+| Elemento | Estado comprobado |
+|---|---|
+| Cuenta y proyecto | Team **Dinamo-Corjar** (plan **pro**) contiene `dinamo-rent-a-car`; se conserva el mismo proyecto `prj_hoVe6pt2KAMlylXpJKeA87O0yJfu` (no se reimportó) |
+| Dominio | `dinamorentacar.com` y `www.dinamorentacar.com` adjuntos al proyecto, con `project.verified: true` y `domainOwnership: current-scope`. Ambos alias apuntan al despliegue de producción vigente |
+| Enlace local al proyecto | `vercel link` re-ejecutado contra `dinamo-corjar/dinamo-rent-a-car`; `.vercel/project.json` actualizado con el `orgId` del team de Dinamo |
+| Repositorio | Link de Git intacto: `CORJAR-Computers/dinamo_rent_web`, rama `main` |
+| Cron | Tras el traspaso sigue habiendo **1** tarea: `/api/cron/p2p-check-pending` con `0 8 * * *` (08:00 UTC / 03:00 Colombia) |
+| Variables de entorno | **11 en Production**: las 10 heredadas (`DATABASE_URL`, `DIRECT_URL`, `ADMIN_PASSWORD`, `ADMIN_SECRET`, `DESKTOP_SYNC_TOKEN`, `P2P_ENV`, `P2P_RETURN_URL`, `P2P_NOTIFICATION_URL`, `P2P_LOGIN`, `P2P_TRAN_KEY`) más `CRON_SECRET` |
+| `CRON_SECRET` | Creado el 27-nov-2026 (32 bytes aleatorios, cargado por stdin, tipo **Secret**, valor nunca impreso ni versionado). Sonda verificada por HTTP: **401** sin cabecera y **200** con `Authorization: Bearer …` → `{"ok":true,…}`. Evidencia en [`evidencias/SONDA_200_PRODUCCION_2026-11-27.txt`](evidencias/SONDA_200_PRODUCCION_2026-11-27.txt) |
+| Despliegue productivo | Redesplegado el 27-nov-2026 (`dpl_2PRM6ps31CJ4ViYzCVUJhjzMvYcz` → `dinamo-rent-a-ajl4et3bw-dinamo-corjar.vercel.app`), aliasado a `dinamorentacar.com` y `www` |
+
+> El dominio `dinamorent.com` es **otro dominio** (IPs de Google, NS de SiteGround) y no tiene relación con este proyecto. El dominio del comercio es siempre `dinamorentacar.com`. Los correos del proyecto usan `tecnologia@dinamorentacar.com` (remitente) y `reservas@dinamorentacar.com` (contacto y retorno de pago).
+
+### 6.2 Pendiente (bloquea el corte a producción)
+
+1. **GitHub App de Vercel en la organización `CORJAR-Computers`.** La instalación de la App **no se hereda** con la transferencia del proyecto: el link de Git sigue presente, pero no está confirmado que la App esté autorizada en la org, así que un `push` puede no desplegar. Comprobación: *Project → Settings → Git* debe mostrar el repositorio **y** la organización autorizada; después, un `push` de prueba a una rama debe generar despliegue de Preview. Si no aparece, un admin de la org debe aprobar la instalación de la GitHub App de Vercel. Mientras tanto, los despliegues se hacen a mano con `vercel deploy` / `vercel redeploy`.
+2. **DNS en Hostinger sin cambiar.** El apex sigue resolviendo a Hostinger (`A 191.101.104.58` y `195.35.60.137`, más dos `AAAA` `2a02:4780:84:bea4:20:5d28:e4cd:9443` y `2a02:4780:84:4a24:d83e:3fd9:b0b0:b2ca`) y `www` es un `CNAME` a `www.dinamorentacar.com.cdn.hstgr.net` (CDN de Hostinger). Para servir desde Vercel: apex `A 216.198.79.1` y `A 64.29.17.1`, **borrando los dos `AAAA`** (si quedan, los clientes con IPv6 seguirían entrando a Hostinger); `www CNAME e3afc53ed41a68b1.vercel-dns-017.com`. **No tocar** NS, MX (`mx1/mx2.hostinger.com`) ni el SPF (`v=spf1 include:_spf.mail.hostinger.com ~all`), que sostienen el correo del comercio. Hasta el cambio, el sitio solo se ve en el dominio `*.vercel.app` y el `returnUrl` del checkout se arma con ese origen. Paso a paso, con verificación de propagación, correo y rollback: [`RUNBOOK_CAMBIO_DNS_HOSTINGER_VERCEL.md`](RUNBOOK_CAMBIO_DNS_HOSTINGER_VERCEL.md).
+3. **URL de notificación en la cuenta de producción de Evertec.** Debe quedar registrada `https://dinamorentacar.com/api/webhooks/placetopay` (hoy solo consta la de sandbox). Sin ella no llegan notificaciones asíncronas en producción.
+4. **`P2P_ENV=test` todavía.** El paso a `prod` con las credenciales productivas es el corte descrito en [`PLAN_CORTE_PRODUCCION.md`](PLAN_CORTE_PRODUCCION.md) y se hace en un solo redeploy con las tres variables juntas.
+5. **Pendientes administrativos previos:** rotar `ADMIN_PASSWORD` (clave temporal de certificación) y pasar el proyecto de Neon a la facturación de Dinamo.
+
+---
+
+## 7. Procedimiento para la Salida a Producción (Checklist Final)
 
 Una vez aprobada la llamada de certificación técnica con Evertec:
 

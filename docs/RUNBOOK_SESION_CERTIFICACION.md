@@ -1,7 +1,7 @@
 # Runbook — sesión de certificación Evertec / PlacetoPay
 
 Guion de la sesión en vivo con el analista de Evertec sobre el entorno desplegado
-(`https://dinamo-rent-a-car.vercel.app`, `P2P_ENV=test`, checkout en
+(`https://dinamorentacar.com`, `P2P_ENV=test`, checkout en
 `checkout-test.placetopay.com`, banner «No habrá afectación monetaria»).
 
 Los cinco escenarios ya se ejecutaron y evidenciaron el **26-nov-2026**; este
@@ -21,7 +21,7 @@ Evertec consulte sus registros en el sandbox.
 | 4 | Panel limpio | `/admin/reservas` | Las reservas de la sesión son las únicas PENDIENTES recientes |
 | 5 | Capturas listas | Carpeta `docs/evidencia/` y ZIP del 26-nov a mano | `capturas-evidencia-evertec.zip` (8 PNG) |
 | 6 | Credenciales | Clave admin temporal, `P2P_TRAN_KEY` y `CRON_SECRET` en el gestor, no en el repo | Se rotan al cierre |
-| 7 | Sonda autenticada | `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" https://dinamo-rent-a-car.vercel.app/api/cron/p2p-check-pending` | **200**; sin cabecera responde **401** — en producción `?test=true` ya no autoriza |
+| 7 | Sonda autenticada | `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" https://dinamorentacar.com/api/cron/p2p-check-pending` | **200**; sin cabecera responde **401** — en producción `?test=true` ya no autoriza |
 | 8 | Webhook y notificación | `SYNC_TOKEN=... node scripts/preflight-certificacion.mjs` | «Webhook exige firma» en verde y, si ya hay evidencia, «Notificación entrante» con una línea `[Webhook Evertec]`; si no, la produce §4, «Notificación entrante real» |
 
 Límites del entorno que condicionan el ritmo (contador compartido en base de
@@ -190,7 +190,7 @@ llamado a nuestro endpoint. Este paso produce esa evidencia y se hace una vez,
 antes o durante la sesión.
 
 **Requisito que no se ve desde el código.** La URL
-`https://dinamo-rent-a-car.vercel.app/api/webhooks/placetopay` debe estar
+`https://dinamorentacar.com/api/webhooks/placetopay` debe estar
 registrada en la cuenta sandbox de PlacetoPay. El checkout no la envía en el
 payload de la sesión; si no está registrada, no llega ninguna notificación.
 Confirmarlo con el analista antes de empezar (ver §8).

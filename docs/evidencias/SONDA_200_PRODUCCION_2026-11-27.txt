@@ -1,0 +1,54 @@
+Evidencia — Sonda de contingencia P2P (QuerySession) ejecutada en Production
+================================================================================
+
+Fecha de la ejecución : 2026-11-27 18:15:19 UTC (13:15 hora de Colombia)
+Proyecto              : dinamo-corjar/dinamo-rent-a-car
+Entorno               : Production (despliegue dpl_2PRM6ps31CJ4ViYzCVUJhjzMvYcz redeployado)
+URL del despliegue    : https://dinamo-rent-a-ajl4et3bw-dinamo-corjar.vercel.app
+Alias de producción   : https://dinamorentacar.com (ya asignado al proyecto)
+Endpoint              : GET /api/cron/p2p-check-pending
+Programación (Vercel Cron): "0 8 * * *"  → 03:00 Colombia, cada 24 h
+Autorización          : Authorization: Bearer $CRON_SECRET (valor no incluido en este documento)
+
+--------------------------------------------------------------------------------
+1) Petición SIN credenciales — se rechaza (fail closed)
+--------------------------------------------------------------------------------
+$ curl -i https://dinamo-rent-a-ajl4et3bw-dinamo-corjar.vercel.app/api/cron/p2p-check-pending
+HTTP 401
+{"ok":false,"error":"No autorizado para ejecutar la sonda."}
+
+--------------------------------------------------------------------------------
+2) Petición CON Bearer $CRON_SECRET — ejecuta la sonda
+--------------------------------------------------------------------------------
+$ curl -i -H "Authorization: Bearer $CRON_SECRET" \
+    https://dinamo-rent-a-ajl4et3bw-dinamo-corjar.vercel.app/api/cron/p2p-check-pending
+
+HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: application/json
+Date: Fri, 27 Nov 2026 18:15:19 GMT
+Server: Vercel
+X-Vercel-Cache: BYPASS
+X-Vercel-Id: iad1::iad1::c68jv-1795803317611-b796ac588aa6
+
+{"ok":true,"timestamp":"2026-11-27T18:15:19.381Z","processedCount":0,"expiredTokenCount":0,"expiredTokens":[],"results":[]}
+
+--------------------------------------------------------------------------------
+Lectura del resultado
+--------------------------------------------------------------------------------
+- ok:true y HTTP 200: la variable CRON_SECRET existe en Production y llega a la
+  función; la tarea programada de Vercel puede autenticarse igual que el disparo
+  manual (Vercel añade la cabecera Authorization por sí solo cuando la variable
+  está definida).
+- processedCount:0 / expiredTokenCount:0: no había pagos en PENDIENTE ni tokens
+  de garantía vencidos en el momento de la ejecución, por lo que la sonda no
+  necesitó llamar a la pasarela. Es un resultado válido: la ejecución completa
+  del recorrido (consulta QuerySession) se verá en la primera corrida que
+  encuentre una transacción pendiente.
+- Sin credenciales la sonda responde 401, como exige el diseño fail-closed.
+
+Nota importante: en el momento de esta captura la variable de entorno P2P_ENV
+del proyecto vale "test", de modo que la pasarela usada es el sandbox. Para la
+captura definitiva ante Evertec debe repetirse esta misma ejecución con
+P2P_ENV=prod y las credenciales productivas, y ya con el dominio resuelto a
+Vercel (dinamorentacar.com), no contra el dominio *.vercel.app.

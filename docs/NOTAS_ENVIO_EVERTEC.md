@@ -11,7 +11,7 @@ el `.txt` y nada más.
 
 | Campo | Valor |
 |---|---|
-| Remitente | `tecnología@dinamorent.com` — **confirmado**: es el correo de contacto técnico declarado en `docs/DOCUMENTO_TECNICO_PLACETOPAY.md` §9. Si el hilo con Evertec se llevó desde otra cuenta, usar esa para que el correo quede en la misma conversación |
+| Remitente | `tecnologia@dinamorentacar.com` — **confirmado**: es el correo de contacto técnico declarado en `docs/DOCUMENTO_TECNICO_PLACETOPAY.md` §9. Si el hilo con Evertec se llevó desde otra cuenta, usar esa para que el correo quede en la misma conversación |
 | Destinatario | Julián Esteban Guerrero Guzmán — `Julian.GuerreroGuzman@evertecinc.com` |
 | Copia | Laura Calle Ávila — `Laura.Calle@evertecinc.com` |
 | Asunto | Certificación PlacetoPay — validación del 26-nov, evidencia de los cinco escenarios y ajustes posteriores |
@@ -106,7 +106,7 @@ debe salir de ahí.
 - [x] Sin fechas comprometidas en el texto.
 - [x] El cobro de 1.000 COP aparece solo en el punto 4, como corrida interna.
 - [ ] Sustituir el marcador `[COMPLETAR ANTES DE ENVIAR: …]` por el nombre y apellido de quien firma.
-- [x] Remitente confirmado: `tecnología@dinamorent.com` (contacto técnico declarado en el documento de PlacetoPay).
+- [x] Remitente confirmado: `tecnologia@dinamorentacar.com` (contacto técnico declarado en el documento de PlacetoPay).
 - [x] ZIP verificado: 8 capturas, 479 KB, `SHA-256` idéntico al que cita el correo.
 - [x] PDF del acta regenerado desde el `.md` de `main` y revisado por texto: 6 páginas, sin el pendiente de capturas.
 - [ ] Adjuntar el PDF (`docs/ACTA_CERTIFICACION_EVERTEC_2026-11-26.pdf`) o el `.md`; no ambos.

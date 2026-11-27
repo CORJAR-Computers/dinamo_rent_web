@@ -180,7 +180,7 @@ Cada llamada saliente a las API de Place to Pay genera una cabecera criptográfi
     "subscribe": true
   },
   "expiration": "2026-09-21T19:00:00.000Z",
-  "returnUrl": "https://dinamorent.com/pago/retorno",
+  "returnUrl": "https://dinamorentacar.com/pago/retorno",
   "ipAddress": "190.131.x.x",
   "userAgent": "Mozilla/5.0 DinamoRent/1.0"
 }
@@ -304,7 +304,7 @@ Requisito de certificación: registrar o reemplazar la tarjeta de garantía sin 
     "description": "Tokenizacion tarjeta de garantia - Reserva DIN-189201-4412"
   },
   "expiration": "2026-09-21T19:00:00.000Z",
-  "returnUrl": "https://dinamo-rent-a-car.vercel.app/api/payments/token/resubscribe/return/<id-de-la-reserva>",
+  "returnUrl": "https://dinamorentacar.com/api/payments/token/resubscribe/return/<id-de-la-reserva>",
   "ipAddress": "190.131.x.x",
   "userAgent": "Mozilla/5.0 DinamoRent/1.0 Admin-Tokenization"
 }
@@ -400,5 +400,5 @@ La cadena se arma siempre con `P2P_TRAN_KEY`; el prefijo determina el algoritmo.
 ## 9. Contactos del Equipo de Desarrollo
 
 * **Líder de Proyecto & Arquitectura Técnica:** Equipo de Tecnología Dinamo Rent a Car
-* **Correo de Contacto Técnico:** `tecnologia@dinamorent.com` / `reservas@dinamorent.com`
+* **Correo de Contacto Técnico:** `tecnologia@dinamorentacar.com` / `reservas@dinamorentacar.com`
 * **Cartagena de Indias, Colombia**
