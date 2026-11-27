@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:index": "node scripts/generate-static-index.mjs",
-    "prepare": "git config core.hooksPath scripts/githooks || echo [aviso] no se pudo configurar el hook de git"
+    "prepare": "git config core.hooksPath scripts/githooks || echo [aviso] no se pudo configurar el hook de git",
+    "docs:pdf": "node scripts/acta-pdf.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -31,6 +32,7 @@
     "eslint": "^10.12.0",
     "eslint-plugin-svelte": "^3.23.1",
     "globals": "^17.13.0",
+    "marked": "^18.3.0",
     "svelte": "^5.57.1",
     "svelte-check": "^4.7.5",
     "tailwindcss": "^4.0.0",

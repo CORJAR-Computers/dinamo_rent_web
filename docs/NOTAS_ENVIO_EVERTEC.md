@@ -11,11 +11,11 @@ el `.txt` y nada más.
 
 | Campo | Valor |
 |---|---|
-| Remitente | `tecnología@dinamorent.com` — o la cuenta desde la que se haya llevado el hilo; conviene esa para que quede en la misma conversación |
+| Remitente | `tecnología@dinamorent.com` — **confirmado**: es el correo de contacto técnico declarado en `docs/DOCUMENTO_TECNICO_PLACETOPAY.md` §9. Si el hilo con Evertec se llevó desde otra cuenta, usar esa para que el correo quede en la misma conversación |
 | Destinatario | Julián Esteban Guerrero Guzmán — `Julian.GuerreroGuzman@evertecinc.com` |
 | Copia | Laura Calle Ávila — `Laura.Calle@evertecinc.com` |
 | Asunto | Certificación PlacetoPay — validación del 26-nov, evidencia de los cinco escenarios y ajustes posteriores |
-| Firma | Falta poner nombre y apellido en el `[Nombre]` del `.txt` |
+| Firma | Marcador `[COMPLETAR ANTES DE ENVIAR: nombre y apellido del firmante]` en el `.txt`. El repo no registra el nombre de quien firma, así que no se rellena con un dato inventado |
 
 ## Por qué el `.txt` y no el Markdown
 
@@ -35,8 +35,9 @@ correo enviado, que queda en la cuenta de correo, y guardar aquí una copia
 repo conserva las decisiones (este archivo) y la evidencia (acta y capturas).
 
 El **PDF del acta tampoco se versiona**: se genera desde el `.md` con
-`Chrome --headless --print-to-pdf` y se adjunta al correo. Versionarlo invitaría
-a enviar una copia vieja mientras el `.md` sigue cambiando.
+`npm run docs:pdf` (script `scripts/acta-pdf.mjs`, que imprime con Chrome a A4,
+con tablas sin partir y la §7 en página propia) y se adjunta al correo.
+Versionarlo invitaría a enviar una copia vieja mientras el `.md` sigue cambiando.
 
 ## Adjuntos
 
@@ -79,6 +80,9 @@ debe salir de ahí.
 - [x] El `requestId` del `Collect` ya está en `main`: el punto 3 puede citarlo.
 - [x] Sin fechas comprometidas en el texto.
 - [x] El cobro de 1.000 COP aparece solo en el punto 4, como corrida interna.
-- [ ] Poner nombre y apellido en `[Nombre]` del `.txt`.
-- [ ] Decidir si se adjunta PDF del acta en lugar del `.md`.
+- [ ] Sustituir el marcador `[COMPLETAR ANTES DE ENVIAR: …]` por el nombre y apellido de quien firma.
+- [x] Remitente confirmado: `tecnología@dinamorent.com` (contacto técnico declarado en el documento de PlacetoPay).
+- [x] ZIP verificado: 8 capturas, 479 KB, `SHA-256` idéntico al que cita el correo.
+- [x] PDF del acta regenerado desde el `.md` de `main` y revisado por texto: 6 páginas, sin el pendiente de capturas.
+- [ ] Adjuntar el PDF (`docs/ACTA_CERTIFICACION_EVERTEC_2026-11-26.pdf`) o el `.md`; no ambos.
 - [ ] Enviar desde la cuenta del hilo abierto con Evertec.
