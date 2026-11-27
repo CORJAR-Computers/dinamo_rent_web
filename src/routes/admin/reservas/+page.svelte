@@ -79,6 +79,7 @@
 			p2pStatusMessage?: string | null;
 			executedBy?: string | null;
 			reference?: string | null;
+			p2pRequestId?: string | null;
 			consentVersion?: string | null;
 			consentHash?: string | null;
 			resolution?: string | null;
@@ -1157,6 +1158,9 @@
 										</p>
 										{#if ch.p2pStatusMessage}
 											<p class="text-[10px] text-slate-400 mt-0.5">{ch.p2pStatusMessage}</p>
+										{/if}
+										{#if ch.p2pRequestId}
+											<p class="text-[9px] font-mono text-slate-500 mt-0.5">requestId pasarela {ch.p2pRequestId}</p>
 										{/if}
 										{#if ch.consentHash}
 											<p class="text-[9px] font-mono text-slate-500 mt-0.5">

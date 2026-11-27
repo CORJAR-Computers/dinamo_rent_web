@@ -53,6 +53,7 @@ export const load: PageServerLoad = async () => {
 						p2pStatusMessage: true,
 						executedBy: true,
 						reference: true,
+						p2pRequestId: true,
 						consentVersion: true,
 						consentHash: true,
 						resolution: true,
