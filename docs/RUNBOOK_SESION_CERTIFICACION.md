@@ -22,6 +22,7 @@ Evertec consulte sus registros en el sandbox.
 | 5 | Capturas listas | Carpeta `docs/evidencia/` y ZIP del 26-nov a mano | `capturas-evidencia-evertec.zip` (8 PNG) |
 | 6 | Credenciales | Clave admin temporal, `P2P_TRAN_KEY` y `CRON_SECRET` en el gestor, no en el repo | Se rotan al cierre |
 | 7 | Sonda autenticada | `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" https://dinamo-rent-a-car.vercel.app/api/cron/p2p-check-pending` | **200**; sin cabecera responde **401** — en producción `?test=true` ya no autoriza |
+| 8 | Webhook y notificación | `SYNC_TOKEN=... node scripts/preflight-certificacion.mjs` | «Webhook exige firma» en verde y, si ya hay evidencia, «Notificación entrante» con una línea `[Webhook Evertec]`; si no, la produce §4, «Notificación entrante real» |
 
 Límites del entorno que condicionan el ritmo (contador compartido en base de
 datos, ventana fija desde el primer intento): **8 sesiones de pago por IP cada 10
@@ -179,6 +180,64 @@ la respuesta 402 trae `attempts: 1`, `tokenInvalidation.applied: true` y
 petición» (mensaje global `XN`). Ese detalle es la prueba de que el build incluye
 `ef32c55`.
 **Cierre.** Es el escenario que más pesa: un solo intento invalida por política.
+
+---
+
+### Notificación entrante real (webhook)
+
+Las capturas del 26-nov prueban el ciclo del token, **no** que Evertec haya
+llamado a nuestro endpoint. Este paso produce esa evidencia y se hace una vez,
+antes o durante la sesión.
+
+**Requisito que no se ve desde el código.** La URL
+`https://dinamo-rent-a-car.vercel.app/api/webhooks/placetopay` debe estar
+registrada en la cuenta sandbox de PlacetoPay. El checkout no la envía en el
+payload de la sesión; si no está registrada, no llega ninguna notificación.
+Confirmarlo con el analista antes de empezar (ver §8).
+
+**Cómo provocarla.** Reserva nueva → sesión de **pago** normal (no tokenización)
+→ tarjeta `4110 7600 0000 0008` → pagar. No recargar `/pago/retorno` ni tocar el
+panel: esa pantalla solo lee la base y no consulta la pasarela. Evitar la franja
+de las 08:00 UTC, cuando corre el cron, para no confundir el origen.
+
+**Qué debe aparecer (≤2 min).**
+- `SyncLog`: `[Webhook Evertec] Pago APROBADO para reserva <CÓDIGO>`, con
+  `payload.requestId` = la sesión pagada, `payload.authorization` y
+  `payload.hasToken`. El pago pasa a `APROBADO` y la reserva a `PAGADA` en la
+  misma transacción.
+- Si la notificación es de una tokenización: `[Token] Nueva tokenización
+  administrativa para reserva <CÓDIGO>` (el retorno escribe otra línea distinta,
+  `[Token] Tarjeta de garantía actualizada…`; la que sirve es la primera).
+- Vercel → Logs: `POST /api/webhooks/placetopay 200` a la hora del pago.
+- Consulta para el acta (o `GET /api/sync` con bearer, que devuelve las últimas
+  10 líneas):
+  ```sql
+  SELECT "createdAt", message, payload->>'requestId' AS request_id
+  FROM sync_logs
+  WHERE message LIKE '[Webhook Evertec]%' OR message LIKE '[Token] Nueva tokenización%'
+  ORDER BY "createdAt" DESC LIMIT 5;
+  ```
+
+**Si no llega.**
+1. Pedir al analista que reenvíe la notificación de ese `requestId` desde su
+   consola y mirar Vercel → Logs.
+2. `401` → la firma no cuadra: la `P2P_TRAN_KEY` del despliegue no es la del
+   comercio (o la cuenta firmó con otra llave). No es un fallo de red.
+3. `502` → el webhook llegó, pero `QuerySession` no pudo confirmar la sesión.
+4. `200` con `duplicate: true` → la notificación llegó, pero el pago ya estaba
+   `APROBADO`: el webhook no reescribe ni deja `SyncLog`, así que la prueba es el
+   200 en el log y que el pago conserva su `updatedAt`.
+5. `200` «Notificación procesada sin registro local» → el `requestId` no
+   corresponde a ningún pago de esta base.
+
+**Qué capturar.** La línea de `SyncLog` con su `createdAt` y `requestId`, la
+línea de Vercel con hora y estado, y la fila del panel en `PAGADA`. Nombre:
+`notificacion-webhook-<requestId>.png`. Anotar hora y `requestId` en §5.
+
+**Si no se consigue.** Se declara pendiente en el acta. No se sustituye por un
+`curl` firmado con nuestra llave: eso prueba el endpoint, no que Evertec
+notifique. El preflight solo confirma que una firma inválida se rechaza con 401
+y, con `SYNC_TOKEN`, si ya existe una línea `[Webhook Evertec]` en `/api/sync`.
 
 ---
 
